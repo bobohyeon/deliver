@@ -1,0 +1,1312 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>화면 정의서 - PDF Brief AI</title>
+<style>
+@page { size: A4; margin: 14mm 12mm; }
+* { box-sizing: border-box; }
+body {
+  font-family: "Malgun Gothic", "맑은 고딕", -apple-system, sans-serif;
+  font-size: 10.5pt; line-height: 1.55; color: #1f2937;
+  max-width: 940px; margin: 0 auto; padding: 24px;
+}
+h1 {
+  font-size: 20pt; margin: 0 0 4px; padding-bottom: 10px;
+  border-bottom: 3px solid #1e40af; color: #0f172a;
+}
+h2 {
+  font-size: 14pt; margin: 26px 0 10px; padding: 7px 10px;
+  background: #1e40af; color: #fff; border-radius: 4px;
+  page-break-after: avoid;
+}
+h3 {
+  font-size: 11.5pt; margin: 18px 0 8px; padding-left: 8px;
+  border-left: 4px solid #1e40af; color: #1e3a8a;
+  page-break-after: avoid;
+}
+h4 { font-size: 10.5pt; margin: 14px 0 6px; color: #374151; }
+p { margin: 7px 0; }
+table {
+  width: 100%; border-collapse: collapse; margin: 10px 0 16px;
+  font-size: 9.5pt; page-break-inside: avoid;
+}
+th, td {
+  border: 1px solid #cbd5e1; padding: 6px 8px;
+  text-align: left; vertical-align: top; word-break: break-word;
+}
+th { background: #eef2ff; color: #1e3a8a; font-weight: 600; }
+tr:nth-child(even) td { background: #f8fafc; }
+pre {
+  background: #f5f6f8; border: 1px solid #d9dde3; border-left: 3px solid #64748b;
+  border-radius: 4px; padding: 10px 12px; margin: 10px 0;
+  font-family: Consolas, "D2Coding", monospace; font-size: 9pt;
+  line-height: 1.45; white-space: pre-wrap; page-break-inside: avoid;
+}
+code {
+  font-family: Consolas, "D2Coding", monospace; font-size: 9.2pt;
+  background: #eef1f5; padding: 1px 4px; border-radius: 3px; color: #b91c1c;
+}
+pre code { background: none; padding: 0; color: inherit; }
+blockquote {
+  margin: 10px 0; padding: 9px 13px;
+  background: #f1f5ff; border-left: 4px solid #93a9e8; border-radius: 0 4px 4px 0;
+  color: #333c52;
+}
+blockquote p { margin: 4px 0; }
+ul, ol { margin: 7px 0; padding-left: 22px; }
+li { margin: 3px 0; }
+hr { border: 0; border-top: 1px solid #dfe3e8; margin: 22px 0; }
+strong { color: #0f172a; }
+.doc-foot {
+  margin-top: 30px; padding-top: 10px; border-top: 1px solid #dfe3e8;
+  font-size: 8.5pt; color: #6b7280; text-align: center;
+}
+@media print {
+  body { padding: 0; }
+  h2 { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  th, tr:nth-child(even) td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+</style>
+</head>
+<body>
+<h1>화면 정의서</h1>
+<p><strong>프로젝트</strong> PDF Brief AI — 문서 요약·분류 웹 서비스</p>
+<p><strong>작성</strong> 김보현 | <strong>작성일</strong> 2026-08-04 | <strong>기준 커밋</strong> <code>main</code></p>
+<p><strong>대상</strong> 구현 완료된 4개 화면</p>
+<hr>
+<h2>0. 문서 개요</h2>
+<h3>0.1 화면 목록</h3>
+<table><thead><tr>
+<th>화면 ID</th>
+<th>화면명</th>
+<th>경로(URL)</th>
+<th>담당</th>
+<th>접근 권한</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>HOME</strong></td>
+<td>홈 (서비스 소개)</td>
+<td><code>/</code></td>
+<td>박세현</td>
+<td>공개</td>
+</tr>
+<tr>
+<td><strong>LIST</strong></td>
+<td>문서 목록 + 상세 패널</td>
+<td><code>/documents</code></td>
+<td>김보현</td>
+<td>공개</td>
+</tr>
+<tr>
+<td><strong>DTL</strong></td>
+<td>문서 상세 (전체 화면)</td>
+<td><code>/documents/:id</code></td>
+<td>김보현</td>
+<td>공개</td>
+</tr>
+<tr>
+<td><strong>UPL</strong></td>
+<td>문서 업로드 및 분석</td>
+<td><code>/upload</code></td>
+<td>최재정</td>
+<td>공개</td>
+</tr>
+<tr>
+<td><strong>CMP</strong></td>
+<td>OCR 엔진 비교</td>
+<td><code>/ocr-compare</code></td>
+<td>박세현</td>
+<td>공개</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>인증 기능은 미니프로젝트 범위에서 제외되었으므로 모든 화면이 공개다.
+도입 시의 보호 범위는 <strong>부록 D</strong>에 정의한다.</p>
+</blockquote>
+<h3>0.2 공통 레이아웃</h3>
+<p>모든 화면은 <code>MainLayout</code>을 공유한다. 헤더는 화면마다 다시 그리지 않는다.</p>
+<pre><code>┌──────────────────────────────────────────────────────────┐
+│ PDF Brief AI    홈  문서 목록                        (사용자) │  ← 공통 헤더
+├──────────────────────────────────────────────────────────┤
+│                                                          │
+│                    각 화면 본문                            │
+│                                                          │
+└──────────────────────────────────────────────────────────┘</code></pre>
+<table><thead><tr>
+<th>요소 ID</th>
+<th>유형</th>
+<th>명칭</th>
+<th>동작</th>
+</tr></thead><tbody>
+<tr>
+<td>CMN-01</td>
+<td>링크(로고)</td>
+<td>PDF Brief AI</td>
+<td><code>/</code> 로 이동</td>
+</tr>
+<tr>
+<td>CMN-02</td>
+<td>네비게이션</td>
+<td>홈</td>
+<td><code>/</code> 로 이동. 현재 화면이면 강조</td>
+</tr>
+<tr>
+<td>CMN-03</td>
+<td>네비게이션</td>
+<td>문서 목록</td>
+<td><code>/documents</code> 로 이동. 현재 화면이면 강조</td>
+</tr>
+<tr>
+<td>CMN-04</td>
+<td>네비게이션</td>
+<td>OCR 비교</td>
+<td><code>/ocr-compare</code> 로 이동. 현재 화면이면 강조</td>
+</tr>
+<tr>
+<td>CMN-05</td>
+<td>버튼(아이콘)</td>
+<td>사용자</td>
+<td><strong>동작 없음 — 인증 기능 삽입 지점</strong> (부록 D)</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>업로드 화면(<code>/upload</code>)은 헤더에 노출하지 않는다. 진입점을 문서 목록의 버튼으로 통일했다.</p>
+</blockquote>
+<ul>
+<li>컨테이너 최대 폭 <strong>1440px</strong>, 좌우 여백 <strong>28px</strong> (<code>--c-page-x</code>)</li>
+<li>색상은 라이트 모드 고정 (다크모드 미지원 — 결정사항 14)</li>
+<li>강조색 <code>#1e40af</code></li>
+</ul>
+<hr>
+<h2>1. HOME — 홈 (서비스 소개)</h2>
+<h3>1.1 개요</h3>
+<table><thead><tr>
+<th>항목</th>
+<th>내용</th>
+</tr></thead><tbody>
+<tr>
+<td>목적</td>
+<td>서비스가 무엇을 하는지, 각 기능을 어떻게 쓰는지 안내한다</td>
+</tr>
+<tr>
+<td>URL</td>
+<td><code>/</code></td>
+</tr>
+<tr>
+<td>연동 API</td>
+<td>없음 (정적 화면)</td>
+</tr>
+</tbody></table>
+<h3>1.2 영역 구성</h3>
+<pre><code>┌─────────────┬──────────────────────────────────┐
+│ HOME-01     │ HOME-02                          │
+│ 기능 메뉴    │ 설명 표시 영역                     │
+│ (3개)       │ (선택된 기능 또는 기본 소개)         │
+└─────────────┴──────────────────────────────────┘</code></pre>
+<h3>1.3 UI 요소</h3>
+<table><thead><tr>
+<th>요소 ID</th>
+<th>유형</th>
+<th>명칭</th>
+<th>동작</th>
+</tr></thead><tbody>
+<tr>
+<td>HOME-01</td>
+<td>메뉴 목록</td>
+<td>문서업로드 / AI분석 / 검색·다운로드</td>
+<td><strong>마우스 올림(hover)</strong> 시 해당 기능 설명으로 전환, 강조 표시</td>
+</tr>
+<tr>
+<td>HOME-02</td>
+<td>텍스트 영역</td>
+<td>설명</td>
+<td>선택된 메뉴의 설명을 문단 단위로 표시. 미선택 시 <code>서비스 소개</code> 기본 문구</td>
+</tr>
+</tbody></table>
+<ul>
+<li>메뉴 영역에서 마우스가 벗어나면(<code>onMouseLeave</code>) 기본 소개로 복귀한다.</li>
+<li>클릭이 아니라 hover로 동작하므로 <strong>화면 이동이 발생하지 않는다.</strong></li>
+</ul>
+<h3>1.4 상태별 표시</h3>
+<table><thead><tr>
+<th>상태</th>
+<th>표시</th>
+</tr></thead><tbody>
+<tr>
+<td>기본</td>
+<td>제목 <code>서비스 소개</code> + 서비스 전체 설명 3문단</td>
+</tr>
+<tr>
+<td>메뉴 hover</td>
+<td>제목 = 메뉴명, 본문 = 해당 기능 사용 방법</td>
+</tr>
+</tbody></table>
+<h3>1.5 비고</h3>
+<ul>
+<li>기능이 추가될 때 <strong>설명서 역할</strong>을 하도록 설계된 영역이다. 메뉴 배열에 항목을 추가하면 화면이 확장된다.</li>
+<li>이 영역의 문구는 산출물 <code>운영 메뉴얼</code>의 &quot;사용 방법&quot; 절과 내용을 공유한다.</li>
+</ul>
+<hr>
+<h2>2. LIST — 문서 목록 + 상세 패널</h2>
+<h3>2.1 개요</h3>
+<table><thead><tr>
+<th>항목</th>
+<th>내용</th>
+</tr></thead><tbody>
+<tr>
+<td>목적</td>
+<td>업로드된 문서를 검색·조회하고, 선택한 문서의 상세를 같은 화면에서 확인한다</td>
+</tr>
+<tr>
+<td>URL</td>
+<td><code>/documents</code></td>
+</tr>
+<tr>
+<td>URL 파라미터</td>
+<td><code>q</code>(검색어) · <code>category</code>(카테고리) · <code>page</code>(페이지) · <code>selected</code>(선택 문서 ID)</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p><strong>조회 조건과 선택 문서를 모두 URL에 보관한다.</strong> 새로고침·뒤로가기·주소 공유 시 같은 화면이 재현된다.</p>
+</blockquote>
+<h3>2.2 영역 구성</h3>
+<p><strong>패널 닫힘 (기본)</strong></p>
+<pre><code>┌──────────────────────────────────────────────────┐
+│ LST-01 제목 · 건수                LST-03 업로드 버튼 │
+├──────────────────────────────────────────────────┤
+│ LST-04 검색어  LST-05 카테고리  LST-06 검색  LST-07 초기화│
+├──────────────────────────────────────────────────┤
+│ LST-10 문서 표 (5열)                              │
+├──────────────────────────────────────────────────┤
+│ LST-20 페이징                                     │
+└──────────────────────────────────────────────────┘</code></pre>
+<p><strong>패널 열림 (문서 선택 시)</strong></p>
+<pre><code>┌───────────────────────┬──────────────────────────┐
+│ LST-10 문서 표 (4열)   │ LST-30 상세 패널           │
+│ 560px 고정            │ (DTL 화면과 동일 컴포넌트)   │
+│ ※ 스크롤 시 위치 고정   │                          │
+└───────────────────────┴──────────────────────────┘</code></pre>
+<h3>2.3 UI 요소</h3>
+<table><thead><tr>
+<th>요소 ID</th>
+<th>유형</th>
+<th>명칭</th>
+<th>필수</th>
+<th>동작 / 유효성</th>
+</tr></thead><tbody>
+<tr>
+<td>LST-01</td>
+<td>텍스트</td>
+<td>문서 목록</td>
+<td>-</td>
+<td>화면 제목</td>
+</tr>
+<tr>
+<td>LST-02</td>
+<td>텍스트</td>
+<td>전체 N건</td>
+<td>-</td>
+<td>검색 조건이 있으면 <code>(검색 결과)</code> 병기</td>
+</tr>
+<tr>
+<td>LST-03</td>
+<td>링크(버튼)</td>
+<td>새 문서 업로드</td>
+<td>-</td>
+<td><code>/upload</code> 로 이동</td>
+</tr>
+<tr>
+<td>LST-04</td>
+<td>입력(search)</td>
+<td>검색어</td>
+<td>선택</td>
+<td>파일명 <strong>또는 본문 내용</strong> 부분 일치. <code>Enter</code> 또는 LST-06 으로 실행</td>
+</tr>
+<tr>
+<td>LST-05</td>
+<td>선택(select)</td>
+<td>카테고리</td>
+<td>선택</td>
+<td><code>전체 / 계약서 / 보고서 / 회의록 / 공지사항 / 메뉴얼 / 기타</code>. <strong>선택 즉시 조회</strong></td>
+</tr>
+<tr>
+<td>LST-06</td>
+<td>버튼</td>
+<td>검색</td>
+<td>-</td>
+<td>검색어를 URL에 반영하고 1페이지부터 조회</td>
+</tr>
+<tr>
+<td>LST-07</td>
+<td>버튼</td>
+<td>초기화</td>
+<td>-</td>
+<td>조건이 있을 때만 표시. 모든 조건 해제</td>
+</tr>
+<tr>
+<td>LST-10</td>
+<td>표</td>
+<td>문서 목록</td>
+<td>-</td>
+<td>아래 열 정의 참조</td>
+</tr>
+<tr>
+<td>LST-11</td>
+<td>버튼(링크형)</td>
+<td>파일명</td>
+<td>-</td>
+<td><strong>클릭 시 이동하지 않고 LST-30 패널에 상세 표시.</strong> 해당 행 강조</td>
+</tr>
+<tr>
+<td>LST-20</td>
+<td>페이징</td>
+<td>이전 / N/M / 다음</td>
+<td>-</td>
+<td>총 페이지가 2 이상일 때만 표시. 경계에서 비활성</td>
+</tr>
+<tr>
+<td>LST-30</td>
+<td>패널</td>
+<td>상세</td>
+<td>-</td>
+<td><code>DocumentDetail</code> 컴포넌트 (3.3의 DTL-10~DTL-40과 동일)</td>
+</tr>
+<tr>
+<td>LST-31</td>
+<td>링크</td>
+<td>전체 화면으로 보기</td>
+<td>-</td>
+<td><code>/documents/{id}</code> (DTL 화면)으로 이동</td>
+</tr>
+<tr>
+<td>LST-32</td>
+<td>버튼</td>
+<td>닫기(✕)</td>
+<td>-</td>
+<td>패널을 닫고 표를 5열로 복원</td>
+</tr>
+</tbody></table>
+<h4>LST-10 표 열 정의</h4>
+<table><thead><tr>
+<th>열</th>
+<th>명칭</th>
+<th>패널 닫힘</th>
+<th>패널 열림</th>
+<th>내용</th>
+</tr></thead><tbody>
+<tr>
+<td>1</td>
+<td>파일명</td>
+<td>28%</td>
+<td>42%</td>
+<td>파일명 + 하단에 문서 유형</td>
+</tr>
+<tr>
+<td>2</td>
+<td>카테고리</td>
+<td>12%</td>
+<td>19%</td>
+<td>카테고리 배지. 분석 전이면 <code>—</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>요약</td>
+<td>34%</td>
+<td><strong>숨김</strong></td>
+<td>요약 미리보기 100자, 최대 2줄. 분석 전이면 <code>분석 전</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>상태</td>
+<td>13%</td>
+<td>19%</td>
+<td>상태 배지</td>
+</tr>
+<tr>
+<td>5</td>
+<td>업로드</td>
+<td>13%</td>
+<td>20%</td>
+<td><code>MM-DD HH:mm</code></td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>패널이 열리면 요약 전문이 패널에 표시되므로 <strong>요약 열만 숨긴다.</strong></p>
+</blockquote>
+<h3>2.4 연동 API</h3>
+<table><thead><tr>
+<th>시점</th>
+<th>메서드</th>
+<th>엔드포인트</th>
+<th>파라미터</th>
+</tr></thead><tbody>
+<tr>
+<td>진입 · 조건 변경</td>
+<td>GET</td>
+<td><code>/api/documents</code></td>
+<td><code>q</code> <code>document_type</code> <code>category</code> <code>page</code> <code>size=20</code></td>
+</tr>
+<tr>
+<td>파일명 선택</td>
+<td>GET</td>
+<td><code>/api/documents/{id}</code></td>
+<td>-</td>
+</tr>
+<tr>
+<td>패널 내 분석 실행</td>
+<td>POST</td>
+<td><code>/api/documents/{id}/analyze</code></td>
+<td><code>analyzer_types</code></td>
+</tr>
+<tr>
+<td>패널 내 다운로드</td>
+<td>GET</td>
+<td><code>/api/documents/{id}/download</code></td>
+<td><code>format=txt</code></td>
+</tr>
+</tbody></table>
+<p><strong>목록 응답</strong> <code>{ items, page, size, total, total_pages }</code></p>
+<p><strong>항목 필드</strong> <code>id · filename · document_type · status · category · summary_preview · created_at</code></p>
+<h3>2.5 상태별 표시</h3>
+<table><thead><tr>
+<th>상태</th>
+<th>표시</th>
+</tr></thead><tbody>
+<tr>
+<td>조회 중</td>
+<td>스피너 + <code>문서를 불러오는 중입니다…</code></td>
+</tr>
+<tr>
+<td>문서 없음</td>
+<td>표 안에 <code>업로드된 문서가 없습니다. 먼저 문서를 업로드해 주세요.</code></td>
+</tr>
+<tr>
+<td>검색 결과 없음</td>
+<td>표 안에 <code>조건에 맞는 문서가 없습니다.</code></td>
+</tr>
+<tr>
+<td>조회 실패</td>
+<td>에러 배너 + <code>다시 시도</code> 버튼</td>
+</tr>
+<tr>
+<td>패널 조회 중</td>
+<td>패널 안에 스피너</td>
+</tr>
+<tr>
+<td>패널 동작 실패</td>
+<td><strong>문서 내용을 유지한 채</strong> 패널 상단에 에러 배너</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>조회 실패와 동작(분석·다운로드) 실패를 구분한다. 다운로드가 실패해도 보고 있던 문서가 사라지지 않는다.</p>
+</blockquote>
+<h3>2.6 동작 규칙</h3>
+<ul>
+<li>검색어는 <code>Enter</code>/버튼으로만 실행한다. 입력 중 매 글자마다 조회하지 않는다 (조회 부하 방지).</li>
+<li>검색·카테고리·페이지가 변경되면 <strong>선택이 해제되어 패널이 닫힌다.</strong></li>
+<li>패널에서 분석을 실행하면 <strong>목록도 다시 조회</strong>하여 해당 행의 카테고리·요약이 갱신된다.</li>
+<li>패널이 열려 있을 때 목록 영역은 화면에 고정된다(<code>sticky</code>). 화면 폭 1100px 이하에서는 위아래로 쌓이고 고정이 해제된다.</li>
+</ul>
+<hr>
+<h2>3. DTL — 문서 상세 (전체 화면)</h2>
+<h3>3.1 개요</h3>
+<table><thead><tr>
+<th>항목</th>
+<th>내용</th>
+</tr></thead><tbody>
+<tr>
+<td>목적</td>
+<td>문서 1건의 요약·분류 근거·원문·분석 이력을 넓은 화면에서 확인하고, 분석·다운로드를 실행한다</td>
+</tr>
+<tr>
+<td>URL</td>
+<td><code>/documents/:id</code></td>
+</tr>
+</tbody></table>
+<h3>3.2 영역 구성</h3>
+<pre><code>DTL-01 ← 목록으로
+────────────────────────────────────────────
+DTL-10 파일명                DTL-11 분석  DTL-12 다운로드
+DTL-13 배지 (카테고리 · 상태 · 추출방식)
+────────────────────────────────────────────
+DTL-20 메타 정보 (한 줄)
+DTL-30 AI 요약
+DTL-31 분류 근거
+DTL-32 추출 원문 (접기/펼치기)
+DTL-40 분석 이력 (표)</code></pre>
+<h3>3.3 UI 요소</h3>
+<table><thead><tr>
+<th>요소 ID</th>
+<th>유형</th>
+<th>명칭</th>
+<th>동작 / 규칙</th>
+</tr></thead><tbody>
+<tr>
+<td>DTL-01</td>
+<td>버튼</td>
+<td>← 목록으로</td>
+<td><strong>직전 화면이 목록이면 뒤로가기</strong>(검색 조건·페이지 유지). 주소로 직접 진입한 경우 <code>/documents</code> 로 이동</td>
+</tr>
+<tr>
+<td>DTL-10</td>
+<td>텍스트</td>
+<td>파일명</td>
+<td>길면 줄바꿈. 레이아웃을 밀지 않음</td>
+</tr>
+<tr>
+<td>DTL-11</td>
+<td>버튼</td>
+<td>AI 분석 실행</td>
+<td><strong>분석 이력이 없을 때만 표시.</strong> 실행 중 <code>분석 중…</code> 으로 바뀌고 비활성</td>
+</tr>
+<tr>
+<td>DTL-12</td>
+<td>버튼</td>
+<td>요약 .txt 다운로드</td>
+<td><strong>분석 이력이 없으면 비활성</strong> + 안내 <code>분석을 먼저 실행해야 합니다</code></td>
+</tr>
+<tr>
+<td>DTL-13</td>
+<td>배지</td>
+<td>카테고리 / 상태 / 추출방식</td>
+<td>값이 없으면 <code>—</code></td>
+</tr>
+<tr>
+<td>DTL-20</td>
+<td>정의 목록</td>
+<td>유형 · 형식 · 페이지 · 글자 수 · 업로드</td>
+<td>한 줄 배치. 값 없으면 <code>-</code></td>
+</tr>
+<tr>
+<td>DTL-30</td>
+<td>텍스트</td>
+<td>AI 요약</td>
+<td>강조색 좌측 선. 최대 높이 제한 후 내부 스크롤. <strong>미분석 시</strong> <code>아직 분석되지 않았습니다</code></td>
+</tr>
+<tr>
+<td>DTL-31</td>
+<td>텍스트</td>
+<td>분류 근거</td>
+<td>분류 결과가 있을 때만 표시</td>
+</tr>
+<tr>
+<td>DTL-32</td>
+<td>텍스트(원문)</td>
+<td>추출 원문</td>
+<td>기본 <strong>700자까지 접힘</strong>. <code>전체 보기</code> 클릭 시 전체 표시(최대 높이 제한 + 내부 스크롤)</td>
+</tr>
+<tr>
+<td>DTL-40</td>
+<td>표</td>
+<td>분석 이력</td>
+<td>분석기 / 제공자·모델 / 토큰(입력·출력) / 응답 시간 / 실행 일시</td>
+</tr>
+</tbody></table>
+<h3>3.4 연동 API</h3>
+<table><thead><tr>
+<th>시점</th>
+<th>메서드</th>
+<th>엔드포인트</th>
+</tr></thead><tbody>
+<tr>
+<td>진입</td>
+<td>GET</td>
+<td><code>/api/documents/{id}</code></td>
+</tr>
+<tr>
+<td>DTL-11</td>
+<td>POST</td>
+<td><code>/api/documents/{id}/analyze</code> → 성공 후 상세 재조회</td>
+</tr>
+<tr>
+<td>DTL-12</td>
+<td>GET</td>
+<td><code>/api/documents/{id}/download?format=txt</code></td>
+</tr>
+</tbody></table>
+<ul>
+<li>다운로드 파일명은 <code>{원본파일명}_요약.txt</code> 이며, 서버가 <code>Content-Disposition</code>에 UTF-8로 인코딩해 전달한다(한글 파일명 대응).</li>
+<li>다운로드 내용: 파일명 · 문서 유형 · 업로드/분석 일시 · <strong>카테고리 · 분류 근거 · 요약</strong>. 원문은 포함하지 않는다.</li>
+</ul>
+<h3>3.5 상태별 표시</h3>
+<table><thead><tr>
+<th>상태</th>
+<th>표시</th>
+</tr></thead><tbody>
+<tr>
+<td>조회 중</td>
+<td>스피너</td>
+</tr>
+<tr>
+<td>조회 실패</td>
+<td>에러 배너 + <code>다시 시도</code> + <code>문서 목록으로 이동</code> 링크</td>
+</tr>
+<tr>
+<td>분석/다운로드 실패</td>
+<td><strong>문서를 유지한 채</strong> 상단에 에러 배너</td>
+</tr>
+<tr>
+<td>원문 없음</td>
+<td><code>추출된 텍스트가 없습니다.</code></td>
+</tr>
+<tr>
+<td>분석 이력 없음</td>
+<td>분석 이력 영역 자체를 표시하지 않음</td>
+</tr>
+</tbody></table>
+<h3>3.6 비고</h3>
+<ul>
+<li>DTL-10 ~ DTL-40 은 <strong>LIST 화면의 상세 패널(LST-30)과 동일한 컴포넌트</strong>다. 상세 표현을 수정하면 두 화면에 동시에 반영된다.</li>
+<li><code>분석 이력</code>은 재분석 시 행이 누적된다. <code>응답 시간</code>은 분량 제한값(45,000자) 적정성 검토의 근거 자료로 사용한다.</li>
+</ul>
+<hr>
+<h2>4. UPL — 문서 업로드 및 분석</h2>
+<h3>4.1 개요</h3>
+<table><thead><tr>
+<th>항목</th>
+<th>내용</th>
+</tr></thead><tbody>
+<tr>
+<td>목적</td>
+<td>문서를 업로드하고, 추출 결과를 원본과 비교하며, 필요한 AI 분석을 선택 실행한다</td>
+</tr>
+<tr>
+<td>URL</td>
+<td><code>/upload</code></td>
+</tr>
+<tr>
+<td>진입 경로</td>
+<td>LIST 화면의 <code>새 문서 업로드</code>(LST-03). <strong>헤더 메뉴에는 노출하지 않는다</strong></td>
+</tr>
+</tbody></table>
+<h3>4.2 영역 구성</h3>
+<pre><code>UPL-01 제목 · 설명                        UPL-02 문서 목록으로
+────────────────────────────────────────────────────────
+[01] UPL-10 파일 선택 (드롭존)
+────────────────────────────────────────────────────────
+[02] UPL-20 추출 결과 비교
+     ┌─ 업로드 원본 ─┬─ 추출 텍스트 ─┐
+     │ 미리보기      │ 추출 결과     │
+     └──────────────┴──────────────┘
+────────────────────────────────────────────────────────
+[03] UPL-30 AI 분석 (요약 / 분류 선택 실행)</code></pre>
+<h3>4.3 UI 요소</h3>
+<table><thead><tr>
+<th>요소 ID</th>
+<th>유형</th>
+<th>명칭</th>
+<th>필수</th>
+<th>동작 / 유효성</th>
+</tr></thead><tbody>
+<tr>
+<td>UPL-01</td>
+<td>텍스트</td>
+<td>문서 업로드 및 분석</td>
+<td>-</td>
+<td>화면 제목</td>
+</tr>
+<tr>
+<td>UPL-02</td>
+<td>링크</td>
+<td>문서 목록으로</td>
+<td>-</td>
+<td><code>/documents</code> 로 이동</td>
+</tr>
+<tr>
+<td>UPL-10</td>
+<td>드롭존</td>
+<td>파일 끌어놓기 영역</td>
+<td>필수</td>
+<td>드래그 중 강조. 파일 1건</td>
+</tr>
+<tr>
+<td>UPL-11</td>
+<td>버튼</td>
+<td>파일 선택 / 다른 파일 선택</td>
+<td>-</td>
+<td>파일 탐색기 열기</td>
+</tr>
+<tr>
+<td>UPL-12</td>
+<td>텍스트</td>
+<td>선택 파일 정보</td>
+<td>-</td>
+<td>파일명 · 확장자 · 크기(MB)</td>
+</tr>
+<tr>
+<td>UPL-13</td>
+<td>버튼</td>
+<td>선택 취소</td>
+<td>-</td>
+<td>선택·결과 초기화</td>
+</tr>
+<tr>
+<td>UPL-14</td>
+<td>버튼</td>
+<td>OCR 전송</td>
+<td>-</td>
+<td>업로드 실행. <strong>명칭 변경 예정 → <code>업로드 및 추출</code></strong> (부록 E)</td>
+</tr>
+<tr>
+<td>UPL-20</td>
+<td>미리보기</td>
+<td>업로드 원본</td>
+<td>-</td>
+<td>이미지는 그대로, PDF는 브라우저 내장 뷰어. <strong>DOCX·HWPX는 미리보기 미지원 안내</strong></td>
+</tr>
+<tr>
+<td>UPL-21</td>
+<td>텍스트</td>
+<td>추출 텍스트</td>
+<td>-</td>
+<td>추출 결과 전문 + 글자 수</td>
+</tr>
+<tr>
+<td>UPL-22</td>
+<td>텍스트</td>
+<td>추출 통계</td>
+<td>-</td>
+<td>추출 방식 · 글자 수 · 페이지 수</td>
+</tr>
+<tr>
+<td>UPL-30</td>
+<td>체크박스</td>
+<td>핵심 요약</td>
+<td>선택</td>
+<td>기본 선택</td>
+</tr>
+<tr>
+<td>UPL-31</td>
+<td>체크박스</td>
+<td>카테고리 분류</td>
+<td>선택</td>
+<td>기본 선택</td>
+</tr>
+<tr>
+<td>UPL-32</td>
+<td>버튼</td>
+<td>분석 실행</td>
+<td>-</td>
+<td>UPL-30·31 중 <strong>하나 이상 필수</strong>. 미선택 시 안내 표시</td>
+</tr>
+</tbody></table>
+<h4>업로드 유효성 검증</h4>
+<table><thead><tr>
+<th>항목</th>
+<th>기준</th>
+<th>위반 시</th>
+</tr></thead><tbody>
+<tr>
+<td>확장자</td>
+<td><code>pdf</code> <code>docx</code> <code>hwpx</code> <code>png</code> <code>jpg</code> <code>jpeg</code></td>
+<td>화면에서 즉시 안내 (전송 안 함)</td>
+</tr>
+<tr>
+<td>파일 크기</td>
+<td>10MB 이하</td>
+<td>화면에서 즉시 안내</td>
+</tr>
+<tr>
+<td>페이지 수</td>
+<td>PDF 30페이지 이하</td>
+<td>서버 <code>TOO_MANY_PAGES</code></td>
+</tr>
+<tr>
+<td>추출 글자 수</td>
+<td>45,000자 이하</td>
+<td>서버 <code>CONTENT_TOO_LARGE</code></td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>확장자·크기는 <strong>화면에서 먼저 검사</strong>해 불필요한 전송을 막고, 페이지 수·글자 수는 추출 과정에서 서버가 검사한다.</p>
+</blockquote>
+<h3>4.4 연동 API</h3>
+<table><thead><tr>
+<th>시점</th>
+<th>메서드</th>
+<th>엔드포인트</th>
+</tr></thead><tbody>
+<tr>
+<td>UPL-14</td>
+<td>POST</td>
+<td><code>/api/documents</code> (multipart, <code>file</code>)</td>
+</tr>
+<tr>
+<td>업로드 직후</td>
+<td>GET</td>
+<td><code>/api/documents/{id}</code> — 추출 원문 조회</td>
+</tr>
+<tr>
+<td>UPL-32</td>
+<td>POST</td>
+<td><code>/api/documents/{id}/analyze</code></td>
+</tr>
+</tbody></table>
+<h3>4.5 상태별 표시</h3>
+<table><thead><tr>
+<th>상태</th>
+<th>표시</th>
+</tr></thead><tbody>
+<tr>
+<td>업로드 중</td>
+<td>스피너 + <code>OCR 작업이 진행 중입니다…</code> + 안내 문구</td>
+</tr>
+<tr>
+<td>업로드 전</td>
+<td>02·03 영역 미표시</td>
+</tr>
+<tr>
+<td>미리보기 불가 형식</td>
+<td>확장자 표기 + <code>이 형식은 브라우저 미리보기를 지원하지 않습니다</code></td>
+</tr>
+<tr>
+<td>추출 텍스트 없음</td>
+<td><code>추출된 텍스트가 없습니다.</code></td>
+</tr>
+<tr>
+<td>실패</td>
+<td>화면 상단 에러 배너</td>
+</tr>
+</tbody></table>
+<h3>4.6 비고</h3>
+<ul>
+<li>업로드 성공 후 화면을 이동하지 않고 <strong>같은 화면에서 추출 결과와 분석까지 완료</strong>한다.</li>
+<li>좌우 여백이 다른 화면과 다르다. <strong><code>--c-page-x</code> 적용으로 통일 예정</strong> (부록 E)</li>
+</ul>
+<hr>
+<h2>5. CMP — OCR 엔진 비교</h2>
+<h3>5.1 개요</h3>
+<table><thead><tr>
+<th>항목</th>
+<th>내용</th>
+</tr></thead><tbody>
+<tr>
+<td>목적</td>
+<td>같은 이미지를 <strong>PaddleOCR과 Tesseract 두 엔진으로 동시에 처리</strong>해 인식 신뢰도와 소요시간을 비교한다</td>
+</tr>
+<tr>
+<td>URL</td>
+<td><code>/ocr-compare</code></td>
+</tr>
+<tr>
+<td>배경</td>
+<td>결정사항 1(OCR 엔진 = PaddleOCR)의 근거였던 &quot;한국어 정확도&quot;를 주장이 아니라 실측으로 확인하기 위한 화면</td>
+</tr>
+</tbody></table>
+<h3>5.2 영역 구성</h3>
+<pre><code>CMP-01 제목 · 설명 (정확도 지표의 의미 명시)
+────────────────────────────────────────────
+CMP-10 이미지 선택   CMP-11 비교 실행
+CMP-12 미리보기
+────────────────────────────────────────────
+┌── PaddleOCR ──────┬── Tesseract ──────┐
+│ 정확도 / 소요시간   │ 정확도 / 소요시간   │
+│ 추출 글자 수        │ 추출 글자 수        │
+│ 인식 텍스트         │ 인식 텍스트         │
+└───────────────────┴───────────────────┘
+        CMP-20                CMP-21</code></pre>
+<h3>5.3 UI 요소</h3>
+<table><thead><tr>
+<th>요소 ID</th>
+<th>유형</th>
+<th>명칭</th>
+<th>필수</th>
+<th>동작 / 유효성</th>
+</tr></thead><tbody>
+<tr>
+<td>CMP-01</td>
+<td>텍스트</td>
+<td>OCR 엔진 비교</td>
+<td>-</td>
+<td>제목 + 지표 설명</td>
+</tr>
+<tr>
+<td>CMP-10</td>
+<td>입력(file)</td>
+<td>비교할 이미지 선택</td>
+<td>필수</td>
+<td><strong>PNG · JPG · JPEG 만 허용</strong> (PDF·DOCX·HWPX 불가)</td>
+</tr>
+<tr>
+<td>CMP-11</td>
+<td>버튼</td>
+<td>비교 실행</td>
+<td>-</td>
+<td>파일 미선택 시 비활성. 실행 중 <code>비교 실행 중...</code></td>
+</tr>
+<tr>
+<td>CMP-12</td>
+<td>미리보기</td>
+<td>선택 이미지</td>
+<td>-</td>
+<td>선택한 이미지를 그대로 표시</td>
+</tr>
+<tr>
+<td>CMP-20</td>
+<td>결과 카드</td>
+<td>PaddleOCR</td>
+<td>-</td>
+<td>정확도 · 소요시간 · 추출 글자 수 · 인식 텍스트</td>
+</tr>
+<tr>
+<td>CMP-21</td>
+<td>결과 카드</td>
+<td>Tesseract</td>
+<td>-</td>
+<td>동일 구성</td>
+</tr>
+<tr>
+<td>CMP-22</td>
+<td>배지</td>
+<td>더 정확함 / 더 빠름</td>
+<td>-</td>
+<td>두 엔진 값을 비교해 우세한 쪽 카드에만 표시. 값이 같으면 미표시</td>
+</tr>
+</tbody></table>
+<h4>유효성 검증</h4>
+<table><thead><tr>
+<th>항목</th>
+<th>기준</th>
+<th>위반 시 에러 코드</th>
+</tr></thead><tbody>
+<tr>
+<td>파일명</td>
+<td>존재해야 함</td>
+<td><code>INVALID_FILE_TYPE</code></td>
+</tr>
+<tr>
+<td>확장자</td>
+<td><code>.png</code> <code>.jpg</code> <code>.jpeg</code></td>
+<td><code>INVALID_FILE_TYPE</code></td>
+</tr>
+<tr>
+<td>파일 크기</td>
+<td>10MB 이하</td>
+<td><code>FILE_TOO_LARGE</code></td>
+</tr>
+<tr>
+<td>파일 내용</td>
+<td>빈 파일 불가 / 이미지로 열려야 함</td>
+<td><code>EXTRACTION_FAILED</code></td>
+</tr>
+</tbody></table>
+<h3>5.4 연동 API</h3>
+<table><thead><tr>
+<th>시점</th>
+<th>메서드</th>
+<th>엔드포인트</th>
+<th>요청</th>
+</tr></thead><tbody>
+<tr>
+<td>CMP-11</td>
+<td>POST</td>
+<td><code>/api/ocr-compare</code></td>
+<td>multipart, <code>file</code></td>
+</tr>
+</tbody></table>
+<p><strong>응답</strong></p>
+<pre><code>{
+  paddle:    { avg_confidence, elapsed_ms, char_count, text },
+  tesseract: { avg_confidence, elapsed_ms, char_count, text }
+}</code></pre>
+<table><thead><tr>
+<th>필드</th>
+<th>화면 표시</th>
+</tr></thead><tbody>
+<tr>
+<td><code>avg_confidence</code></td>
+<td><code>정확도</code> — 소수 1자리 + <code>%</code>. <code>null</code>이면 <code>—</code></td>
+</tr>
+<tr>
+<td><code>elapsed_ms</code></td>
+<td><code>소요시간</code> — 천 단위 구분 + <code>ms</code></td>
+</tr>
+<tr>
+<td><code>char_count</code></td>
+<td><code>추출 글자 수</code> — 천 단위 구분 + <code>자</code></td>
+</tr>
+<tr>
+<td><code>text</code></td>
+<td>인식 텍스트. 비어 있으면 <code>(인식된 텍스트 없음)</code></td>
+</tr>
+</tbody></table>
+<h3>5.5 상태별 표시</h3>
+<table><thead><tr>
+<th>상태</th>
+<th>표시</th>
+</tr></thead><tbody>
+<tr>
+<td>실행 중</td>
+<td>스피너 + <code>두 엔진으로 OCR을 실행하는 중입니다…</code></td>
+</tr>
+<tr>
+<td>실행 전</td>
+<td>결과 카드 미표시</td>
+</tr>
+<tr>
+<td>실패</td>
+<td>에러 배너 + <code>다시 시도</code>(파일이 선택된 경우)</td>
+</tr>
+<tr>
+<td>인식 결과 없음</td>
+<td>카드 내부에 <code>(인식된 텍스트 없음)</code></td>
+</tr>
+</tbody></table>
+<h3>5.6 비고 — 지표의 한계를 화면에 명시</h3>
+<p><strong><code>정확도</code>는 각 엔진이 스스로 보고하는 인식 신뢰도(confidence)의 평균</strong>이다. 정답 텍스트가 없으므로 실제 오탈자 비교가 아니다. 이 한계를 화면 설명문에 직접 적어 지표가 과대 해석되지 않게 했다.</p>
+<ul>
+<li>이미지만 허용하는 이유: 텍스트 레이어가 있는 문서는 OCR을 타지 않으므로 엔진 비교가 성립하지 않는다.</li>
+<li>이 화면도 공통 컴포넌트(<code>Spinner</code> · <code>ErrorBanner</code>)와 디자인 토큰(<code>.c-scope</code>)을 사용한다.</li>
+</ul>
+<hr>
+<h2>부록 A. 공통 컴포넌트</h2>
+<table><thead><tr>
+<th>컴포넌트</th>
+<th>용도</th>
+<th>사용 화면</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>Badge</strong></td>
+<td>카테고리·상태·추출방식 라벨</td>
+<td>LIST · DTL</td>
+</tr>
+<tr>
+<td><strong>Spinner</strong></td>
+<td>조회·처리 대기 표시</td>
+<td>LIST · DTL · UPL · CMP</td>
+</tr>
+<tr>
+<td><strong>ErrorBanner</strong></td>
+<td>에러 표시 (코드별 안내 + 재시도)</td>
+<td>LIST · DTL · UPL · CMP</td>
+</tr>
+<tr>
+<td><strong>DocumentDetail</strong></td>
+<td>상세 표현 (API 호출 없음)</td>
+<td>LIST 패널 · DTL</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>색상·간격·글자 크기는 <code>styles/tokens.css</code> 한 곳에서 정의한다. 화면을 누가 만들어도 표시가 통일된다.</p>
+</blockquote>
+<h2>부록 B. 코드 정의</h2>
+<h3>카테고리 (6종)</h3>
+<p><code>계약서</code> · <code>보고서</code> · <code>회의록</code> · <code>공지사항</code> · <code>메뉴얼</code> · <code>기타</code></p>
+<ul>
+<li>분석 전에는 <code>—</code> 로 표시한다.</li>
+<li><code>기타</code>는 5종에 속하지 않는 문서를 위한 값이며, 분류기가 억지로 특정 값을 고르지 않도록 둔 항목이다.</li>
+</ul>
+<h3>문서 상태 (6종)</h3>
+<table><thead><tr>
+<th>코드</th>
+<th>화면 표시</th>
+<th>색 계열</th>
+</tr></thead><tbody>
+<tr>
+<td><code>PENDING</code></td>
+<td>대기</td>
+<td>중립</td>
+</tr>
+<tr>
+<td><code>EXTRACTING</code></td>
+<td>추출 중</td>
+<td>정보</td>
+</tr>
+<tr>
+<td><code>EXTRACTED</code></td>
+<td>추출 완료</td>
+<td>정보</td>
+</tr>
+<tr>
+<td><code>ANALYZING</code></td>
+<td>분석 중</td>
+<td>주의</td>
+</tr>
+<tr>
+<td><code>COMPLETED</code></td>
+<td>완료</td>
+<td>성공</td>
+</tr>
+<tr>
+<td><code>FAILED</code></td>
+<td>실패</td>
+<td>위험</td>
+</tr>
+</tbody></table>
+<h3>추출 방식 (5종)</h3>
+<table><thead><tr>
+<th>코드</th>
+<th>화면 표시</th>
+<th>의미</th>
+</tr></thead><tbody>
+<tr>
+<td><code>TEXT_LAYER</code></td>
+<td>텍스트 레이어</td>
+<td>문서의 글자 정보를 그대로 사용</td>
+</tr>
+<tr>
+<td><code>OCR</code></td>
+<td>OCR</td>
+<td>이미지에서 글자를 인식</td>
+</tr>
+<tr>
+<td><code>HYBRID</code></td>
+<td>혼합</td>
+<td>텍스트와 이미지 OCR을 함께 사용</td>
+</tr>
+<tr>
+<td><code>DOCX</code></td>
+<td>DOCX</td>
+<td>DOCX 전용 추출</td>
+</tr>
+<tr>
+<td><code>HWPX</code></td>
+<td>HWPX</td>
+<td>HWPX 전용 추출</td>
+</tr>
+</tbody></table>
+<h2>부록 C. 에러 코드 및 화면 표시</h2>
+<p>에러 응답은 <code>{ code, message, request_id, errors }</code> 형식이며, 화면은 <strong><code>message</code>를 그대로 노출</strong>하고 코드별 보조 안내를 덧붙인다. <code>code</code>와 <code>request_id</code>는 작은 코드 박스로 표시해 서버 로그와 대조할 수 있게 한다.</p>
+<table><thead><tr>
+<th>코드</th>
+<th>HTTP</th>
+<th>화면 보조 안내</th>
+</tr></thead><tbody>
+<tr>
+<td><code>INVALID_FILE_TYPE</code></td>
+<td>400</td>
+<td>PDF, DOCX, HWPX, PNG, JPG 파일만 업로드할 수 있습니다.</td>
+</tr>
+<tr>
+<td><code>FILE_TOO_LARGE</code></td>
+<td>413</td>
+<td>파일 크기를 10MB 이하로 줄여 다시 시도해 주세요.</td>
+</tr>
+<tr>
+<td><code>TOO_MANY_PAGES</code></td>
+<td>413</td>
+<td>30페이지 이하로 나누어 업로드해 주세요.</td>
+</tr>
+<tr>
+<td><code>CONTENT_TOO_LARGE</code></td>
+<td>413</td>
+<td>문서 분량이 허용 범위를 넘었습니다. 일부만 잘라 업로드해 주세요.</td>
+</tr>
+<tr>
+<td><code>EXTRACTION_FAILED</code></td>
+<td>422</td>
+<td>문서에서 글자를 찾지 못했습니다. 스캔 품질을 확인해 주세요.</td>
+</tr>
+<tr>
+<td><code>DOCUMENT_NOT_FOUND</code></td>
+<td>404</td>
+<td>삭제되었거나 잘못된 주소일 수 있습니다. 목록으로 돌아가 주세요.</td>
+</tr>
+<tr>
+<td><code>NOT_EXTRACTED_YET</code></td>
+<td>409</td>
+<td>문서 상세 화면에서 분석을 먼저 실행해 주세요.</td>
+</tr>
+<tr>
+<td><code>ANALYZER_NOT_FOUND</code></td>
+<td>400</td>
+<td>요약 또는 분류 중 하나 이상을 선택해 주세요.</td>
+</tr>
+<tr>
+<td><code>AI_PROVIDER_ERROR</code></td>
+<td>502</td>
+<td>AI 서비스 응답에 실패했습니다. 잠시 후 다시 시도해 주세요.</td>
+</tr>
+<tr>
+<td><code>AI_TIMEOUT</code></td>
+<td>504</td>
+<td>문서 분량이 많아 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.</td>
+</tr>
+<tr>
+<td><code>INTERNAL_ERROR</code></td>
+<td>500</td>
+<td>(보조 안내 없음 — 서버 메시지만 표시)</td>
+</tr>
+</tbody></table>
+<h2>부록 D. 향후 확장 화면 및 삽입 지점</h2>
+<p>미니프로젝트 범위에서 제외한 항목과, 추가 시의 삽입 위치를 명시한다. <strong>화면 구조를 수정하지 않고 확장할 수 있도록 설계되어 있다.</strong></p>
+<table><thead><tr>
+<th>확장 항목</th>
+<th>삽입 지점</th>
+<th>현재 상태</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>로그인 / 회원가입</strong></td>
+<td>화면: <code>MainLayout</code> 헤더 우측 사용자 버튼(CMN-04) → <code>/login</code> · <code>/signup</code>&lt;br&gt;코드: <code>App.jsx</code> 라우트 트리를 <code>ProtectedRoute</code> 로 감싼다</td>
+<td>버튼 자리와 라우트 구조 확보</td>
+</tr>
+<tr>
+<td><strong>보호 범위</strong></td>
+<td>공개 = <code>HOME</code> · <code>/login</code> · <code>/signup</code>&lt;br&gt;보호 = <code>LIST</code> · <code>DTL</code> · <code>UPL</code></td>
+<td>미적용</td>
+</tr>
+<tr>
+<td><strong>PDF 형식 다운로드</strong></td>
+<td>다운로드 API의 <code>format</code> 파라미터. 현재 <code>txt</code>만 허용하도록 제한되어 있어, <strong>허용 값을 넓히면 추가된다</strong> (<code>.txt</code> 는 유지 — 교체 아님)</td>
+<td>파라미터 정의 완료</td>
+</tr>
+<tr>
+<td><strong>문서 삭제</strong></td>
+<td>LIST 표 행 또는 DTL 헤더에 삭제 버튼</td>
+<td>미구현 (요구 흐름에 없음)</td>
+</tr>
+<tr>
+<td><strong>영역별 추출 결과 수정</strong></td>
+<td>UPL-20 / UPL-21 비교 화면을 편집 가능하게 확장. 추출 단계에서 <strong>좌표·신뢰도 데이터가 이미 산출되고 있다</strong></td>
+<td>읽기 전용 비교까지 구현</td>
+</tr>
+</tbody></table>
+<h2>부록 E. 미해결 사항</h2>
+<table><thead><tr>
+<th>항목</th>
+<th>내용</th>
+<th>담당</th>
+</tr></thead><tbody>
+<tr>
+<td>UPL-14 명칭</td>
+<td><code>OCR 전송</code> → <code>업로드 및 추출</code>. 텍스트 레이어만 사용되는 경우도 있어 현재 명칭이 오해를 유발</td>
+<td>최재정</td>
+</tr>
+<tr>
+<td>UPL 좌우 여백</td>
+<td>다른 화면과 다름. <code>var(--c-page-x)</code> 적용으로 통일</td>
+<td>최재정</td>
+</tr>
+<tr>
+<td>AI 요약 품질</td>
+<td>개발용 대체 클라이언트 사용 중이라 요약·분류 결과가 정상 값이 아니다. 실제 연동 후 재확인 필요</td>
+<td>전원</td>
+</tr>
+</tbody></table>
+<h2>부록 F. 화면 흐름</h2>
+<pre><code>                    ┌──────────┐        ┌──────────────┐
+                    │   HOME   │────────│     CMP      │ OCR 엔진 비교
+                    └────┬─────┘  헤더   └──────────────┘
+                         │ 헤더 · 문서 목록
+                         ▼
+   ┌────────────► ┌──────────────┐ ──────────┐
+   │              │     LIST     │           │ 파일명 선택
+   │              │  검색 · 조회  │           ▼
+   │              └──────┬───────┘   ┌───────────────┐
+   │ 문서 목록으로         │ 새 문서    │ LST-30 패널    │
+   │                     │ 업로드     │ (상세)         │
+   │                     ▼           └───────┬───────┘
+   │              ┌──────────────┐            │ 전체 화면으로
+   └──────────────│     UPL      │            ▼
+                  │ 업로드 · 분석 │     ┌──────────────┐
+                  └──────────────┘     │     DTL      │
+                                       │ 상세 · 다운로드│
+                                       └──────────────┘
+                                              │ ← 목록으로
+                                              └──────► LIST</code></pre>
+<p><strong>주 사용 흐름</strong></p>
+<p><code>HOME</code> → <code>LIST</code> → <code>새 문서 업로드</code> → <code>UPL</code>(업로드 · 추출 · 분석) → <code>문서 목록으로</code> → <code>LIST</code>(파일명 선택) → 패널에서 확인 → <code>요약 .txt 다운로드</code></p>
+<div class="doc-foot">PDF Brief AI · 김보현 · 브라우저에서 Ctrl+P → &#x27;PDF로 저장&#x27;</div>
+</body>
+</html>

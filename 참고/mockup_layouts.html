@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PDF Brief AI — 레이아웃 목업 3안</title>
+<style>
+:root{
+  --text:#6b6375; --text-h:#08060d; --bg:#fff; --surface:#fafafa;
+  --border:#e5e4e7; --code-bg:#f4f3ec;
+  --accent:#aa3bff; --accent-bg:rgba(170,59,255,.10); --accent-border:rgba(170,59,255,.45);
+  --shadow:rgba(0,0,0,.08) 0 6px 16px -4px, rgba(0,0,0,.04) 0 2px 6px -2px;
+  --ok:#0f8a5f; --ok-bg:#e6f6ef;
+  --info:#1f6fd0; --info-bg:#e8f1fc;
+  --warn:#a86400; --warn-bg:#fdf3e0;
+  --danger:#8a1f1f; --danger-bg:#fdecea;
+  --sans:system-ui,'Segoe UI',Roboto,'Malgun Gothic',sans-serif;
+  --mono:ui-monospace,Consolas,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.5 var(--sans);color:var(--text);background:#f2f1f4}
+
+/* ===== 목업 전환 바 ===== */
+.mock-bar{position:sticky;top:0;z-index:100;background:var(--text-h);color:#fff;padding:10px 16px;
+  display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.mock-bar strong{font-size:14px;margin-right:8px}
+.mock-bar button{font:13px var(--sans);padding:6px 12px;border-radius:6px;border:1px solid #4a4752;
+  background:#2a2833;color:#d8d5dd;cursor:pointer}
+.mock-bar button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.mock-note{background:#fffbe6;border-bottom:1px solid #f0e3a8;padding:10px 16px;font-size:13px;color:#6b5a12}
+
+.screen{display:none;padding:20px}
+.screen.on{display:block}
+.frame{max-width:1180px;margin:0 auto;background:var(--bg);border:1px solid var(--border);
+  border-radius:10px;box-shadow:var(--shadow);overflow:hidden}
+
+/* ===== 공통 요소 ===== */
+.hdr{display:flex;align-items:center;gap:16px;padding:14px 20px;border-bottom:1px solid var(--border)}
+.logo{font-weight:600;color:var(--text-h);font-size:16px;white-space:nowrap}
+.nav{display:flex;gap:4px;margin-left:8px}
+.nav a{font-size:14px;text-decoration:none;color:var(--text);padding:6px 12px;border-radius:6px}
+.nav a.on{background:var(--accent-bg);color:var(--accent);font-weight:600}
+.spacer{flex:1}
+.btn{font:14px var(--sans);padding:8px 14px;border-radius:6px;border:1px solid var(--text-h);
+  background:var(--text-h);color:#fff;cursor:pointer;white-space:nowrap}
+.btn.ghost{background:transparent;color:var(--text-h)}
+.btn.accent{background:var(--accent);border-color:var(--accent)}
+.btn.sm{padding:5px 10px;font-size:13px}
+.btn:disabled{opacity:.45}
+
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:3px 9px;border-radius:999px;
+  font-weight:600;white-space:nowrap}
+.b-cat{background:var(--accent-bg);color:var(--accent)}
+.b-ok{background:var(--ok-bg);color:var(--ok)}
+.b-info{background:var(--info-bg);color:var(--info)}
+.b-warn{background:var(--warn-bg);color:var(--warn)}
+.b-gray{background:#f0eff2;color:#6b6375}
+.mono{font-family:var(--mono);font-size:12px}
+
+.toolbar{display:flex;gap:8px;padding:14px 20px;border-bottom:1px solid var(--border);flex-wrap:wrap;align-items:center}
+.search{flex:1;min-width:200px;display:flex;align-items:center;gap:8px;border:1px solid var(--border);
+  border-radius:6px;padding:8px 12px;background:var(--bg)}
+.search input{border:0;outline:0;flex:1;font:14px var(--sans);background:transparent;color:var(--text-h)}
+select{font:14px var(--sans);padding:8px 10px;border-radius:6px;border:1px solid var(--border);
+  background:var(--bg);color:var(--text-h)}
+
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:12px 20px;border-bottom:1px solid var(--border);font-size:14px}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:#9a95a3;font-weight:600;background:#fbfafc}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:#faf8fd}
+td.fname{color:var(--text-h);font-weight:500}
+td .prev{display:block;color:#9a95a3;font-size:12.5px;margin-top:3px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:420px}
+
+.pager{display:flex;gap:6px;justify-content:center;align-items:center;padding:16px}
+.pager button{font:13px var(--sans);min-width:32px;padding:6px 9px;border-radius:6px;
+  border:1px solid var(--border);background:var(--bg);color:var(--text);cursor:pointer}
+.pager button.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.pager .info{font-size:13px;color:#9a95a3;margin-right:10px}
+
+.card{border:1px solid var(--border);border-radius:8px;background:var(--bg);padding:16px}
+.card h3{margin:0 0 10px;font-size:14px;color:var(--text-h);font-weight:600}
+.meta-grid{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:13px}
+.meta-grid dt{color:#9a95a3}
+.meta-grid dd{margin:0;color:var(--text-h);font-family:var(--mono);font-size:12.5px}
+.sumbox{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:14px;
+  font-size:14px;line-height:1.65;color:var(--text-h)}
+.raw{background:var(--code-bg);border-radius:6px;padding:12px;font-family:var(--mono);font-size:12px;
+  max-height:150px;overflow:hidden;position:relative;color:#55505e;white-space:pre-wrap}
+.raw::after{content:'';position:absolute;inset:auto 0 0 0;height:48px;
+  background:linear-gradient(transparent,var(--code-bg))}
+.empty{text-align:center;padding:48px 20px;color:#b3aebb;font-size:14px}
+.drop{border:2px dashed var(--accent-border);background:var(--accent-bg);border-radius:10px;
+  padding:32px;text-align:center;color:var(--accent);font-size:14px;font-weight:500}
+
+/* ===== 안1 ===== */
+#a1 .frame{padding-bottom:4px}
+
+/* ===== 안2 : 2단 분할 ===== */
+.split{display:grid;grid-template-columns:340px 1fr;min-height:560px}
+.split .left{border-right:1px solid var(--border);display:flex;flex-direction:column}
+.split .items{overflow:auto}
+.item{padding:13px 16px;border-bottom:1px solid var(--border);cursor:pointer}
+.item:hover{background:#faf8fd}
+.item.on{background:var(--accent-bg);border-left:3px solid var(--accent);padding-left:13px}
+.item .t{color:var(--text-h);font-weight:500;font-size:13.5px;margin-bottom:5px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .s{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+.item .p{color:#9a95a3;font-size:12px;margin-top:5px;display:-webkit-box;
+  -webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.split .right{padding:20px;overflow:auto;display:flex;flex-direction:column;gap:14px}
+.dtl-hdr{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.dtl-hdr h2{margin:0;font-size:18px;color:var(--text-h);font-weight:600;flex:1;min-width:200px}
+
+/* ===== 안3 : 카드 그리드 ===== */
+.steps{display:flex;gap:0;padding:16px 20px;border-bottom:1px solid var(--border);
+  align-items:center;flex-wrap:wrap}
+.step{display:flex;align-items:center;gap:8px;font-size:13px;color:#b3aebb}
+.step .n{width:24px;height:24px;border-radius:999px;display:grid;place-items:center;
+  background:#f0eff2;color:#9a95a3;font-size:12px;font-weight:700}
+.step.done{color:var(--ok)}
+.step.done .n{background:var(--ok-bg);color:var(--ok)}
+.step.now{color:var(--accent);font-weight:600}
+.step.now .n{background:var(--accent);color:#fff}
+.step .arw{margin:0 12px;color:#ddd9e0}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(268px,1fr));gap:14px;padding:20px}
+.gcard{border:1px solid var(--border);border-radius:9px;padding:15px;cursor:pointer;background:var(--bg)}
+.gcard:hover{box-shadow:var(--shadow);border-color:var(--accent-border)}
+.gcard .top{display:flex;justify-content:space-between;gap:8px;margin-bottom:9px;align-items:flex-start}
+.gcard .t{color:var(--text-h);font-weight:600;font-size:14px;line-height:1.35;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.gcard .p{font-size:12.5px;color:#9a95a3;margin:9px 0;display:-webkit-box;
+  -webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;min-height:52px}
+.gcard .bot{display:flex;justify-content:space-between;align-items:center;
+  border-top:1px solid var(--border);padding-top:9px;font-size:12px;color:#b3aebb}
+
+/* ===== 요소 목록(화면정의서용) ===== */
+.spec{max-width:1180px;margin:16px auto 0;background:var(--bg);border:1px solid var(--border);
+  border-radius:10px;padding:18px 20px}
+.spec h3{margin:0 0 12px;font-size:15px;color:var(--text-h)}
+.spec table{font-size:13px}
+.spec th,.spec td{padding:8px 10px}
+.spec td:first-child{font-family:var(--mono);font-size:12px;color:var(--accent);white-space:nowrap}
+.pros{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+.pros>div{border:1px solid var(--border);border-radius:8px;padding:12px 14px;font-size:13px}
+.pros h4{margin:0 0 8px;font-size:13px;color:var(--text-h)}
+.pros ul{margin:0;padding-left:18px}
+.pros li{margin-bottom:4px}
+@media(max-width:900px){.split{grid-template-columns:1fr}.pros{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div class="mock-bar">
+  <strong>PDF Brief AI 레이아웃 목업</strong>
+  <button class="on" onclick="show('a1',this)">안 1 · 리스트 중심</button>
+  <button onclick="show('a2',this)">안 2 · 2단 분할</button>
+  <button onclick="show('a3',this)">안 3 · 카드 그리드</button>
+</div>
+<div class="mock-note">
+  회의용 목업입니다. 실제 데이터가 아니라 화면 구조 비교용이며, 데이터는 실제 API 응답 필드
+  (<span class="mono">filename / status / category / summary_preview / extract_method / page_count / char_count</span>)를 그대로 사용했습니다.
+</div>
+
+<!-- ================= 안 1 : 리스트 중심 ================= -->
+<div class="screen on" id="a1">
+  <div class="frame">
+    <div class="hdr">
+      <span class="logo">PDF Brief AI</span>
+      <nav class="nav"><a class="on" href="#">문서 목록</a><a href="#">업로드</a></nav>
+      <span class="spacer"></span>
+      <button class="btn accent">+ 문서 업로드</button>
+    </div>
+
+    <div class="toolbar">
+      <div class="search">
+        <span>🔍</span><input placeholder="파일명 또는 본문 내용 검색">
+      </div>
+      <select><option>전체 카테고리</option><option>계약서</option><option>보고서</option>
+        <option>회의록</option><option>공지사항</option><option>메뉴얼</option><option>기타</option></select>
+      <select><option>전체 상태</option><option>분석완료</option><option>추출완료</option><option>실패</option></select>
+    </div>
+
+    <table>
+      <thead><tr>
+        <th style="width:38%">파일명 / 요약</th><th>카테고리</th><th>상태</th>
+        <th>추출</th><th>분량</th><th>등록일</th><th></th>
+      </tr></thead>
+      <tbody>
+        <tr>
+          <td class="fname">2202153_농림축산식품해양수산위원회_검토보고서.pdf
+            <span class="prev">외국 해기사에게 국내 원양어선 직원 자격을 부여하는 선박직원법 일부개정법률안에 대한 검토보고서로…</span></td>
+          <td><span class="badge b-cat">보고서</span></td>
+          <td><span class="badge b-ok">분석완료</span></td>
+          <td><span class="badge b-gray">TEXT_LAYER</span></td>
+          <td class="mono">12p · 6,850자</td>
+          <td class="mono">08-03 16:06</td>
+          <td><button class="btn ghost sm">⤓ txt</button></td>
+        </tr>
+        <tr>
+          <td class="fname">2026년_스마트도시_조성사업_공고문.pdf
+            <span class="prev">스마트도시 조성 및 산업진흥에 관한 사업 공고로 신청 기간과 지원 대상, 제출 서류를…</span></td>
+          <td><span class="badge b-cat">공지사항</span></td>
+          <td><span class="badge b-ok">분석완료</span></td>
+          <td><span class="badge b-info">OCR</span></td>
+          <td class="mono">4p · 2,140자</td>
+          <td class="mono">08-03 15:41</td>
+          <td><button class="btn ghost sm">⤓ txt</button></td>
+        </tr>
+        <tr>
+          <td class="fname">표준하도급계약서_건설업.docx
+            <span class="prev">건설업 표준하도급계약서로 계약금액, 대금 지급 조건, 하자보수 책임 범위를 규정하고…</span></td>
+          <td><span class="badge b-cat">계약서</span></td>
+          <td><span class="badge b-warn">분석중</span></td>
+          <td><span class="badge b-gray">DOCX</span></td>
+          <td class="mono">- · 8,320자</td>
+          <td class="mono">08-03 15:12</td>
+          <td><button class="btn ghost sm" disabled>⤓ txt</button></td>
+        </tr>
+        <tr>
+          <td class="fname">제3차_정례회의_회의록.hwpx
+            <span class="prev">제3차 정례회의 회의록으로 안건 심의 경과와 의결 사항, 참석자 발언 요지를 정리…</span></td>
+          <td><span class="badge b-cat">회의록</span></td>
+          <td><span class="badge b-ok">분석완료</span></td>
+          <td><span class="badge b-gray">HWPX</span></td>
+          <td class="mono">- · 4,905자</td>
+          <td class="mono">08-03 14:58</td>
+          <td><button class="btn ghost sm">⤓ txt</button></td>
+        </tr>
+        <tr>
+          <td class="fname">민원처리_시스템_이용안내서.pdf
+            <span class="prev">민원처리 시스템의 화면별 사용 방법과 자주 발생하는 오류 대응 절차를 안내하는…</span></td>
+          <td><span class="badge b-cat">메뉴얼</span></td>
+          <td><span class="badge b-info">추출완료</span></td>
+          <td><span class="badge b-gray">TEXT_LAYER</span></td>
+          <td class="mono">31p · 18,402자</td>
+          <td class="mono">08-03 14:20</td>
+          <td><button class="btn ghost sm" disabled>⤓ txt</button></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="pager">
+      <span class="info">총 37건 · 1 / 2 페이지</span>
+      <button>‹</button><button class="on">1</button><button>2</button><button>›</button>
+    </div>
+  </div>
+
+  <div class="spec">
+    <h3>안 1 — 화면 구성 요소</h3>
+    <table>
+      <thead><tr><th style="width:130px">요소 ID</th><th>명칭</th><th>설명 / 연결 API</th></tr></thead>
+      <tbody>
+        <tr><td>HDR-01</td><td>서비스 로고</td><td>클릭 시 목록(/)으로 이동</td></tr>
+        <tr><td>HDR-02</td><td>네비게이션</td><td>문서 목록(/) · 업로드(/upload)</td></tr>
+        <tr><td>HDR-03</td><td>업로드 버튼</td><td>/upload 이동</td></tr>
+        <tr><td>TBR-01</td><td>검색 입력</td><td>GET /api/documents?q= (파일명 + 본문)</td></tr>
+        <tr><td>TBR-02</td><td>카테고리 필터</td><td>?category= · 6종 고정값</td></tr>
+        <tr><td>TBR-03</td><td>상태 필터</td><td>?status= (프론트 필터 또는 API 확장)</td></tr>
+        <tr><td>LST-01</td><td>파일명 / 요약</td><td>filename + summary_preview(100자)</td></tr>
+        <tr><td>LST-02</td><td>카테고리 배지</td><td>analyses.result.category</td></tr>
+        <tr><td>LST-03</td><td>상태 배지</td><td>status (EXTRACTED / COMPLETED / FAILED)</td></tr>
+        <tr><td>LST-04</td><td>추출 방식 배지</td><td>extract_method (TEXT_LAYER / OCR / DOCX / HWPX)</td></tr>
+        <tr><td>LST-05</td><td>분량</td><td>page_count · char_count (DOCX/HWPX는 페이지 미표시)</td></tr>
+        <tr><td>LST-06</td><td>다운로드 버튼</td><td>GET /api/documents/{id}/download?format=txt · 분석 전 비활성</td></tr>
+        <tr><td>LST-07</td><td>행 클릭</td><td>/documents/{id} 상세 이동</td></tr>
+        <tr><td>PGR-01</td><td>페이지네이션</td><td>?page= &amp; ?size= · total / total_pages 사용</td></tr>
+      </tbody>
+    </table>
+    <div class="pros">
+      <div><h4>장점</h4><ul>
+        <li>정보 밀도가 높아 문서가 많아질수록 유리</li>
+        <li>필터·검색·페이징이 한 화면에 정리되어 지시서 요구사항이 눈에 보임</li>
+        <li>테이블 구조라 화면정의서 작성이 가장 쉬움</li>
+        <li>구현 난이도 낮음 (오늘 완성 가능)</li>
+      </ul></div>
+      <div><h4>단점</h4><ul>
+        <li>상세를 보려면 페이지를 이동해야 함 (왕복 발생)</li>
+        <li>데모에서 "AI가 분석했다"는 인상이 약함 — 요약이 한 줄만 보임</li>
+        <li>좁은 화면에서 열이 잘림</li>
+      </ul></div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 안 2 : 2단 분할 ================= -->
+<div class="screen" id="a2">
+  <div class="frame">
+    <div class="hdr">
+      <span class="logo">PDF Brief AI</span>
+      <nav class="nav"><a class="on" href="#">문서</a><a href="#">업로드</a></nav>
+      <span class="spacer"></span>
+      <button class="btn accent">+ 문서 업로드</button>
+    </div>
+    <div class="split">
+      <div class="left">
+        <div class="toolbar" style="padding:12px 14px">
+          <div class="search" style="min-width:0"><span>🔍</span><input placeholder="검색"></div>
+        </div>
+        <div class="toolbar" style="padding:0 14px 12px;border:0">
+          <select style="flex:1"><option>전체 카테고리</option><option>보고서</option><option>계약서</option></select>
+        </div>
+        <div class="items">
+          <div class="item on">
+            <div class="t">2202153_농림축산식품해양수산위원회_검토보고서.pdf</div>
+            <div class="s"><span class="badge b-cat">보고서</span><span class="badge b-ok">분석완료</span></div>
+            <div class="p">외국 해기사에게 국내 원양어선 직원 자격을 부여하는 선박직원법 일부개정법률안 검토보고서</div>
+          </div>
+          <div class="item">
+            <div class="t">2026년_스마트도시_조성사업_공고문.pdf</div>
+            <div class="s"><span class="badge b-cat">공지사항</span><span class="badge b-info">OCR</span></div>
+            <div class="p">스마트도시 조성 및 산업진흥 사업 공고. 신청 기간과 지원 대상, 제출 서류 안내</div>
+          </div>
+          <div class="item">
+            <div class="t">표준하도급계약서_건설업.docx</div>
+            <div class="s"><span class="badge b-cat">계약서</span><span class="badge b-warn">분석중</span></div>
+            <div class="p">건설업 표준하도급계약서. 계약금액, 대금 지급 조건, 하자보수 책임 범위 규정</div>
+          </div>
+          <div class="item">
+            <div class="t">제3차_정례회의_회의록.hwpx</div>
+            <div class="s"><span class="badge b-cat">회의록</span><span class="badge b-ok">분석완료</span></div>
+            <div class="p">제3차 정례회의 회의록. 안건 심의 경과와 의결 사항, 참석자 발언 요지</div>
+          </div>
+          <div class="item">
+            <div class="t">민원처리_시스템_이용안내서.pdf</div>
+            <div class="s"><span class="badge b-cat">메뉴얼</span><span class="badge b-info">추출완료</span></div>
+            <div class="p">민원처리 시스템 화면별 사용 방법과 오류 대응 절차 안내</div>
+          </div>
+        </div>
+        <div class="pager" style="border-top:1px solid var(--border)">
+          <button>‹</button><button class="on">1</button><button>2</button><button>›</button>
+        </div>
+      </div>
+
+      <div class="right">
+        <div class="dtl-hdr">
+          <h2>2202153_농림축산식품해양수산위원회_검토보고서.pdf</h2>
+          <button class="btn sm">⤓ 요약 txt</button>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <span class="badge b-cat">보고서</span>
+          <span class="badge b-ok">분석완료</span>
+          <span class="badge b-gray">TEXT_LAYER</span>
+          <span class="badge b-gray">12p · 6,850자</span>
+        </div>
+
+        <div class="card">
+          <h3>AI 요약</h3>
+          <div class="sumbox">외국인 해기사에게 국내 원양어선 직원 자격을 부여하는 선박직원법 일부개정법률안에 대한 검토보고서다.
+            현행법은 국제협약 가입국 간 협정 체결 시에만 외국 해기사를 인정하나, 우리나라는 어선 관련 협약에 미가입하여
+            외국인이 원양어선 직원이 될 수 없다. 개정안은 협약 당사국 자격 보유자가 해양수산부장관의 인정을 받으면
+            원양어선 직원이 될 수 있도록 한다. 다만 상선 선원과의 형평성, 노사정 협상 진행 상황을 고려한 신중한 검토가 필요하다.</div>
+        </div>
+
+        <div class="card">
+          <h3>분류 근거</h3>
+          <div style="font-size:13.5px">국회 위원회에서 법률안을 심의하기 위해 작성한 검토 문서로, 제안경위·제안이유·검토의견 구조를 갖추고 있어 <b style="color:var(--accent)">보고서</b>로 분류함.</div>
+        </div>
+
+        <div class="card">
+          <h3>추출 원문 <span style="font-weight:400;color:#b3aebb;font-size:12px">· 6,850자</span></h3>
+          <div class="raw">제417회국회(임시회)
+제1차 농림축산식품해양수산위원회
+선박직원법 일부개정법률안
+검  토  보  고
+&lt; 외국 해기사에게 국내 원양어선 직원 자격 부여 &gt;
+▣ 조경태의원 대표발의(의안번호 제2202153호)
+
+Ⅰ. 제안경위
+1. 제안자: 조경태의원 등 11인
+2. 제안일: 2024. 7. 23.</div>
+          <button class="btn ghost sm" style="margin-top:10px">전체 보기</button>
+        </div>
+
+        <div class="card">
+          <h3>분석 이력</h3>
+          <div class="meta-grid">
+            <dt>provider</dt><dd>openai / gpt-4o-mini</dd>
+            <dt>prompt_version</dt><dd>v1</dd>
+            <dt>tokens</dt><dd>in 5,120 · out 214</dd>
+            <dt>latency</dt><dd>7,340 ms</dd>
+            <dt>분석 일시</dt><dd>2026-08-03 16:06:36</dd>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="spec">
+    <h3>안 2 — 화면 구성 요소</h3>
+    <table>
+      <thead><tr><th style="width:130px">요소 ID</th><th>명칭</th><th>설명 / 연결 API</th></tr></thead>
+      <tbody>
+        <tr><td>LFT-01</td><td>검색 · 필터</td><td>GET /api/documents?q=&amp;category=</td></tr>
+        <tr><td>LFT-02</td><td>문서 리스트 아이템</td><td>filename · 배지 · summary_preview 2줄</td></tr>
+        <tr><td>LFT-03</td><td>선택 표시</td><td>선택 항목 좌측 강조선 + 배경</td></tr>
+        <tr><td>LFT-04</td><td>페이지네이션</td><td>?page= &amp; ?size=</td></tr>
+        <tr><td>RGT-01</td><td>상세 헤더</td><td>filename + 다운로드 버튼</td></tr>
+        <tr><td>RGT-02</td><td>배지 영역</td><td>category · status · extract_method · 분량</td></tr>
+        <tr><td>RGT-03</td><td>AI 요약</td><td>analyses.result.summary (analyzer_type=summary)</td></tr>
+        <tr><td>RGT-04</td><td>분류 근거</td><td>analyses.result.reason (analyzer_type=category)</td></tr>
+        <tr><td>RGT-05</td><td>추출 원문</td><td>extracted_text · 기본 접힘, 전체 보기로 펼침</td></tr>
+        <tr><td>RGT-06</td><td>분석 이력</td><td>provider / model_name / prompt_version / tokens / latency_ms</td></tr>
+      </tbody>
+    </table>
+    <div class="pros">
+      <div><h4>장점</h4><ul>
+        <li>클릭 즉시 우측에 요약이 떠서 <b>데모 흐름이 가장 좋음</b></li>
+        <li>여러 문서를 빠르게 훑으며 비교 가능</li>
+        <li>페이지 이동이 없어 체감 속도가 빠름</li>
+        <li>분석 이력(토큰·지연)을 자연스럽게 노출 → 본프로젝트 서사와 연결</li>
+      </ul></div>
+      <div><h4>단점</h4><ul>
+        <li>구현 난이도가 가장 높음 (선택 상태 관리 + 2개 API 연동)</li>
+        <li>좁은 화면 대응이 필요 (모바일에서 1단으로 전환)</li>
+        <li>URL과 선택 상태 동기화 필요 (/documents/:id)</li>
+      </ul></div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 안 3 : 카드 그리드 ================= -->
+<div class="screen" id="a3">
+  <div class="frame">
+    <div class="hdr">
+      <span class="logo">PDF Brief AI</span>
+      <nav class="nav"><a class="on" href="#">홈</a><a href="#">문서 목록</a></nav>
+      <span class="spacer"></span>
+      <span class="badge b-gray">backend ok</span>
+    </div>
+
+    <div style="padding:20px">
+      <div class="drop">📄 &nbsp; 파일을 끌어다 놓거나 클릭해서 선택하세요<br>
+        <span style="font-size:12.5px;color:#9a95a3;font-weight:400">PDF · DOCX · HWPX · PNG · JPG &nbsp;|&nbsp; 최대 10MB</span></div>
+    </div>
+
+    <div class="steps">
+      <div class="step done"><span class="n">✓</span>업로드</div><span class="arw">→</span>
+      <div class="step done"><span class="n">✓</span>텍스트 추출<span class="badge b-gray" style="margin-left:6px">TEXT_LAYER · 12p</span></div><span class="arw">→</span>
+      <div class="step now"><span class="n">3</span>AI 분석 중…</div><span class="arw">→</span>
+      <div class="step"><span class="n">4</span>완료</div>
+    </div>
+
+    <div class="toolbar">
+      <div class="search"><span>🔍</span><input placeholder="파일명 또는 본문 내용 검색"></div>
+      <select><option>전체 카테고리</option><option>계약서</option><option>보고서</option>
+        <option>회의록</option><option>공지사항</option><option>메뉴얼</option><option>기타</option></select>
+    </div>
+
+    <div class="grid">
+      <div class="gcard">
+        <div class="top"><div class="t">2202153_농림축산식품해양수산위원회_검토보고서.pdf</div></div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap"><span class="badge b-cat">보고서</span><span class="badge b-ok">분석완료</span></div>
+        <div class="p">외국 해기사에게 국내 원양어선 직원 자격을 부여하는 선박직원법 일부개정법률안 검토보고서. 현행법의 국제협약 미가입 문제와 개정 필요성을 검토하고…</div>
+        <div class="bot"><span class="mono">TEXT_LAYER · 12p</span><button class="btn ghost sm">⤓ txt</button></div>
+      </div>
+      <div class="gcard">
+        <div class="top"><div class="t">2026년_스마트도시_조성사업_공고문.pdf</div></div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap"><span class="badge b-cat">공지사항</span><span class="badge b-ok">분석완료</span></div>
+        <div class="p">스마트도시 조성 및 산업진흥에 관한 사업 공고. 신청 기간, 지원 대상, 제출 서류 및 평가 기준을 안내하며…</div>
+        <div class="bot"><span class="mono">OCR · 4p</span><button class="btn ghost sm">⤓ txt</button></div>
+      </div>
+      <div class="gcard">
+        <div class="top"><div class="t">표준하도급계약서_건설업.docx</div></div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap"><span class="badge b-cat">계약서</span><span class="badge b-warn">분석중</span></div>
+        <div class="p">건설업 표준하도급계약서. 계약금액, 대금 지급 조건, 하자보수 책임 범위 및 분쟁 해결 절차를 규정…</div>
+        <div class="bot"><span class="mono">DOCX · 8,320자</span><button class="btn ghost sm" disabled>⤓ txt</button></div>
+      </div>
+      <div class="gcard">
+        <div class="top"><div class="t">제3차_정례회의_회의록.hwpx</div></div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap"><span class="badge b-cat">회의록</span><span class="badge b-ok">분석완료</span></div>
+        <div class="p">제3차 정례회의 회의록. 안건 심의 경과와 의결 사항, 주요 참석자 발언 요지를 정리한 문서로…</div>
+        <div class="bot"><span class="mono">HWPX · 4,905자</span><button class="btn ghost sm">⤓ txt</button></div>
+      </div>
+      <div class="gcard">
+        <div class="top"><div class="t">민원처리_시스템_이용안내서.pdf</div></div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap"><span class="badge b-cat">메뉴얼</span><span class="badge b-info">추출완료</span></div>
+        <div class="p">민원처리 시스템의 화면별 사용 방법과 자주 발생하는 오류 대응 절차를 단계별로 안내…</div>
+        <div class="bot"><span class="mono">TEXT_LAYER · 31p</span><button class="btn ghost sm" disabled>⤓ txt</button></div>
+      </div>
+    </div>
+    <div class="pager"><span class="info">총 37건</span><button>‹</button><button class="on">1</button><button>2</button><button>›</button></div>
+  </div>
+
+  <div class="spec">
+    <h3>안 3 — 화면 구성 요소</h3>
+    <table>
+      <thead><tr><th style="width:130px">요소 ID</th><th>명칭</th><th>설명 / 연결 API</th></tr></thead>
+      <tbody>
+        <tr><td>UPL-01</td><td>드래그앤드롭 영역</td><td>POST /api/documents · 확장자·용량 안내 표기</td></tr>
+        <tr><td>STP-01</td><td>진행 단계 표시</td><td>status 기반 4단계 (업로드→추출→분석→완료)</td></tr>
+        <tr><td>STP-02</td><td>추출 결과 배지</td><td>extract_method · page_count 즉시 노출</td></tr>
+        <tr><td>SRC-01</td><td>검색 · 필터</td><td>GET /api/documents?q=&amp;category=</td></tr>
+        <tr><td>CRD-01</td><td>문서 카드</td><td>filename · 배지 · summary_preview 3줄</td></tr>
+        <tr><td>CRD-02</td><td>카드 하단 정보</td><td>extract_method · 분량 · 다운로드 버튼</td></tr>
+        <tr><td>CRD-03</td><td>카드 클릭</td><td>/documents/{id} 상세 이동</td></tr>
+      </tbody>
+    </table>
+    <div class="pros">
+      <div><h4>장점</h4><ul>
+        <li>업로드 → 추출 → 분석 <b>흐름이 시각적으로 드러남</b> (지시서 플로우와 일치)</li>
+        <li>진행 단계 표시가 "로딩 상태 UI" 요구사항을 강하게 충족</li>
+        <li>요약이 3줄 보여서 AI 결과가 가장 잘 드러남</li>
+        <li>발표 첫 화면으로 임팩트가 큼</li>
+      </ul></div>
+      <div><h4>단점</h4><ul>
+        <li>문서가 많아지면 스크롤이 길어짐 (검색 의존도 높아짐)</li>
+        <li>정렬·비교가 테이블보다 불리</li>
+        <li>업로드와 목록이 한 화면에 있어 역할이 섞임</li>
+      </ul></div>
+    </div>
+  </div>
+</div>
+
+<script>
+function show(id, btn){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('on', s.id===id));
+  document.querySelectorAll('.mock-bar button').forEach(b=>b.classList.toggle('on', b===btn));
+  window.scrollTo({top:0});
+}
+</script>
+</body>
+</html>
