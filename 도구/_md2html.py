@@ -65,6 +65,13 @@ ul, ol { margin: 7px 0; padding-left: 22px; }
 li { margin: 3px 0; }
 hr { border: 0; border-top: 1px solid #dfe3e8; margin: 22px 0; }
 strong { color: #0f172a; }
+img {
+  display: block; max-width: 100%; margin: 12px auto;
+  border: 1px solid #cbd5e1; border-radius: 4px;
+  page-break-inside: avoid;
+}
+figure { margin: 14px 0; page-break-inside: avoid; }
+figcaption { font-size: 9pt; color: #6b7280; text-align: center; margin-top: 5px; }
 .doc-foot {
   margin-top: 30px; padding-top: 10px; border-top: 1px solid #dfe3e8;
   font-size: 8.5pt; color: #6b7280; text-align: center;
@@ -89,6 +96,8 @@ def inline(text: str) -> str:
     text = re.sub(r"`([^`]+)`", keep_code, text)
     text = html.escape(text)
     text = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", text)
+    text = re.sub(r"!\[([^\]]*)\]\(([^)]+)\)",
+                  r'<img src="\2" alt="\1">', text)
     text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r'<a href="\2">\1</a>', text)
 
     for index, code in enumerate(slots):

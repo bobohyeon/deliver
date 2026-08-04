@@ -58,6 +58,13 @@ ul, ol { margin: 7px 0; padding-left: 22px; }
 li { margin: 3px 0; }
 hr { border: 0; border-top: 1px solid #dfe3e8; margin: 22px 0; }
 strong { color: #0f172a; }
+img {
+  display: block; max-width: 100%; margin: 12px auto;
+  border: 1px solid #cbd5e1; border-radius: 4px;
+  page-break-inside: avoid;
+}
+figure { margin: 14px 0; page-break-inside: avoid; }
+figcaption { font-size: 9pt; color: #6b7280; text-align: center; margin-top: 5px; }
 .doc-foot {
   margin-top: 30px; padding-top: 10px; border-top: 1px solid #dfe3e8;
   font-size: 8.5pt; color: #6b7280; text-align: center;
@@ -126,13 +133,7 @@ strong { color: #0f172a; }
 </blockquote>
 <h3>0.2 공통 레이아웃</h3>
 <p>모든 화면은 <code>MainLayout</code>을 공유한다. 헤더는 화면마다 다시 그리지 않는다.</p>
-<pre><code>┌──────────────────────────────────────────────────────────┐
-│ PDF Brief AI    홈  문서 목록                        (사용자) │  ← 공통 헤더
-├──────────────────────────────────────────────────────────┤
-│                                                          │
-│                    각 화면 본문                            │
-│                                                          │
-└──────────────────────────────────────────────────────────┘</code></pre>
+<p><img src="화면흐름도.svg" alt="화면 흐름도"></p>
 <table><thead><tr>
 <th>요소 ID</th>
 <th>유형</th>
@@ -198,6 +199,11 @@ strong { color: #0f172a; }
 <td>없음 (정적 화면)</td>
 </tr>
 </tbody></table>
+<h3>화면 캡처</h3>
+<p><img src="캡처/HOME.png" alt="홈 화면"></p>
+<blockquote>
+<p>캡처 위의 번호는 아래 <strong>UI 요소</strong> 표의 요소 ID 뒷자리와 대응한다 (예: 캡처의 <code>01</code> = <code>HOME-01</code>). 해당 요소: HOME-01 기능 메뉴 · HOME-02 설명 영역</p>
+</blockquote>
 <h3>1.2 영역 구성</h3>
 <pre><code>┌─────────────┬──────────────────────────────────┐
 │ HOME-01     │ HOME-02                          │
@@ -270,6 +276,11 @@ strong { color: #0f172a; }
 <blockquote>
 <p><strong>조회 조건과 선택 문서를 모두 URL에 보관한다.</strong> 새로고침·뒤로가기·주소 공유 시 같은 화면이 재현된다.</p>
 </blockquote>
+<h3>화면 캡처</h3>
+<p><img src="캡처/LIST.png" alt="문서 목록 (패널 닫힘)"></p>
+<blockquote>
+<p>캡처 위의 번호는 아래 <strong>UI 요소</strong> 표의 요소 ID 뒷자리와 대응한다 (예: 캡처의 <code>01</code> = <code>LIST-01</code>). 해당 요소: LST-01~LST-20</p>
+</blockquote>
 <h3>2.2 영역 구성</h3>
 <p><strong>패널 닫힘 (기본)</strong></p>
 <pre><code>┌──────────────────────────────────────────────────┐
@@ -281,6 +292,7 @@ strong { color: #0f172a; }
 ├──────────────────────────────────────────────────┤
 │ LST-20 페이징                                     │
 └──────────────────────────────────────────────────┘</code></pre>
+<p><img src="캡처/LIST2.png" alt="문서 목록 (패널 열림)"></p>
 <p><strong>패널 열림 (문서 선택 시)</strong></p>
 <pre><code>┌───────────────────────┬──────────────────────────┐
 │ LST-10 문서 표 (4열)   │ LST-30 상세 패널           │
@@ -524,6 +536,11 @@ strong { color: #0f172a; }
 <td><code>/documents/:id</code></td>
 </tr>
 </tbody></table>
+<h3>화면 캡처</h3>
+<p><img src="캡처/DTL.png" alt="문서 상세 (전체 화면)"></p>
+<blockquote>
+<p>캡처 위의 번호는 아래 <strong>UI 요소</strong> 표의 요소 ID 뒷자리와 대응한다 (예: 캡처의 <code>01</code> = <code>DTL-01</code>). 해당 요소: DTL-01~DTL-40</p>
+</blockquote>
 <h3>3.2 영역 구성</h3>
 <pre><code>DTL-01 ← 목록으로
 ────────────────────────────────────────────
@@ -680,6 +697,11 @@ DTL-40 분석 이력 (표)</code></pre>
 <td>LIST 화면의 <code>새 문서 업로드</code>(LST-03). <strong>헤더 메뉴에는 노출하지 않는다</strong></td>
 </tr>
 </tbody></table>
+<h3>화면 캡처</h3>
+<p><img src="캡처/UPL.png" alt="문서 업로드 및 분석"></p>
+<blockquote>
+<p>캡처 위의 번호는 아래 <strong>UI 요소</strong> 표의 요소 ID 뒷자리와 대응한다 (예: 캡처의 <code>01</code> = <code>UPL-01</code>). 해당 요소: UPL-01~UPL-32</p>
+</blockquote>
 <h3>4.2 영역 구성</h3>
 <pre><code>UPL-01 제목 · 설명                        UPL-02 문서 목록으로
 ────────────────────────────────────────────────────────
@@ -894,6 +916,11 @@ DTL-40 분석 이력 (표)</code></pre>
 <td>결정사항 1(OCR 엔진 = PaddleOCR)의 근거였던 &quot;한국어 정확도&quot;를 주장이 아니라 실측으로 확인하기 위한 화면</td>
 </tr>
 </tbody></table>
+<h3>화면 캡처</h3>
+<p><img src="캡처/CMP.png" alt="OCR 엔진 비교"></p>
+<blockquote>
+<p>캡처 위의 번호는 아래 <strong>UI 요소</strong> 표의 요소 ID 뒷자리와 대응한다 (예: 캡처의 <code>01</code> = <code>CMP-01</code>). 해당 요소: CMP-01~CMP-22</p>
+</blockquote>
 <h3>5.2 영역 구성</h3>
 <pre><code>CMP-01 제목 · 설명 (정확도 지표의 의미 명시)
 ────────────────────────────────────────────
