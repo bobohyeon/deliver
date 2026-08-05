@@ -808,24 +808,8 @@ DTL-11 분석 이력 (표)</code></pre>
 <td>LIST 화면의 <code>새 문서 업로드</code>(LST-03). <strong>헤더 메뉴에는 노출하지 않는다</strong></td>
 </tr>
 </tbody></table>
-<h3>화면 캡처</h3>
-<p><img src="캡처/UPL.png" alt="문서 업로드 및 분석"></p>
-<blockquote>
-<p>캡처 위의 번호는 아래 <strong>UI 요소</strong> 표의 요소 ID 뒷자리와 대응한다 (예: 캡처의 <code>01</code> = <code>UPL-01</code>). 해당 요소: UPL-01~UPL-13</p>
-</blockquote>
-<h3>4.2 영역 구성</h3>
-<pre><code>UPL-01 제목 · 설명                        UPL-02 문서 목록으로
-────────────────────────────────────────────────────────
-[01] UPL-03 파일 선택 (드롭존)
-────────────────────────────────────────────────────────
-[02] UPL-08 추출 결과 비교
-     ┌─ 업로드 원본 ─┬─ 추출 텍스트 ─┐
-     │ 미리보기      │ 추출 결과     │
-     └──────────────┴──────────────┘
-────────────────────────────────────────────────────────
-[03] UPL-11 AI 분석 (요약 / 분류 선택 실행)</code></pre>
-<h3>4.3 UI 요소</h3>
-<table><thead><tr>
+<h3>4.2 화면과 UI 요소</h3>
+<div class="split"><div class="col-shot"><p><span class="shot"><img src="캡처/UPL.png" alt="문서 업로드 및 분석"><b class="pin" style="left:7.5%;top:10.9%">01</b><b class="pin" style="left:86.4%;top:13.9%">02</b><b class="pin" style="left:12.0%;top:27.9%">03</b><b class="pin" style="left:80.3%;top:27.9%">04</b><b class="pin" style="left:28.0%;top:26.9%">05</b><b class="pin" style="left:16.0%;top:43.7%">08</b><b class="pin" style="left:54.6%;top:43.7%">09</b><b class="pin" style="left:80.6%;top:38.1%">10</b><b class="pin" style="left:15.3%;top:89.7%">11</b><b class="pin" style="left:46.6%;top:89.7%">12</b><b class="pin" style="left:81.7%;top:90.5%">13</b></span></p></div><div class="col-spec"><table><thead><tr>
 <th>요소 ID</th>
 <th>유형</th>
 <th>명칭</th>
@@ -923,7 +907,16 @@ DTL-11 분석 이력 (표)</code></pre>
 <td>-</td>
 <td>UPL-11·31 중 <strong>하나 이상 필수</strong>. 미선택 시 안내 표시</td>
 </tr>
-</tbody></table>
+</tbody></table></div></div>
+<blockquote>
+<p>캡처의 <strong>빨간 번호</strong>가 표의 <code>ID</code> 뒷자리와 대응한다.
+<strong><code>06</code> <code>07</code> 은 이 캡처에 번호가 없다.</strong> <code>06</code> 선택 취소와 <code>07</code> 전송 버튼은 <strong>파일을 고른 뒤
+아직 전송하지 않은 상태</strong>에서만 표시된다. 이 캡처는 이미 추출까지 끝난 상태다.</p>
+</blockquote>
+<blockquote>
+<p><strong>이 캡처는 08-05 UI 개편 이전 화면이다.</strong> 헤더가 <code>홈 · 문서 목록 · OCR 비교</code> 로 되어 있어
+다른 캡처(<code>홈</code> · <code>문서 목록</code> · <code>문서 상세</code>)의 헤더와 다르다. 재촬영이 필요하다.</p>
+</blockquote>
 <h4>업로드 유효성 검증</h4>
 <table><thead><tr>
 <th>항목</th>
@@ -954,6 +947,17 @@ DTL-11 분석 이력 (표)</code></pre>
 <blockquote>
 <p>확장자·크기는 <strong>화면에서 먼저 검사</strong>해 불필요한 전송을 막고, 페이지 수·글자 수는 추출 과정에서 서버가 검사한다.</p>
 </blockquote>
+<h3>4.3 영역 구성</h3>
+<pre><code>UPL-01 제목 · 설명                        UPL-02 문서 목록으로
+────────────────────────────────────────────────────────
+[01] UPL-03 파일 선택 (드롭존)
+────────────────────────────────────────────────────────
+[02] UPL-08 추출 결과 비교
+     ┌─ 업로드 원본 ─┬─ 추출 텍스트 ─┐
+     │ 미리보기      │ 추출 결과     │
+     └──────────────┴──────────────┘
+────────────────────────────────────────────────────────
+[03] UPL-11 AI 분석 (요약 / 분류 선택 실행)</code></pre>
 <h3>4.4 연동 API</h3>
 <table><thead><tr>
 <th>시점</th>
@@ -1027,27 +1031,8 @@ DTL-11 분석 이력 (표)</code></pre>
 <td>결정사항 1(OCR 엔진 = PaddleOCR)의 근거였던 &quot;한국어 정확도&quot;를 주장이 아니라 <strong>실측으로 확인</strong>하기 위한 화면</td>
 </tr>
 </tbody></table>
-<h3>화면 캡처</h3>
-<p><img src="캡처/CMP.png" alt="OCR 엔진 비교"></p>
-<blockquote>
-<p>캡처 위의 번호는 아래 <strong>UI 요소</strong> 표의 요소 ID 뒷자리와 대응한다 (예: 캡처의 <code>01</code> = <code>CMP-01</code>).</p>
-</blockquote>
-<h3>5.2 영역 구성</h3>
-<pre><code>CMP-01 제목 · 설명 (정확도 지표의 의미 명시)
-────────────────────────────────────────────
-CMP-02 비교할 파일 선택
-CMP-03 정답 데이터 선택 (선택)      CMP-04 비교 실행
-CMP-05 미리보기
-────────────────────────────────────────────
-┌── PaddleOCR ──┬── Tesseract ──┬── EasyOCR ──┐
-│ 정확도         │ 정확도         │ 정확도       │
-│ 소요시간       │ 소요시간       │ 소요시간     │
-│ 추출 글자 수   │ 추출 글자 수   │ 추출 글자 수 │
-│ 인식 텍스트    │ 인식 텍스트    │ 인식 텍스트  │
-└───────────────┴───────────────┴─────────────┘
-   CMP-06          CMP-07          CMP-08</code></pre>
-<h3>5.3 UI 요소</h3>
-<table><thead><tr>
+<h3>5.2 화면과 UI 요소</h3>
+<div class="split"><div class="col-shot"><p><span class="shot"><img src="캡처/CMP.png" alt="OCR 엔진 비교"><b class="pin" style="left:7.5%;top:14.1%">01</b><b class="pin" style="left:13.0%;top:26.8%">02</b><b class="pin" style="left:48.4%;top:26.8%">03</b><b class="pin" style="left:83.4%;top:29.7%">04</b><b class="pin" style="left:13.0%;top:41.6%">05</b><b class="pin" style="left:12.0%;top:56.4%">06</b><b class="pin" style="left:41.9%;top:56.4%">07</b><b class="pin" style="left:68.8%;top:56.4%">08</b><b class="pin" style="left:32.6%;top:56.4%">09</b></span></p></div><div class="col-spec"><table><thead><tr>
 <th>요소 ID</th>
 <th>유형</th>
 <th>명칭</th>
@@ -1117,7 +1102,15 @@ CMP-05 미리보기
 <td>-</td>
 <td>엔진 간 값을 비교해 우세한 쪽에만 표시. 값이 같으면 미표시</td>
 </tr>
-</tbody></table>
+</tbody></table></div></div>
+<blockquote>
+<p>캡처의 <strong>빨간 번호</strong>가 표의 <code>ID</code> 뒷자리와 대응한다. 9개 요소가 모두 표시된 상태다.</p>
+</blockquote>
+<blockquote>
+<p><strong>화면 문구와 표기가 다른 곳</strong> — 화면에는 우세 표시가 <code>최고 정확도</code> · <code>가장 빠름</code> 으로,
+정확도 항목이 <code>Confidence</code> 로 표기된다. 정답 데이터를 올리지 않아 신뢰도 평균을 대용
+지표로 쓰고 있음을 화면 우측 <code>엔진 confidence 기준</code> 문구로 알린다 (5.6 비고 참조).</p>
+</blockquote>
 <h4>유효성 검증</h4>
 <table><thead><tr>
 <th>항목</th>
@@ -1150,6 +1143,20 @@ CMP-05 미리보기
 <td>형식 오류 시 안내</td>
 </tr>
 </tbody></table>
+<h3>5.3 영역 구성</h3>
+<pre><code>CMP-01 제목 · 설명 (정확도 지표의 의미 명시)
+────────────────────────────────────────────
+CMP-02 비교할 파일 선택
+CMP-03 정답 데이터 선택 (선택)      CMP-04 비교 실행
+CMP-05 미리보기
+────────────────────────────────────────────
+┌── PaddleOCR ──┬── Tesseract ──┬── EasyOCR ──┐
+│ 정확도         │ 정확도         │ 정확도       │
+│ 소요시간       │ 소요시간       │ 소요시간     │
+│ 추출 글자 수   │ 추출 글자 수   │ 추출 글자 수 │
+│ 인식 텍스트    │ 인식 텍스트    │ 인식 텍스트  │
+└───────────────┴───────────────┴─────────────┘
+   CMP-06          CMP-07          CMP-08</code></pre>
 <h3>5.4 연동 API</h3>
 <table><thead><tr>
 <th>시점</th>
@@ -1250,13 +1257,8 @@ CMP-05 미리보기
 <td>없음 (정적 화면)</td>
 </tr>
 </tbody></table>
-<h3>화면 캡처</h3>
-<p><img src="캡처/NOTFOUND.png" alt="페이지 없음"></p>
-<blockquote>
-<p>캡처 위의 번호는 아래 <strong>UI 요소</strong> 표의 요소 ID 뒷자리와 대응한다 (예: 캡처의 <code>01</code> = <code>NF-01</code>).</p>
-</blockquote>
-<h3>6.2 UI 요소</h3>
-<table><thead><tr>
+<h3>6.2 화면과 UI 요소</h3>
+<div class="split"><div class="col-shot"><p><span class="shot"><img src="캡처/NOTFOUND.png" alt="페이지 없음"><b class="pin" style="left:41.0%;top:65.0%">01</b><b class="pin" style="left:43.5%;top:78.6%">02</b></span></p></div><div class="col-spec"><table><thead><tr>
 <th>요소 ID</th>
 <th>유형</th>
 <th>명칭</th>
@@ -1274,7 +1276,11 @@ CMP-05 미리보기
 <td>복귀</td>
 <td>홈 또는 문서 목록으로 이동한다</td>
 </tr>
-</tbody></table>
+</tbody></table></div></div>
+<blockquote>
+<p>캡처의 <strong>빨간 번호</strong>가 표의 <code>ID</code> 뒷자리와 대응한다.
+공통 헤더(<code>CMN-01</code>~<code>CMN-06</code>)가 그대로 유지되므로 이 화면에서도 네비게이션으로 이동할 수 있다.</p>
+</blockquote>
 <h3>6.3 동작 규칙</h3>
 <ul>
 <li><code>App.jsx</code> 의 <strong>catch-all 라우트</strong>(<code>path=&quot;*&quot;</code>)가 처리한다. 정의된 5개 경로가 모두 어긋날 때만 표시된다.</li>
