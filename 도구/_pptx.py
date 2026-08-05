@@ -34,14 +34,26 @@ NS = (
 
 
 def _run(text, size, color=INK, bold=False, italic=False):
+    """글자 조각 하나. 줄바꿈(\\n)은 OOXML 의 <a:br/> 로 바꾼다.
+
+    문자열 안의 개행 문자는 파워포인트에서 줄바꿈으로 인식되지 않으므로
+    조각을 나누고 사이에 <a:br/> 를 넣어야 한다.
+    """
     b = ' b="1"' if bold else ""
     i = ' i="1"' if italic else ""
-    return (
-        f'<a:r><a:rPr lang="ko-KR" sz="{size}"{b}{i} dirty="0">'
+    prop = (
+        f'<a:rPr lang="ko-KR" sz="{size}"{b}{i} dirty="0">'
         f'<a:solidFill><a:srgbClr val="{color}"/></a:solidFill>'
         f'<a:latin typeface="{FONT}"/><a:ea typeface="{FONT}"/></a:rPr>'
-        f"<a:t>{escape(text)}</a:t></a:r>"
     )
+    parts = str(text).split("\n")
+    out = []
+    for idx, part in enumerate(parts):
+        if idx:
+            out.append(f"<a:br>{prop}</a:br>")
+        if part:
+            out.append(f"<a:r>{prop}<a:t>{escape(part)}</a:t></a:r>")
+    return "".join(out) if out else f"<a:r>{prop}<a:t></a:t></a:r>"
 
 
 def _para(runs, align="l", space_after=0, bullet=None, line=100000):
@@ -80,7 +92,9 @@ def _shape(sid, name, x, y, cx, cy, paras, fill=None, line_clr=None,
         f'<a:prstGeom prst="rect"><a:avLst/></a:prstGeom>{fill_xml}{ln_xml}</p:spPr>'
         f'<p:txBody><a:bodyPr anchor="{anchor}" lIns="91440" rIns="91440" '
         f'tIns="45720" bIns="45720" wrap="square"><a:normAutofit/></a:bodyPr>'
-        f"<a:lstStyle/>{''.join(paras)}</p:txBody></p:sp>"
+        # txBody 에는 문단이 최소 하나 있어야 한다. 색칠용 사각형처럼 글이 없는
+        # 도형도 빈 문단을 넣어야 파워포인트가 파일을 정상으로 인식한다.
+        f"<a:lstStyle/>{''.join(paras) if paras else '<a:p/>'}</p:txBody></p:sp>"
     )
 
 
@@ -138,10 +152,7 @@ def slide_xml(shapes, bg=WHITE):
         '<p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/>'
         "</p:nvGrpSpPr><p:grpSpPr/>"
         f"{''.join(shapes)}</p:spTree></p:cSld>"
-        '<p:clrMapOvr><a:overrideClrMapping bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" '
-        'accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" '
-        'accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/>'
-        "</p:clrMapOvr></p:sld>"
+        "<p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>"
     )
 
 
@@ -184,6 +195,17 @@ MASTER = (
     'accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" '
     'folHlink="folHlink"/>'
     '<p:sldLayoutIdLst><p:sldLayoutId id="2147483649" r:id="rId1"/></p:sldLayoutIdLst>'
+    # 마스터에는 기본 글자 서식 정의가 있어야 한다
+    "<p:txStyles><p:titleStyle><a:lvl1pPr>"
+    f'<a:defRPr sz="2800" b="1"><a:solidFill><a:srgbClr val="{INK}"/></a:solidFill>'
+    f'<a:latin typeface="{FONT}"/><a:ea typeface="{FONT}"/></a:defRPr>'
+    "</a:lvl1pPr></p:titleStyle><p:bodyStyle><a:lvl1pPr>"
+    f'<a:defRPr sz="1400"><a:solidFill><a:srgbClr val="{INK}"/></a:solidFill>'
+    f'<a:latin typeface="{FONT}"/><a:ea typeface="{FONT}"/></a:defRPr>'
+    "</a:lvl1pPr></p:bodyStyle><p:otherStyle><a:lvl1pPr>"
+    f'<a:defRPr sz="1400"><a:solidFill><a:srgbClr val="{INK}"/></a:solidFill>'
+    f'<a:latin typeface="{FONT}"/><a:ea typeface="{FONT}"/></a:defRPr>'
+    "</a:lvl1pPr></p:otherStyle></p:txStyles>"
     "</p:sldMaster>"
 )
 
