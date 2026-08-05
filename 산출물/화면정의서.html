@@ -905,7 +905,7 @@ DTL-40 분석 이력 (표)</code></pre>
 </tr></thead><tbody>
 <tr>
 <td>목적</td>
-<td>같은 이미지를 <strong>PaddleOCR과 Tesseract 두 엔진으로 동시에 처리</strong>해 인식 신뢰도와 소요시간을 비교한다</td>
+<td>같은 문서를 <strong>PaddleOCR · Tesseract · EasyOCR 세 엔진으로 처리</strong>해 정확도와 소요시간을 비교한다</td>
 </tr>
 <tr>
 <td>URL</td>
@@ -913,26 +913,28 @@ DTL-40 분석 이력 (표)</code></pre>
 </tr>
 <tr>
 <td>배경</td>
-<td>결정사항 1(OCR 엔진 = PaddleOCR)의 근거였던 &quot;한국어 정확도&quot;를 주장이 아니라 실측으로 확인하기 위한 화면</td>
+<td>결정사항 1(OCR 엔진 = PaddleOCR)의 근거였던 &quot;한국어 정확도&quot;를 주장이 아니라 <strong>실측으로 확인</strong>하기 위한 화면</td>
 </tr>
 </tbody></table>
 <h3>화면 캡처</h3>
 <p><img src="캡처/CMP.png" alt="OCR 엔진 비교"></p>
 <blockquote>
-<p>캡처 위의 번호는 아래 <strong>UI 요소</strong> 표의 요소 ID 뒷자리와 대응한다 (예: 캡처의 <code>01</code> = <code>CMP-01</code>). 해당 요소: CMP-01~CMP-22</p>
+<p>캡처 위의 번호는 아래 <strong>UI 요소</strong> 표의 요소 ID 뒷자리와 대응한다 (예: 캡처의 <code>01</code> = <code>CMP-01</code>).</p>
 </blockquote>
 <h3>5.2 영역 구성</h3>
 <pre><code>CMP-01 제목 · 설명 (정확도 지표의 의미 명시)
 ────────────────────────────────────────────
-CMP-10 이미지 선택   CMP-11 비교 실행
-CMP-12 미리보기
+CMP-10 비교할 파일 선택
+CMP-11 정답 데이터 선택 (선택)      CMP-12 비교 실행
+CMP-13 미리보기
 ────────────────────────────────────────────
-┌── PaddleOCR ──────┬── Tesseract ──────┐
-│ 정확도 / 소요시간   │ 정확도 / 소요시간   │
-│ 추출 글자 수        │ 추출 글자 수        │
-│ 인식 텍스트         │ 인식 텍스트         │
-└───────────────────┴───────────────────┘
-        CMP-20                CMP-21</code></pre>
+┌── PaddleOCR ──┬── Tesseract ──┬── EasyOCR ──┐
+│ 정확도         │ 정확도         │ 정확도       │
+│ 소요시간       │ 소요시간       │ 소요시간     │
+│ 추출 글자 수   │ 추출 글자 수   │ 추출 글자 수 │
+│ 인식 텍스트    │ 인식 텍스트    │ 인식 텍스트  │
+└───────────────┴───────────────┴─────────────┘
+   CMP-20          CMP-21          CMP-22</code></pre>
 <h3>5.3 UI 요소</h3>
 <table><thead><tr>
 <th>요소 ID</th>
@@ -946,28 +948,35 @@ CMP-12 미리보기
 <td>텍스트</td>
 <td>OCR 엔진 비교</td>
 <td>-</td>
-<td>제목 + 지표 설명</td>
+<td>제목 + 정확도 지표 설명</td>
 </tr>
 <tr>
 <td>CMP-10</td>
 <td>입력(file)</td>
-<td>비교할 이미지 선택</td>
+<td>비교할 파일</td>
 <td>필수</td>
-<td><strong>PNG · JPG · JPEG 만 허용</strong> (PDF·DOCX·HWPX 불가)</td>
+<td>이미지(PNG·JPG·BMP·TIF·WEBP·GIF) 및 <strong>PDF · DOCX · HWPX</strong>. 문서는 <strong>첫 페이지 또는 첫 이미지</strong>를 변환해 비교</td>
 </tr>
 <tr>
 <td>CMP-11</td>
+<td>입력(file)</td>
+<td>정답 데이터</td>
+<td>선택</td>
+<td><strong>LabelMe 형식 JSON.</strong> 제공 시 실제 정확도를 계산</td>
+</tr>
+<tr>
+<td>CMP-12</td>
 <td>버튼</td>
 <td>비교 실행</td>
 <td>-</td>
 <td>파일 미선택 시 비활성. 실행 중 <code>비교 실행 중...</code></td>
 </tr>
 <tr>
-<td>CMP-12</td>
+<td>CMP-13</td>
 <td>미리보기</td>
-<td>선택 이미지</td>
+<td>선택 파일</td>
 <td>-</td>
-<td>선택한 이미지를 그대로 표시</td>
+<td>변환된 이미지를 표시</td>
 </tr>
 <tr>
 <td>CMP-20</td>
@@ -985,10 +994,17 @@ CMP-12 미리보기
 </tr>
 <tr>
 <td>CMP-22</td>
+<td>결과 카드</td>
+<td>EasyOCR</td>
+<td>-</td>
+<td>동일 구성</td>
+</tr>
+<tr>
+<td>CMP-30</td>
 <td>배지</td>
 <td>더 정확함 / 더 빠름</td>
 <td>-</td>
-<td>두 엔진 값을 비교해 우세한 쪽 카드에만 표시. 값이 같으면 미표시</td>
+<td>엔진 간 값을 비교해 우세한 쪽에만 표시. 값이 같으면 미표시</td>
 </tr>
 </tbody></table>
 <h4>유효성 검증</h4>
@@ -1004,7 +1020,7 @@ CMP-12 미리보기
 </tr>
 <tr>
 <td>확장자</td>
-<td><code>.png</code> <code>.jpg</code> <code>.jpeg</code></td>
+<td>이미지 6종 또는 PDF · DOCX · HWPX</td>
 <td><code>INVALID_FILE_TYPE</code></td>
 </tr>
 <tr>
@@ -1014,8 +1030,13 @@ CMP-12 미리보기
 </tr>
 <tr>
 <td>파일 내용</td>
-<td>빈 파일 불가 / 이미지로 열려야 함</td>
+<td>빈 파일 불가 / 이미지로 변환 가능해야 함</td>
 <td><code>EXTRACTION_FAILED</code></td>
+</tr>
+<tr>
+<td>정답 데이터</td>
+<td>LabelMe JSON 형식</td>
+<td>형식 오류 시 안내</td>
 </tr>
 </tbody></table>
 <h3>5.4 연동 API</h3>
@@ -1026,24 +1047,24 @@ CMP-12 미리보기
 <th>요청</th>
 </tr></thead><tbody>
 <tr>
-<td>CMP-11</td>
+<td>CMP-12</td>
 <td>POST</td>
 <td><code>/api/ocr-compare</code></td>
-<td>multipart, <code>file</code></td>
+<td>multipart — <code>file</code> (필수) · <code>ground_truth</code> (선택)</td>
 </tr>
 </tbody></table>
-<p><strong>응답</strong></p>
-<pre><code>{
-  paddle:    { avg_confidence, elapsed_ms, char_count, text },
-  tesseract: { avg_confidence, elapsed_ms, char_count, text }
-}</code></pre>
+<p><strong>응답</strong> — 엔진 3종(<code>paddle</code> · <code>tesseract</code> · <code>easyocr</code>) 각각에 대해</p>
 <table><thead><tr>
 <th>필드</th>
 <th>화면 표시</th>
 </tr></thead><tbody>
 <tr>
+<td><code>ground_truth_accuracy</code></td>
+<td><strong>정답 데이터를 올린 경우의 정확도(%).</strong> 편집거리 기반으로 계산</td>
+</tr>
+<tr>
 <td><code>avg_confidence</code></td>
-<td><code>정확도</code> — 소수 1자리 + <code>%</code>. <code>null</code>이면 <code>—</code></td>
+<td>정답 데이터가 없을 때 사용하는 대용 지표(%)</td>
 </tr>
 <tr>
 <td><code>elapsed_ms</code></td>
@@ -1058,6 +1079,9 @@ CMP-12 미리보기
 <td>인식 텍스트. 비어 있으면 <code>(인식된 텍스트 없음)</code></td>
 </tr>
 </tbody></table>
+<blockquote>
+<p>화면의 <code>정확도</code> 항목은 <strong>정답 데이터가 있으면 <code>ground_truth_accuracy</code>, 없으면 <code>avg_confidence</code></strong> 를 표시한다. 어느 지표를 쓰고 있는지 화면 설명문에 함께 안내한다.</p>
+</blockquote>
 <h3>5.5 상태별 표시</h3>
 <table><thead><tr>
 <th>상태</th>
@@ -1065,7 +1089,7 @@ CMP-12 미리보기
 </tr></thead><tbody>
 <tr>
 <td>실행 중</td>
-<td>스피너 + <code>두 엔진으로 OCR을 실행하는 중입니다…</code></td>
+<td>스피너 + <code>세 엔진으로 OCR을 실행하는 중입니다…</code></td>
 </tr>
 <tr>
 <td>실행 전</td>
@@ -1079,13 +1103,22 @@ CMP-12 미리보기
 <td>인식 결과 없음</td>
 <td>카드 내부에 <code>(인식된 텍스트 없음)</code></td>
 </tr>
+<tr>
+<td>정답 데이터 없음</td>
+<td>정확도가 신뢰도 기반 대용 지표임을 안내</td>
+</tr>
 </tbody></table>
-<h3>5.6 비고 — 지표의 한계를 화면에 명시</h3>
-<p><strong><code>정확도</code>는 각 엔진이 스스로 보고하는 인식 신뢰도(confidence)의 평균</strong>이다. 정답 텍스트가 없으므로 실제 오탈자 비교가 아니다. 이 한계를 화면 설명문에 직접 적어 지표가 과대 해석되지 않게 했다.</p>
+<h3>5.6 비고 — 정확도 지표</h3>
+<p><strong>정답 데이터를 함께 올리면 실제 정확도를 계산한다.</strong> 정답 텍스트와 OCR 결과의 <strong>편집거리(문자 단위 오류율)</strong> 를 비교하는 방식이므로, 오탈자·누락·삽입이 모두 반영된 값이다.</p>
+<p>정답 데이터가 없을 때는 각 엔진이 자체적으로 보고하는 <strong>인식 신뢰도(confidence) 평균</strong>을 대용으로 사용한다. 이 경우 실제 정오 비교가 아니므로, 화면 설명문에 그 사실을 명시해 지표가 과대 해석되지 않게 한다.</p>
 <ul>
-<li>이미지만 허용하는 이유: 텍스트 레이어가 있는 문서는 OCR을 타지 않으므로 엔진 비교가 성립하지 않는다.</li>
+<li><strong>정답 데이터 형식</strong>: LabelMe(이미지 라벨링 도구) JSON. 도형별 라벨을 읽는 순서대로 이어 붙여 정답 텍스트를 복원한다.</li>
+<li>문서 파일(PDF · DOCX · HWPX)을 올리면 첫 페이지 또는 첫 이미지를 변환해 비교하므로, 별도로 이미지를 만들지 않아도 된다.</li>
 <li>이 화면도 공통 컴포넌트(<code>Spinner</code> · <code>ErrorBanner</code>)와 디자인 토큰(<code>.c-scope</code>)을 사용한다.</li>
 </ul>
+<blockquote>
+<p><strong>성능 주의</strong> — 세 엔진을 순차 실행하므로 이미지 1장당 총 소요 시간이 길다. 실행 중 CPU 사용률이 높아지므로, <strong>발표 시연에서는 실시간 실행 대신 사전에 측정한 결과를 사용하는 것을 권한다.</strong></p>
+</blockquote>
 <hr>
 <h2>부록 A. 공통 컴포넌트</h2>
 <table><thead><tr>
