@@ -628,24 +628,8 @@ figcaption { font-size: 9pt; color: #6b7280; text-align: center; margin-top: 5px
 <td><code>/documents/:id</code></td>
 </tr>
 </tbody></table>
-<h3>화면 캡처</h3>
-<p><img src="캡처/DTL.png" alt="문서 상세 (전체 화면)"></p>
-<blockquote>
-<p>캡처 위의 번호는 아래 <strong>UI 요소</strong> 표의 요소 ID 뒷자리와 대응한다 (예: 캡처의 <code>01</code> = <code>DTL-01</code>). 해당 요소: DTL-01~DTL-11</p>
-</blockquote>
-<h3>3.2 영역 구성</h3>
-<pre><code>DTL-01 ← 목록으로
-────────────────────────────────────────────
-DTL-02 파일명                DTL-03 분석  DTL-04 다운로드
-DTL-05 배지 (카테고리 · 상태 · 추출방식)
-────────────────────────────────────────────
-DTL-06 메타 정보 (한 줄)
-DTL-07 AI 요약
-DTL-08 분류 근거
-DTL-09 추출 원문 (접기/펼치기)
-DTL-11 분석 이력 (표)</code></pre>
-<h3>3.3 UI 요소</h3>
-<table><thead><tr>
+<h3>3.2 화면과 UI 요소</h3>
+<div class="split"><div class="col-shot"><p><span class="shot"><img src="캡처/DTL.png" alt="문서 상세 (전체 화면)"><b class="pin" style="left:13.2%;top:8.4%">01</b><b class="pin" style="left:7.5%;top:14.8%">02</b><b class="pin" style="left:81.2%;top:12.8%">04</b><b class="pin" style="left:7.5%;top:21.0%">05</b><b class="pin" style="left:7.5%;top:26.6%">06</b><b class="pin" style="left:7.5%;top:34.2%">07</b><b class="pin" style="left:50.0%;top:34.2%">08</b><b class="pin" style="left:7.5%;top:51.6%">09</b><b class="pin" style="left:88.4%;top:12.8%">10</b><b class="pin" style="left:7.5%;top:81.9%">11</b></span></p></div><div class="col-spec"><table><thead><tr>
 <th>요소 ID</th>
 <th>유형</th>
 <th>명칭</th>
@@ -717,7 +701,23 @@ DTL-11 분석 이력 (표)</code></pre>
 <td>분석 이력</td>
 <td>분석기 / 제공자·모델 / 토큰(입력·출력) / 응답 시간 / 실행 일시</td>
 </tr>
-</tbody></table>
+</tbody></table></div></div>
+<blockquote>
+<p>캡처의 <strong>빨간 번호</strong>가 표의 <code>ID</code> 뒷자리와 대응한다.
+<strong><code>03</code> 은 이 캡처에 번호가 없다.</strong> <code>AI 분석 실행</code> 버튼은 <strong>분석 결과가 없을 때만</strong> 표시되며,
+이 문서는 이미 요약·분류가 완료된 상태다 (<code>3.5 상태별 표시</code> 참조).</p>
+</blockquote>
+<h3>3.3 영역 구성</h3>
+<pre><code>DTL-01 ← 목록으로
+────────────────────────────────────────────
+DTL-02 파일명                DTL-03 분석  DTL-04 다운로드
+DTL-05 배지 (카테고리 · 상태 · 추출방식)
+────────────────────────────────────────────
+DTL-06 메타 정보 (한 줄)
+DTL-07 AI 요약
+DTL-08 분류 근거
+DTL-09 추출 원문 (접기/펼치기)
+DTL-11 분석 이력 (표)</code></pre>
 <h3>3.4 연동 API</h3>
 <table><thead><tr>
 <th>시점</th>
