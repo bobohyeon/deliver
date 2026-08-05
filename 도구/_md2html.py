@@ -72,6 +72,24 @@ img {
 }
 figure { margin: 14px 0; page-break-inside: avoid; }
 figcaption { font-size: 9pt; color: #6b7280; text-align: center; margin-top: 5px; }
+
+/* 캡처 위에 요소 번호를 겹쳐 표시한다.
+   이미지를 다시 인코딩하지 않으므로 화질 손실이 없고,
+   번호는 텍스트로 그려져 PDF 에서 확대해도 깨지지 않는다. */
+.shot {
+  position: relative; display: block; width: fit-content;
+  margin: 12px auto; page-break-inside: avoid;
+}
+.shot img { margin: 0; display: block; }
+.pin {
+  position: absolute; transform: translate(-50%, -50%);
+  min-width: 16px; height: 16px; padding: 0 3px; box-sizing: border-box;
+  border-radius: 999px; background: #dc2626; color: #fff;
+  border: 1.4px solid #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, .3);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 8pt; font-weight: 700; line-height: 13px; text-align: center;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
 .doc-foot {
   margin-top: 30px; padding-top: 10px; border-top: 1px solid #dfe3e8;
   font-size: 8.5pt; color: #6b7280; text-align: center;
@@ -82,6 +100,23 @@ figcaption { font-size: 9pt; color: #6b7280; text-align: center; margin-top: 5px
   th, tr:nth-child(even) td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 """
+
+
+def pinned_image(match: "re.Match") -> str:
+    """번호가 달린 캡처를 만든다.
+
+    문법:  ![설명](캡처/LIST.png){01:8,12  02:8,17}
+           번호 : 가로위치% , 세로위치%    (배지의 중심 기준)
+
+    이미지 파일 자체는 손대지 않고 번호만 위에 겹치므로 화질이 유지된다.
+    """
+    alt, src, spec = match.group(1), match.group(2), match.group(3)
+    items = re.findall(r"(\S+?)\s*:\s*([\d.]+)\s*,\s*([\d.]+)", spec)
+    tags = [
+        f'<b class="pin" style="left:{x}%;top:{y}%">{html.escape(label)}</b>'
+        for label, x, y in items
+    ]
+    return f'<span class="shot"><img src="{src}" alt="{alt}">' + "".join(tags) + "</span>"
 
 
 def inline(text: str) -> str:
@@ -96,6 +131,7 @@ def inline(text: str) -> str:
     text = re.sub(r"`([^`]+)`", keep_code, text)
     text = html.escape(text)
     text = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", text)
+    text = re.sub(r"!\[([^\]]*)\]\(([^)]+)\)\{([^}]*)\}", pinned_image, text)
     text = re.sub(r"!\[([^\]]*)\]\(([^)]+)\)",
                   r'<img src="\2" alt="\1">', text)
     text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r'<a href="\2">\1</a>', text)

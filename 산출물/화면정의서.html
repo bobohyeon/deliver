@@ -65,6 +65,24 @@ img {
 }
 figure { margin: 14px 0; page-break-inside: avoid; }
 figcaption { font-size: 9pt; color: #6b7280; text-align: center; margin-top: 5px; }
+
+/* 캡처 위에 요소 번호를 겹쳐 표시한다.
+   이미지를 다시 인코딩하지 않으므로 화질 손실이 없고,
+   번호는 텍스트로 그려져 PDF 에서 확대해도 깨지지 않는다. */
+.shot {
+  position: relative; display: block; width: fit-content;
+  margin: 12px auto; page-break-inside: avoid;
+}
+.shot img { margin: 0; display: block; }
+.pin {
+  position: absolute; transform: translate(-50%, -50%);
+  min-width: 16px; height: 16px; padding: 0 3px; box-sizing: border-box;
+  border-radius: 999px; background: #dc2626; color: #fff;
+  border: 1.4px solid #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, .3);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 8pt; font-weight: 700; line-height: 13px; text-align: center;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
 .doc-foot {
   margin-top: 30px; padding-top: 10px; border-top: 1px solid #dfe3e8;
   font-size: 8.5pt; color: #6b7280; text-align: center;
@@ -208,7 +226,7 @@ figcaption { font-size: 9pt; color: #6b7280; text-align: center; margin-top: 5px
 </tr></thead><tbody>
 <tr>
 <td>목적</td>
-<td>서비스가 무엇을 하는지, 각 기능을 어떻게 쓰는지 안내한다</td>
+<td>서비스가 무엇을 하는지 알리고, 업로드·목록 두 진입점으로 안내한다</td>
 </tr>
 <tr>
 <td>URL</td>
@@ -219,18 +237,24 @@ figcaption { font-size: 9pt; color: #6b7280; text-align: center; margin-top: 5px
 <td>없음 (정적 화면)</td>
 </tr>
 </tbody></table>
-<h3>화면 캡처</h3>
-<p><img src="캡처/HOME.png" alt="홈 화면"></p>
+<h3>1.2 화면 캡처</h3>
+<p><span class="shot"><img src="캡처/HOME.png" alt="홈 화면"><b class="pin" style="left:2.2%;top:15.4%">01</b><b class="pin" style="left:2.2%;top:22.5%">02</b><b class="pin" style="left:2.2%;top:33.2%">03</b><b class="pin" style="left:5.0%;top:38.5%">04</b><b class="pin" style="left:15.2%;top:38.5%">05</b><b class="pin" style="left:2.2%;top:44.1%">06</b><b class="pin" style="left:59.0%;top:13.5%">07</b><b class="pin" style="left:2.2%;top:73.6%">08</b><b class="pin" style="left:2.2%;top:90.0%">09</b></span></p>
 <blockquote>
-<p>캡처 위의 번호는 아래 <strong>UI 요소</strong> 표의 요소 ID 뒷자리와 대응한다 (예: 캡처의 <code>01</code> = <code>HOME-01</code>). 해당 요소: HOME-01 기능 메뉴 · HOME-02 설명 영역</p>
+<p>캡처 위의 빨간 번호는 아래 <strong>UI 요소</strong> 표의 요소 ID 뒷자리와 대응한다 (캡처의 <code>01</code> = <code>HOME-01</code>).</p>
 </blockquote>
-<h3>1.2 영역 구성</h3>
-<pre><code>┌─────────────┬──────────────────────────────────┐
-│ HOME-01     │ HOME-02                          │
-│ 기능 메뉴    │ 설명 표시 영역                     │
-│ (3개)       │ (선택된 기능 또는 기본 소개)         │
-└─────────────┴──────────────────────────────────┘</code></pre>
-<h3>1.3 UI 요소</h3>
+<h3>1.3 영역 구성</h3>
+<pre><code>┌──────────────────────────────┬────────────────────┐
+│ HOME-01 상단 라벨              │                    │
+│ HOME-02 제목                  │  HOME-07           │
+│ HOME-03 부제                  │  히어로 일러스트      │
+│ HOME-04 HOME-05 진입 버튼      │                    │
+│ HOME-06 제약 안내              │                    │
+├──────────────────────────────┴────────────────────┤
+│ HOME-08 문서 처리 과정 3단계 카드                     │
+├───────────────────────────────────────────────────┤
+│ HOME-09 기능 요약 배너 (검색 · 관리 · 자동 처리)        │
+└───────────────────────────────────────────────────┘</code></pre>
+<h3>1.4 UI 요소</h3>
 <table><thead><tr>
 <th>요소 ID</th>
 <th>유형</th>
@@ -239,39 +263,67 @@ figcaption { font-size: 9pt; color: #6b7280; text-align: center; margin-top: 5px
 </tr></thead><tbody>
 <tr>
 <td>HOME-01</td>
-<td>메뉴 목록</td>
-<td>문서업로드 / AI분석 / 검색·다운로드</td>
-<td><strong>마우스 올림(hover)</strong> 시 해당 기능 설명으로 전환, 강조 표시</td>
+<td>라벨</td>
+<td>DOCUMENT INTELLIGENCE WORKSPACE</td>
+<td>정적 표시</td>
 </tr>
 <tr>
 <td>HOME-02</td>
-<td>텍스트 영역</td>
-<td>설명</td>
-<td>선택된 메뉴의 설명을 문단 단위로 표시. 미선택 시 <code>서비스 소개</code> 기본 문구</td>
-</tr>
-</tbody></table>
-<ul>
-<li>메뉴 영역에서 마우스가 벗어나면(<code>onMouseLeave</code>) 기본 소개로 복귀한다.</li>
-<li>클릭이 아니라 hover로 동작하므로 <strong>화면 이동이 발생하지 않는다.</strong></li>
-</ul>
-<h3>1.4 상태별 표시</h3>
-<table><thead><tr>
-<th>상태</th>
-<th>표시</th>
-</tr></thead><tbody>
-<tr>
-<td>기본</td>
-<td>제목 <code>서비스 소개</code> + 서비스 전체 설명 3문단</td>
+<td>제목</td>
+<td>읽기 어려운 문서를 검색 가능한 지식으로.</td>
+<td>정적 표시. 핵심 어구만 강조색</td>
 </tr>
 <tr>
-<td>메뉴 hover</td>
-<td>제목 = 메뉴명, 본문 = 해당 기능 사용 방법</td>
+<td>HOME-03</td>
+<td>부제</td>
+<td>서비스 한 줄 설명</td>
+<td>텍스트 추출 → OCR → 비교 → 요약·분류 흐름을 문장으로 안내</td>
+</tr>
+<tr>
+<td>HOME-04</td>
+<td>버튼</td>
+<td>문서 업로드</td>
+<td><code>/upload</code> 로 이동</td>
+</tr>
+<tr>
+<td>HOME-05</td>
+<td>버튼</td>
+<td>문서 목록 보기</td>
+<td><code>/documents</code> 로 이동</td>
+</tr>
+<tr>
+<td>HOME-06</td>
+<td>제약 안내</td>
+<td>형식 · 용량 · 기능</td>
+<td><code>PDF · DOCX · HWPX · 이미지</code> / <code>최대 10MB · PDF 30페이지</code> / <code>OCR · 요약 · 분류</code></td>
+</tr>
+<tr>
+<td>HOME-07</td>
+<td>일러스트</td>
+<td>문서 분석 결과 예시</td>
+<td>정적 이미지. 실제 데이터가 아님</td>
+</tr>
+<tr>
+<td>HOME-08</td>
+<td>카드 3개</td>
+<td>문서 처리 과정</td>
+<td><code>01 문서 업로드</code> → <code>02 원본과 추출 결과 확인</code> → <code>03 요약 및 분류</code></td>
+</tr>
+<tr>
+<td>HOME-09</td>
+<td>배너</td>
+<td>기능 요약</td>
+<td>본문까지 통합 검색 / 한곳에서 문서 관리 / 보수적인 자동 처리</td>
 </tr>
 </tbody></table>
-<h3>1.5 비고</h3>
+<h3>1.5 상태별 표시</h3>
+<p>정적 화면이므로 데이터에 따른 상태 변화가 없다. 버튼과 네비게이션에만 마우스 올림 효과가 있다.</p>
+<h3>1.6 비고</h3>
 <ul>
-<li>기능이 추가될 때 <strong>설명서 역할</strong>을 하도록 설계된 영역이다. 메뉴 배열에 항목을 추가하면 화면이 확장된다.</li>
+<li><strong>제약 조건(HOME-06)을 화면에 먼저 노출한다.</strong> 업로드 후 오류로 알게 되는 것보다, 시작 화면에서 지원 형식과 상한을 알리는 편이 낫다는 판단이다.</li>
+<li><strong>처리 과정(HOME-08)은 업로드 화면의 3단계와 같은 순서</strong>로 맞췄다. 홈에서 본 순서가 실제 화면에서 그대로 반복되도록 하여 사용 흐름을 예측 가능하게 한다.</li>
 <li>이 영역의 문구는 산출물 <code>운영 메뉴얼</code>의 &quot;사용 방법&quot; 절과 내용을 공유한다.</li>
+<li><strong>08-05 UI 개편 이전에는</strong> 좌측 기능 메뉴(문서업로드 / AI분석 / 검색·다운로드)에 마우스를 올리면 우측 설명이 바뀌는 구성이었다. 개편에서 진입 버튼과 처리 과정 안내를 갖춘 소개 화면으로 대체됐다.</li>
 </ul>
 <hr>
 <h2>2. LIST — 문서 목록 + 상세 패널</h2>
@@ -299,7 +351,7 @@ figcaption { font-size: 9pt; color: #6b7280; text-align: center; margin-top: 5px
 <h3>화면 캡처</h3>
 <p><img src="캡처/LIST.png" alt="문서 목록 (패널 닫힘)"></p>
 <blockquote>
-<p>캡처 위의 번호는 아래 <strong>UI 요소</strong> 표의 요소 ID 뒷자리와 대응한다 (예: 캡처의 <code>01</code> = <code>LST-01</code>). 해당 요소: LST-01~LST-20</p>
+<p>캡처 위의 번호는 아래 <strong>UI 요소</strong> 표의 요소 ID 뒷자리와 대응한다 (예: 캡처의 <code>01</code> = <code>LST-01</code>). 해당 요소: LST-01~LST-10</p>
 </blockquote>
 <h3>2.2 영역 구성</h3>
 <p><strong>패널 닫힘 (기본)</strong></p>
@@ -308,14 +360,14 @@ figcaption { font-size: 9pt; color: #6b7280; text-align: center; margin-top: 5px
 ├──────────────────────────────────────────────────┤
 │ LST-04 검색어  LST-05 카테고리  LST-06 검색  LST-07 초기화│
 ├──────────────────────────────────────────────────┤
-│ LST-10 문서 표 (5열)                              │
+│ LST-08 문서 표 (5열)                              │
 ├──────────────────────────────────────────────────┤
-│ LST-20 페이징                                     │
+│ LST-10 페이징                                     │
 └──────────────────────────────────────────────────┘</code></pre>
 <p><img src="캡처/LIST2.png" alt="문서 목록 (패널 열림)"></p>
 <p><strong>패널 열림 (문서 선택 시)</strong></p>
 <pre><code>┌───────────────────────┬──────────────────────────┐
-│ LST-10 문서 표 (4열)   │ LST-30 상세 패널           │
+│ LST-08 문서 표 (4열)   │ LST-11 상세 패널           │
 │ 560px 고정            │ (DTL 화면과 동일 컴포넌트)   │
 │ ※ 스크롤 시 위치 고정   │                          │
 └───────────────────────┴──────────────────────────┘</code></pre>
@@ -377,49 +429,49 @@ figcaption { font-size: 9pt; color: #6b7280; text-align: center; margin-top: 5px
 <td>조건이 있을 때만 표시. 모든 조건 해제</td>
 </tr>
 <tr>
-<td>LST-10</td>
+<td>LST-08</td>
 <td>표</td>
 <td>문서 목록</td>
 <td>-</td>
 <td>아래 열 정의 참조</td>
 </tr>
 <tr>
-<td>LST-11</td>
+<td>LST-09</td>
 <td>버튼(링크형)</td>
 <td>파일명</td>
 <td>-</td>
-<td><strong>클릭 시 이동하지 않고 LST-30 패널에 상세 표시.</strong> 해당 행 강조</td>
+<td><strong>클릭 시 이동하지 않고 LST-11 패널에 상세 표시.</strong> 해당 행 강조</td>
 </tr>
 <tr>
-<td>LST-20</td>
+<td>LST-10</td>
 <td>페이징</td>
 <td>이전 / N/M / 다음</td>
 <td>-</td>
 <td>총 페이지가 2 이상일 때만 표시. 경계에서 비활성</td>
 </tr>
 <tr>
-<td>LST-30</td>
+<td>LST-11</td>
 <td>패널</td>
 <td>상세</td>
 <td>-</td>
-<td><code>DocumentDetail</code> 컴포넌트 (3.3의 DTL-10~DTL-40과 동일)</td>
+<td><code>DocumentDetail</code> 컴포넌트 (3.3의 DTL-02~DTL-40과 동일)</td>
 </tr>
 <tr>
-<td>LST-31</td>
+<td>LST-12</td>
 <td>링크</td>
 <td>전체 화면으로 보기</td>
 <td>-</td>
 <td><code>/documents/{id}</code> (DTL 화면)으로 이동</td>
 </tr>
 <tr>
-<td>LST-32</td>
+<td>LST-13</td>
 <td>버튼</td>
 <td>닫기(✕)</td>
 <td>-</td>
 <td>패널을 닫고 표를 5열로 복원</td>
 </tr>
 </tbody></table>
-<h4>LST-10 표 열 정의</h4>
+<h4>LST-08 표 열 정의</h4>
 <table><thead><tr>
 <th>열</th>
 <th>명칭</th>
@@ -567,19 +619,19 @@ figcaption { font-size: 9pt; color: #6b7280; text-align: center; margin-top: 5px
 <h3>화면 캡처</h3>
 <p><img src="캡처/DTL.png" alt="문서 상세 (전체 화면)"></p>
 <blockquote>
-<p>캡처 위의 번호는 아래 <strong>UI 요소</strong> 표의 요소 ID 뒷자리와 대응한다 (예: 캡처의 <code>01</code> = <code>DTL-01</code>). 해당 요소: DTL-01~DTL-40</p>
+<p>캡처 위의 번호는 아래 <strong>UI 요소</strong> 표의 요소 ID 뒷자리와 대응한다 (예: 캡처의 <code>01</code> = <code>DTL-01</code>). 해당 요소: DTL-01~DTL-11</p>
 </blockquote>
 <h3>3.2 영역 구성</h3>
 <pre><code>DTL-01 ← 목록으로
 ────────────────────────────────────────────
-DTL-10 파일명                DTL-11 분석  DTL-12 다운로드
-DTL-13 배지 (카테고리 · 상태 · 추출방식)
+DTL-02 파일명                DTL-03 분석  DTL-04 다운로드
+DTL-05 배지 (카테고리 · 상태 · 추출방식)
 ────────────────────────────────────────────
-DTL-20 메타 정보 (한 줄)
-DTL-30 AI 요약
-DTL-31 분류 근거
-DTL-32 추출 원문 (접기/펼치기)
-DTL-40 분석 이력 (표)</code></pre>
+DTL-06 메타 정보 (한 줄)
+DTL-07 AI 요약
+DTL-08 분류 근거
+DTL-09 추출 원문 (접기/펼치기)
+DTL-11 분석 이력 (표)</code></pre>
 <h3>3.3 UI 요소</h3>
 <table><thead><tr>
 <th>요소 ID</th>
@@ -594,61 +646,61 @@ DTL-40 분석 이력 (표)</code></pre>
 <td><strong>직전 화면이 목록이면 뒤로가기</strong>(검색 조건·페이지 유지). 주소로 직접 진입한 경우 <code>/documents</code> 로 이동</td>
 </tr>
 <tr>
-<td>DTL-10</td>
+<td>DTL-02</td>
 <td>텍스트</td>
 <td>파일명</td>
 <td>길면 줄바꿈. 레이아웃을 밀지 않음</td>
 </tr>
 <tr>
-<td>DTL-11</td>
+<td>DTL-03</td>
 <td>버튼</td>
 <td>AI 분석 실행</td>
 <td><strong>분석 이력이 없을 때만 표시.</strong> 실행 중 <code>분석 중…</code> 으로 바뀌고 비활성</td>
 </tr>
 <tr>
-<td>DTL-12</td>
+<td>DTL-04</td>
 <td>버튼</td>
 <td>요약 .txt 다운로드</td>
 <td><strong>분석 이력이 없으면 비활성</strong> + 안내 <code>분석을 먼저 실행해야 합니다</code></td>
 </tr>
 <tr>
-<td>DTL-13</td>
+<td>DTL-05</td>
 <td>배지</td>
 <td>카테고리 / 상태 / 추출방식</td>
 <td>값이 없으면 <code>—</code></td>
 </tr>
 <tr>
-<td>DTL-20</td>
+<td>DTL-06</td>
 <td>정의 목록</td>
 <td>유형 · 형식 · 페이지 · 글자 수 · 업로드</td>
 <td>한 줄 배치. 값 없으면 <code>-</code></td>
 </tr>
 <tr>
-<td>DTL-30</td>
+<td>DTL-07</td>
 <td>텍스트</td>
 <td>AI 요약</td>
 <td>강조색 좌측 선. 최대 높이 제한 후 내부 스크롤. <strong>미분석 시</strong> <code>아직 분석되지 않았습니다</code></td>
 </tr>
 <tr>
-<td>DTL-31</td>
+<td>DTL-08</td>
 <td>텍스트</td>
 <td>분류 근거</td>
 <td>분류 결과가 있을 때만 표시</td>
 </tr>
 <tr>
-<td>DTL-32</td>
+<td>DTL-09</td>
 <td>텍스트(원문)</td>
 <td>추출 원문</td>
 <td>기본 <strong>700자까지 접힘</strong>. <code>전체 보기</code> 클릭 시 전체 표시(최대 높이 제한 + 내부 스크롤)</td>
 </tr>
 <tr>
-<td>DTL-14</td>
+<td>DTL-10</td>
 <td>버튼</td>
 <td>삭제</td>
 <td><strong>확인 창 승인 후</strong> 문서·추출 원문·분석 결과·원본 파일을 삭제. 삭제 후 목록으로 이동(뒤로가기로 되돌아갈 수 없게 주소를 대체)</td>
 </tr>
 <tr>
-<td>DTL-40</td>
+<td>DTL-11</td>
 <td>표</td>
 <td>분석 이력</td>
 <td>분석기 / 제공자·모델 / 토큰(입력·출력) / 응답 시간 / 실행 일시</td>
@@ -666,17 +718,17 @@ DTL-40 분석 이력 (표)</code></pre>
 <td><code>/api/documents/{id}</code></td>
 </tr>
 <tr>
-<td>DTL-11</td>
+<td>DTL-03</td>
 <td>POST</td>
 <td><code>/api/documents/{id}/analyze</code> → 성공 후 상세 재조회</td>
 </tr>
 <tr>
-<td>DTL-12</td>
+<td>DTL-04</td>
 <td>GET</td>
 <td><code>/api/documents/{id}/download?format=txt</code></td>
 </tr>
 <tr>
-<td>DTL-14</td>
+<td>DTL-10</td>
 <td>DELETE</td>
 <td><code>/api/documents/{id}</code> → 204 No Content</td>
 </tr>
@@ -721,7 +773,7 @@ DTL-40 분석 이력 (표)</code></pre>
 </tbody></table>
 <h3>3.6 비고</h3>
 <ul>
-<li>DTL-10 ~ DTL-40 은 <strong>LIST 화면의 상세 패널(LST-30)과 동일한 컴포넌트</strong>다. 상세 표현을 수정하면 두 화면에 동시에 반영된다.</li>
+<li>DTL-02 ~ DTL-11 은 <strong>LIST 화면의 상세 패널(LST-11)과 동일한 컴포넌트</strong>다. 상세 표현을 수정하면 두 화면에 동시에 반영된다.</li>
 <li><code>분석 이력</code>은 재분석 시 행이 누적된다. <code>응답 시간</code>은 분량 제한값(45,000자) 적정성 검토의 근거 자료로 사용한다.</li>
 </ul>
 <hr>
@@ -747,19 +799,19 @@ DTL-40 분석 이력 (표)</code></pre>
 <h3>화면 캡처</h3>
 <p><img src="캡처/UPL.png" alt="문서 업로드 및 분석"></p>
 <blockquote>
-<p>캡처 위의 번호는 아래 <strong>UI 요소</strong> 표의 요소 ID 뒷자리와 대응한다 (예: 캡처의 <code>01</code> = <code>UPL-01</code>). 해당 요소: UPL-01~UPL-32</p>
+<p>캡처 위의 번호는 아래 <strong>UI 요소</strong> 표의 요소 ID 뒷자리와 대응한다 (예: 캡처의 <code>01</code> = <code>UPL-01</code>). 해당 요소: UPL-01~UPL-13</p>
 </blockquote>
 <h3>4.2 영역 구성</h3>
 <pre><code>UPL-01 제목 · 설명                        UPL-02 문서 목록으로
 ────────────────────────────────────────────────────────
-[01] UPL-10 파일 선택 (드롭존)
+[01] UPL-03 파일 선택 (드롭존)
 ────────────────────────────────────────────────────────
-[02] UPL-20 추출 결과 비교
+[02] UPL-08 추출 결과 비교
      ┌─ 업로드 원본 ─┬─ 추출 텍스트 ─┐
      │ 미리보기      │ 추출 결과     │
      └──────────────┴──────────────┘
 ────────────────────────────────────────────────────────
-[03] UPL-30 AI 분석 (요약 / 분류 선택 실행)</code></pre>
+[03] UPL-11 AI 분석 (요약 / 분류 선택 실행)</code></pre>
 <h3>4.3 UI 요소</h3>
 <table><thead><tr>
 <th>요소 ID</th>
@@ -783,81 +835,81 @@ DTL-40 분석 이력 (표)</code></pre>
 <td><code>/documents</code> 로 이동</td>
 </tr>
 <tr>
-<td>UPL-10</td>
+<td>UPL-03</td>
 <td>드롭존</td>
 <td>파일 끌어놓기 영역</td>
 <td>필수</td>
 <td>드래그 중 강조. 파일 1건</td>
 </tr>
 <tr>
-<td>UPL-11</td>
+<td>UPL-04</td>
 <td>버튼</td>
 <td>파일 선택 / 다른 파일 선택</td>
 <td>-</td>
 <td>파일 탐색기 열기</td>
 </tr>
 <tr>
-<td>UPL-12</td>
+<td>UPL-05</td>
 <td>텍스트</td>
 <td>선택 파일 정보</td>
 <td>-</td>
 <td>파일명 · 확장자 · 크기(MB)</td>
 </tr>
 <tr>
-<td>UPL-13</td>
+<td>UPL-06</td>
 <td>버튼</td>
 <td>선택 취소</td>
 <td>-</td>
 <td>선택·결과 초기화</td>
 </tr>
 <tr>
-<td>UPL-14</td>
+<td>UPL-07</td>
 <td>버튼</td>
 <td>OCR 전송</td>
 <td>-</td>
 <td>업로드 실행. <strong>명칭 변경 예정 → <code>업로드 및 추출</code></strong> (부록 E)</td>
 </tr>
 <tr>
-<td>UPL-20</td>
+<td>UPL-08</td>
 <td>미리보기</td>
 <td>업로드 원본</td>
 <td>-</td>
 <td>이미지는 그대로, PDF는 브라우저 내장 뷰어. <strong>DOCX·HWPX는 미리보기 미지원 안내</strong></td>
 </tr>
 <tr>
-<td>UPL-21</td>
+<td>UPL-09</td>
 <td>텍스트</td>
 <td>추출 텍스트</td>
 <td>-</td>
 <td>추출 결과 전문 + 글자 수</td>
 </tr>
 <tr>
-<td>UPL-22</td>
+<td>UPL-10</td>
 <td>텍스트</td>
 <td>추출 통계</td>
 <td>-</td>
 <td>추출 방식 · 글자 수 · 페이지 수</td>
 </tr>
 <tr>
-<td>UPL-30</td>
+<td>UPL-11</td>
 <td>체크박스</td>
 <td>핵심 요약</td>
 <td>선택</td>
 <td>기본 선택</td>
 </tr>
 <tr>
-<td>UPL-31</td>
+<td>UPL-12</td>
 <td>체크박스</td>
 <td>카테고리 분류</td>
 <td>선택</td>
 <td>기본 선택</td>
 </tr>
 <tr>
-<td>UPL-32</td>
+<td>UPL-13</td>
 <td>버튼</td>
 <td>분석 실행</td>
 <td>-</td>
-<td>UPL-30·31 중 <strong>하나 이상 필수</strong>. 미선택 시 안내 표시</td>
+<td>UPL-11·31 중 <strong>하나 이상 필수</strong>. 미선택 시 안내 표시</td>
 </tr>
 </tbody></table>
 <h4>업로드 유효성 검증</h4>
@@ -897,7 +949,7 @@ DTL-40 분석 이력 (표)</code></pre>
 <th>엔드포인트</th>
 </tr></thead><tbody>
 <tr>
-<td>UPL-14</td>
+<td>UPL-07</td>
 <td>POST</td>
 <td><code>/api/documents</code> (multipart, <code>file</code>)</td>
 </tr>
@@ -907,7 +959,7 @@ DTL-40 분석 이력 (표)</code></pre>
 <td><code>/api/documents/{id}</code> — 추출 원문 조회</td>
 </tr>
 <tr>
-<td>UPL-32</td>
+<td>UPL-13</td>
 <td>POST</td>
 <td><code>/api/documents/{id}/analyze</code></td>
 </tr>
@@ -971,9 +1023,9 @@ DTL-40 분석 이력 (표)</code></pre>
 <h3>5.2 영역 구성</h3>
 <pre><code>CMP-01 제목 · 설명 (정확도 지표의 의미 명시)
 ────────────────────────────────────────────
-CMP-10 비교할 파일 선택
-CMP-11 정답 데이터 선택 (선택)      CMP-12 비교 실행
-CMP-13 미리보기
+CMP-02 비교할 파일 선택
+CMP-03 정답 데이터 선택 (선택)      CMP-04 비교 실행
+CMP-05 미리보기
 ────────────────────────────────────────────
 ┌── PaddleOCR ──┬── Tesseract ──┬── EasyOCR ──┐
 │ 정확도         │ 정확도         │ 정확도       │
@@ -981,7 +1033,7 @@ CMP-13 미리보기
 │ 추출 글자 수   │ 추출 글자 수   │ 추출 글자 수 │
 │ 인식 텍스트    │ 인식 텍스트    │ 인식 텍스트  │
 └───────────────┴───────────────┴─────────────┘
-   CMP-20          CMP-21          CMP-22</code></pre>
+   CMP-06          CMP-07          CMP-08</code></pre>
 <h3>5.3 UI 요소</h3>
 <table><thead><tr>
 <th>요소 ID</th>
@@ -998,56 +1050,56 @@ CMP-13 미리보기
 <td>제목 + 정확도 지표 설명</td>
 </tr>
 <tr>
-<td>CMP-10</td>
+<td>CMP-02</td>
 <td>입력(file)</td>
 <td>비교할 파일</td>
 <td>필수</td>
 <td>이미지(PNG·JPG·BMP·TIF·WEBP·GIF) 및 <strong>PDF · DOCX · HWPX</strong>. 문서는 <strong>첫 페이지 또는 첫 이미지</strong>를 변환해 비교</td>
 </tr>
 <tr>
-<td>CMP-11</td>
+<td>CMP-03</td>
 <td>입력(file)</td>
 <td>정답 데이터</td>
 <td>선택</td>
 <td><strong>LabelMe 형식 JSON.</strong> 제공 시 실제 정확도를 계산</td>
 </tr>
 <tr>
-<td>CMP-12</td>
+<td>CMP-04</td>
 <td>버튼</td>
 <td>비교 실행</td>
 <td>-</td>
 <td>파일 미선택 시 비활성. 실행 중 <code>비교 실행 중...</code></td>
 </tr>
 <tr>
-<td>CMP-13</td>
+<td>CMP-05</td>
 <td>미리보기</td>
 <td>선택 파일</td>
 <td>-</td>
 <td>변환된 이미지를 표시</td>
 </tr>
 <tr>
-<td>CMP-20</td>
+<td>CMP-06</td>
 <td>결과 카드</td>
 <td>PaddleOCR</td>
 <td>-</td>
 <td>정확도 · 소요시간 · 추출 글자 수 · 인식 텍스트</td>
 </tr>
 <tr>
-<td>CMP-21</td>
+<td>CMP-07</td>
 <td>결과 카드</td>
 <td>Tesseract</td>
 <td>-</td>
 <td>동일 구성</td>
 </tr>
 <tr>
-<td>CMP-22</td>
+<td>CMP-08</td>
 <td>결과 카드</td>
 <td>EasyOCR</td>
 <td>-</td>
 <td>동일 구성</td>
 </tr>
 <tr>
-<td>CMP-30</td>
+<td>CMP-09</td>
 <td>배지</td>
 <td>더 정확함 / 더 빠름</td>
 <td>-</td>
@@ -1094,7 +1146,7 @@ CMP-13 미리보기
 <th>요청</th>
 </tr></thead><tbody>
 <tr>
-<td>CMP-12</td>
+<td>CMP-04</td>
 <td>POST</td>
 <td><code>/api/ocr-compare</code></td>
 <td>multipart — <code>file</code> (필수) · <code>ground_truth</code> (선택)</td>
@@ -1440,7 +1492,7 @@ CMP-13 미리보기
 </tr>
 <tr>
 <td><strong>영역별 추출 결과 수정</strong></td>
-<td>UPL-20 / UPL-21 비교 화면을 편집 가능하게 확장. 추출 단계에서 <strong>좌표·신뢰도 데이터가 이미 산출되고 있다</strong></td>
+<td>UPL-08 / UPL-09 비교 화면을 편집 가능하게 확장. 추출 단계에서 <strong>좌표·신뢰도 데이터가 이미 산출되고 있다</strong></td>
 <td>읽기 전용 비교까지 구현</td>
 </tr>
 </tbody></table>
@@ -1451,7 +1503,7 @@ CMP-13 미리보기
 <th>담당</th>
 </tr></thead><tbody>
 <tr>
-<td>UPL-14 명칭</td>
+<td>UPL-07 명칭</td>
 <td><code>OCR 전송</code> → <code>업로드 및 추출</code>. 텍스트 레이어만 사용되는 경우도 있어 현재 명칭이 오해를 유발</td>
 <td>최재정</td>
 </tr>
@@ -1476,7 +1528,7 @@ CMP-13 미리보기
    │              │     LIST     │           │ 파일명 선택
    │              │  검색 · 조회  │           ▼
    │              └──────┬───────┘   ┌───────────────┐
-   │ 문서 목록으로         │ 새 문서    │ LST-30 패널    │
+   │ 문서 목록으로         │ 새 문서    │ LST-11 패널    │
    │                     │ 업로드     │ (상세)         │
    │                     ▼           └───────┬───────┘
    │              ┌──────────────┐            │ 전체 화면으로
