@@ -229,10 +229,12 @@ def convert(md: str) -> str:
                 index += 1
             index += 1
 
+            # 표가 시작되는 줄을 경계로 삼는다. 표 앞의 모든 내용(화면 이미지가
+            # 여러 장이어도)이 좌측 단, 표부터가 우측 단이 된다.
             cut = len(block)
             for offset, item in enumerate(block):
-                if item.strip().startswith("!["):
-                    cut = offset + 1
+                if item.strip().startswith("|"):
+                    cut = offset
                     break
             left = convert("\n".join(block[:cut]))
             right = convert("\n".join(block[cut:]))
