@@ -11,12 +11,13 @@ import sys
 from pathlib import Path
 
 CSS = """
-@page { size: A4; margin: 14mm 12mm; }
+/* 캡처와 요소 설명을 나란히 두므로 가로 방향이 필요하다 */
+@page { size: A4 landscape; margin: 12mm 12mm; }
 * { box-sizing: border-box; }
 body {
   font-family: "Malgun Gothic", "맑은 고딕", -apple-system, sans-serif;
   font-size: 10.5pt; line-height: 1.55; color: #1f2937;
-  max-width: 940px; margin: 0 auto; padding: 24px;
+  max-width: 1180px; margin: 0 auto; padding: 24px;
 }
 h1 {
   font-size: 20pt; margin: 0 0 4px; padding-bottom: 10px;
@@ -81,6 +82,21 @@ figcaption { font-size: 9pt; color: #6b7280; text-align: center; margin-top: 5px
   margin: 12px auto; page-break-inside: avoid;
 }
 .shot img { margin: 0; display: block; }
+/* 캡처(좌) + 요소 설명(우) 두 단 배치.
+   번호를 눈으로 좇으며 표와 대조할 수 있도록 한 화면에 함께 둔다. */
+.split {
+  display: flex; gap: 16px; align-items: flex-start;
+  margin: 14px 0; page-break-inside: avoid;
+}
+.split .col-shot { flex: 0 0 54%; min-width: 0; }
+.split .col-spec { flex: 1 1 0; min-width: 0; }
+.split .col-shot .shot { margin: 0; width: 100%; }
+.split .col-shot img { width: 100%; height: auto; }
+.split .col-spec table { font-size: 8pt; margin: 0; }
+.split .col-spec th, .split .col-spec td { padding: 3px 5px; }
+.split .col-spec h3, .split .col-spec h4 { margin-top: 0; }
+.split .col-spec > *:first-child { margin-top: 0; }
+
 .pin {
   position: absolute; transform: translate(-50%, -50%);
   min-width: 16px; height: 16px; padding: 0 3px; box-sizing: border-box;
@@ -161,6 +177,33 @@ def convert(md: str) -> str:
     while index < len(lines):
         line = lines[index]
         stripped = line.strip()
+
+        # --- 두 단 구획: 캡처(좌) + 요소 설명(우) ---
+        #     :::split 로 열고 ::: 로 닫는다. 구획 안의 첫 이미지까지가 좌측,
+        #     나머지가 우측이 된다. 번호와 표를 한 화면에서 대조하기 위한 배치.
+        if stripped == ":::split":
+            close_list()
+            index += 1
+            block: list[str] = []
+            while index < len(lines) and lines[index].strip() != ":::":
+                block.append(lines[index])
+                index += 1
+            index += 1
+
+            cut = len(block)
+            for offset, item in enumerate(block):
+                if item.strip().startswith("!["):
+                    cut = offset + 1
+                    break
+            left = convert("\n".join(block[:cut]))
+            right = convert("\n".join(block[cut:]))
+            out.append(
+                '<div class="split">'
+                f'<div class="col-shot">{left}</div>'
+                f'<div class="col-spec">{right}</div>'
+                "</div>"
+            )
+            continue
 
         # --- 코드블록 ---
         if stripped.startswith("```"):
