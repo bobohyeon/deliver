@@ -370,9 +370,7 @@ figcaption { font-size: 9pt; color: #6b7280; text-align: center; margin-top: 5px
 </blockquote>
 <h3>2.2 화면과 UI 요소</h3>
 <div class="split"><div class="col-shot"><p><strong>패널 닫힘 (기본)</strong></p>
-<p><span class="shot" style="max-width:116mm"><img src="캡처/LIST.png" alt="문서 목록 (패널 닫힘)"><b class="pin" style="left:2.2%;top:15.1%">01</b><b class="pin" style="left:17.5%;top:15.1%">02</b><b class="pin" style="left:91.0%;top:12.8%">03</b><b class="pin" style="left:2.2%;top:26.0%">04</b><b class="pin" style="left:85.5%;top:26.0%">05</b><b class="pin" style="left:94.0%;top:26.0%">06</b><b class="pin" style="left:2.2%;top:31.6%">08</b><b class="pin" style="left:13.0%;top:35.8%">09</b></span></p>
-<p><strong>패널 열림 (문서 선택 시)</strong></p>
-<p><span class="shot" style="max-width:65mm"><img src="캡처/LIST2.png" alt="문서 목록 (패널 열림)"><b class="pin" style="left:43.0%;top:45.0%">11</b><b class="pin" style="left:46.8%;top:7.9%">12</b><b class="pin" style="left:90.3%;top:7.9%">13</b></span></p></div><div class="col-spec"><table><thead><tr>
+<p><span class="shot" style="max-width:174mm"><img src="캡처/LIST.png" alt="문서 목록 (패널 닫힘)"><b class="pin" style="left:2.2%;top:15.1%">01</b><b class="pin" style="left:17.5%;top:15.1%">02</b><b class="pin" style="left:91.0%;top:12.8%">03</b><b class="pin" style="left:2.2%;top:26.0%">04</b><b class="pin" style="left:85.5%;top:26.0%">05</b><b class="pin" style="left:94.0%;top:26.0%">06</b><b class="pin" style="left:2.2%;top:31.6%">08</b><b class="pin" style="left:13.0%;top:35.8%">09</b></span></p></div><div class="col-spec"><table><thead><tr>
 <th>ID</th>
 <th>유형</th>
 <th>명칭</th>
@@ -458,14 +456,19 @@ figcaption { font-size: 9pt; color: #6b7280; text-align: center; margin-top: 5px
 </tr>
 </tbody></table></div></div>
 <blockquote>
-<p>화면의 <strong>빨간 번호</strong>가 표의 <code>ID</code> 뒷자리와 대응한다. 이 화면은 패널 상태에 따라 보이는 요소가
-달라지므로 두 상태에 걸쳐 번호를 나눠 표시했다. 좌측 표에서 파일명(<code>LST-09</code>)을 누르면
-우측에 상세 패널(<code>LST-11</code>)이 열리고 표가 4열로 좁아진다.</p>
-<p><strong><code>07</code> <code>10</code> 은 두 화면에 모두 번호가 없다.</strong> <code>07</code> 초기화는 검색 조건이 있을 때,
-<code>10</code> 페이징은 20건을 넘을 때만 나타난다 (<code>2.6 상태별 표시</code> 참조).</p>
+<p>화면의 <strong>빨간 번호</strong>가 표의 <code>ID</code> 뒷자리와 대응한다.
+<strong><code>07</code> <code>10</code> 은 조건부 요소라 번호가 없다.</strong> <code>07</code> 초기화는 검색 조건이 있을 때,
+<code>10</code> 페이징은 20건을 넘을 때만 나타난다 (<code>2.6 상태별 표시</code> 참조).
+<code>11</code>~<code>13</code> 은 문서를 선택했을 때만 나타나므로 아래 <strong>패널 열림</strong> 화면에 표시했다.</p>
+</blockquote>
+<p><strong>패널 열림 (문서 선택 시)</strong></p>
+<p><span class="shot" style="max-width:151mm"><img src="캡처/LIST2.png" alt="문서 목록 (패널 열림)"><b class="pin" style="left:43.0%;top:45.0%">11</b><b class="pin" style="left:46.8%;top:7.9%">12</b><b class="pin" style="left:90.3%;top:7.9%">13</b></span></p>
+<blockquote>
+<p>좌측 표에서 파일명(<code>LST-09</code>)을 누르면 우측에 상세 패널(<code>LST-11</code>)이 열리고 표가 4열로 좁아진다.
+패널 상단에 <code>LST-12</code> 전체 화면으로 보기, <code>LST-13</code> 닫기(✕)가 있다.
+패널 내용은 <code>DocumentDetail</code> 컴포넌트를 그대로 재사용하므로 <code>DTL</code> 화면의 요소 구성과 같다.</p>
 </blockquote>
 <h3>2.3 영역 구성</h3>
-<p><strong>패널 닫힘 (기본)</strong></p>
 <pre><code>┌──────────────────────────────────────────────────┐
 │ LST-01 제목 · 건수                LST-03 업로드 버튼 │
 ├──────────────────────────────────────────────────┤
