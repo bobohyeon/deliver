@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<title>화면 정의서 - PDF Brief AI</title>
+<title>화면 정의서</title>
 <style>
 @page { size: A4; margin: 14mm 12mm; }
 * { box-sizing: border-box; }
@@ -79,8 +79,8 @@ figcaption { font-size: 9pt; color: #6b7280; text-align: center; margin-top: 5px
 <body>
 <h1>화면 정의서</h1>
 <p><strong>프로젝트</strong> PDF Brief AI — 문서 요약·분류 웹 서비스</p>
-<p><strong>작성</strong> 김보현 | <strong>작성일</strong> 2026-08-04 | <strong>기준 커밋</strong> <code>main</code></p>
-<p><strong>대상</strong> 구현 완료된 4개 화면</p>
+<p><strong>작성</strong> 김보현 | <strong>작성일</strong> 2026-08-05 | <strong>기준 커밋</strong> <code>main</code> (코드 프리즈 시점)</p>
+<p><strong>대상</strong> 구현 완료된 6개 화면</p>
 <hr>
 <h2>0. 문서 개요</h2>
 <h3>0.1 화면 목록</h3>
@@ -126,6 +126,13 @@ figcaption { font-size: 9pt; color: #6b7280; text-align: center; margin-top: 5px
 <td>박세현</td>
 <td>공개</td>
 </tr>
+<tr>
+<td><strong>NF</strong></td>
+<td>페이지 없음 (404)</td>
+<td>정의되지 않은 모든 경로</td>
+<td>박세현</td>
+<td>공개</td>
+</tr>
 </tbody></table>
 <blockquote>
 <p>인증 기능은 미니프로젝트 범위에서 제외되었으므로 모든 화면이 공개다.
@@ -155,25 +162,38 @@ figcaption { font-size: 9pt; color: #6b7280; text-align: center; margin-top: 5px
 <tr>
 <td>CMN-03</td>
 <td>네비게이션</td>
-<td>문서 목록</td>
+<td>문서</td>
 <td><code>/documents</code> 로 이동. 현재 화면이면 강조</td>
 </tr>
 <tr>
 <td>CMN-04</td>
 <td>네비게이션</td>
+<td>업로드</td>
+<td><code>/upload</code> 로 이동. 현재 화면이면 강조</td>
+</tr>
+<tr>
+<td>CMN-05</td>
+<td>네비게이션</td>
 <td>OCR 비교</td>
 <td><code>/ocr-compare</code> 로 이동. 현재 화면이면 강조</td>
 </tr>
 <tr>
-<td>CMN-05</td>
+<td>CMN-06</td>
 <td>버튼(아이콘)</td>
 <td>사용자</td>
 <td><strong>동작 없음 — 인증 기능 삽입 지점</strong> (부록 D)</td>
 </tr>
 </tbody></table>
 <blockquote>
-<p>업로드 화면(<code>/upload</code>)은 헤더에 노출하지 않는다. 진입점을 문서 목록의 버튼으로 통일했다.</p>
+<p><strong>업로드 진입점이 두 곳이다.</strong> 헤더 <code>업로드</code> 메뉴와 문서 목록의 <code>새 문서 업로드</code> 버튼이
+같은 화면으로 연결된다. 결정사항 19에서 &quot;헤더에서 제거하고 목록 버튼으로 통일&quot;로 정했으나,
+08-05 프론트엔드 UI 개편에서 헤더 메뉴가 다시 추가되어 현재는 두 경로가 함께 존재한다.
+기능상 충돌은 없으며, 진입점 단일화 여부는 본프로젝트에서 재검토한다.</p>
 </blockquote>
+<ul>
+<li>네비게이션 항목은 아이콘과 이름을 함께 표시한다.</li>
+<li>현재 화면에 해당하는 항목은 배경 강조로 구분한다.</li>
+</ul>
 <ul>
 <li>컨테이너 최대 폭 <strong>1440px</strong>, 좌우 여백 <strong>28px</strong> (<code>--c-page-x</code>)</li>
 <li>색상은 라이트 모드 고정 (다크모드 미지원 — 결정사항 14)</li>
@@ -279,7 +299,7 @@ figcaption { font-size: 9pt; color: #6b7280; text-align: center; margin-top: 5px
 <h3>화면 캡처</h3>
 <p><img src="캡처/LIST.png" alt="문서 목록 (패널 닫힘)"></p>
 <blockquote>
-<p>캡처 위의 번호는 아래 <strong>UI 요소</strong> 표의 요소 ID 뒷자리와 대응한다 (예: 캡처의 <code>01</code> = <code>LIST-01</code>). 해당 요소: LST-01~LST-20</p>
+<p>캡처 위의 번호는 아래 <strong>UI 요소</strong> 표의 요소 ID 뒷자리와 대응한다 (예: 캡처의 <code>01</code> = <code>LST-01</code>). 해당 요소: LST-01~LST-20</p>
 </blockquote>
 <h3>2.2 영역 구성</h3>
 <p><strong>패널 닫힘 (기본)</strong></p>
@@ -1147,6 +1167,67 @@ CMP-13 미리보기
 <p><strong>성능 주의</strong> — 세 엔진을 순차 실행하므로 이미지 1장당 총 소요 시간이 길다. 실행 중 CPU 사용률이 높아지므로, <strong>발표 시연에서는 실시간 실행 대신 사전에 측정한 결과를 사용하는 것을 권한다.</strong></p>
 </blockquote>
 <hr>
+<h2>6. NF — 페이지 없음 (404)</h2>
+<h3>6.1 개요</h3>
+<table><thead><tr>
+<th>항목</th>
+<th>내용</th>
+</tr></thead><tbody>
+<tr>
+<td>목적</td>
+<td>정의되지 않은 주소로 접근했을 때 상황을 알리고 정상 화면으로 돌아갈 경로를 제공한다</td>
+</tr>
+<tr>
+<td>URL</td>
+<td>정의된 5개 경로에 해당하지 않는 모든 주소 (예: <code>/zzzz</code>)</td>
+</tr>
+<tr>
+<td>연동 API</td>
+<td>없음 (정적 화면)</td>
+</tr>
+</tbody></table>
+<h3>화면 캡처</h3>
+<p><img src="캡처/NOTFOUND.png" alt="페이지 없음"></p>
+<blockquote>
+<p>캡처 위의 번호는 아래 <strong>UI 요소</strong> 표의 요소 ID 뒷자리와 대응한다 (예: 캡처의 <code>01</code> = <code>NF-01</code>).</p>
+</blockquote>
+<h3>6.2 UI 요소</h3>
+<table><thead><tr>
+<th>요소 ID</th>
+<th>유형</th>
+<th>명칭</th>
+<th>동작</th>
+</tr></thead><tbody>
+<tr>
+<td>NF-01</td>
+<td>안내 문구</td>
+<td>페이지를 찾을 수 없음</td>
+<td>요청한 주소가 존재하지 않음을 알린다</td>
+</tr>
+<tr>
+<td>NF-02</td>
+<td>버튼</td>
+<td>복귀</td>
+<td>홈 또는 문서 목록으로 이동한다</td>
+</tr>
+</tbody></table>
+<h3>6.3 동작 규칙</h3>
+<ul>
+<li><code>App.jsx</code> 의 <strong>catch-all 라우트</strong>(<code>path=&quot;*&quot;</code>)가 처리한다. 정의된 5개 경로가 모두 어긋날 때만 표시된다.</li>
+<li>공통 헤더(<code>MainLayout</code>)를 그대로 유지하므로, 이 화면에서도 헤더 네비게이션으로 이동할 수 있다.</li>
+</ul>
+<h3>6.4 비고 — 개선 경과</h3>
+<p><strong>08-05 이전에는 이 화면이 없었다.</strong> 정의되지 않은 주소로 접근하면 헤더조차 없는 <strong>빈 흰 화면</strong>이 표시되어, 사용자가 오류인지 로딩 중인지 구분할 수 없었다.</p>
+<ul>
+<li>발표·시연 중 주소를 잘못 입력하면 즉시 드러나는 문제였고, <code>catch-all</code> 라우트 한 줄로 해결됐다.</li>
+<li><strong>홈으로 자동 이동하는 안(미채택)</strong> 은 오류가 발생한 사실 자체를 감춰 사용자가 잘못된 주소를 계속 사용하게 되므로, 안내 화면을 명시적으로 표시하는 방식을 택했다 (결정사항 27).</li>
+</ul>
+<blockquote>
+<p><strong>없는 문서 번호</strong>(<code>/documents/999999</code>)는 이 화면이 아니라 <strong>DTL 화면의 오류 상태</strong>로 처리된다.
+경로는 정의되어 있고 데이터만 없는 상황이므로, <code>DOCUMENT_NOT_FOUND</code>(404) 응답을 받아
+<code>ErrorBanner</code> 와 목록 이동 링크를 표시한다 (3.5 상태별 표시 참조).</p>
+</blockquote>
+<hr>
 <h2>부록 A. 공통 컴포넌트</h2>
 <table><thead><tr>
 <th>컴포넌트</th>
@@ -1173,7 +1254,26 @@ CMP-13 미리보기
 <td>상세 표현 (API 호출 없음)</td>
 <td>LIST 패널 · DTL</td>
 </tr>
+<tr>
+<td><strong>PageHeader</strong></td>
+<td>화면 제목·부제·상단 라벨·우측 동작 버튼</td>
+<td>LIST · UPL · CMP</td>
+</tr>
+<tr>
+<td><strong>EmptyState</strong></td>
+<td>결과 없음 안내 (검색 결과 0건 · 문서 없음)</td>
+<td>LIST</td>
+</tr>
+<tr>
+<td><strong>Icon</strong></td>
+<td>네비게이션·버튼 아이콘</td>
+<td>전 화면</td>
+</tr>
 </tbody></table>
+<blockquote>
+<p><code>PageHeader</code> · <code>EmptyState</code> · <code>Icon</code> 은 08-05 프론트엔드 UI 개편에서 추가됐다.
+화면마다 제목·빈 상태를 각자 그리던 것을 컴포넌트로 모아, 표시 방식이 자동으로 통일된다.</p>
+</blockquote>
 <blockquote>
 <p>색상·간격·글자 크기는 <code>styles/tokens.css</code> 한 곳에서 정의한다. 화면을 누가 만들어도 표시가 통일된다.</p>
 </blockquote>
@@ -1325,7 +1425,7 @@ CMP-13 미리보기
 </tr></thead><tbody>
 <tr>
 <td><strong>로그인 / 회원가입</strong></td>
-<td>화면: <code>MainLayout</code> 헤더 우측 사용자 버튼(CMN-04) → <code>/login</code> · <code>/signup</code>&lt;br&gt;코드: <code>App.jsx</code> 라우트 트리를 <code>ProtectedRoute</code> 로 감싼다</td>
+<td>화면: <code>MainLayout</code> 헤더 우측 사용자 버튼(CMN-06) → <code>/login</code> · <code>/signup</code>&lt;br&gt;코드: <code>App.jsx</code> 라우트 트리를 <code>ProtectedRoute</code> 로 감싼다</td>
 <td>버튼 자리와 라우트 구조 확보</td>
 </tr>
 <tr>
