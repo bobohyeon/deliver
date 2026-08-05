@@ -14,6 +14,10 @@ from pathlib import Path
 # 이미지 경로를 해석할 기준 폴더 (원본 마크다운이 있는 곳). main 에서 설정한다.
 BASE_DIR = Path(".")
 
+# 화면 이미지의 인쇄 높이 상한(mm). A4 가로 인쇄 영역(약 186mm) 안에 제목·안내문과
+# 함께 들어가도록 여유를 둔 값이다. 이 값을 넘는 세로 긴 화면은 폭이 자동으로 줄어든다.
+MAX_SHOT_HEIGHT_MM = 142
+
 CSS = """
 /* 캡처와 요소 설명을 나란히 두므로 가로 방향이 필요하다 */
 @page { size: A4 landscape; margin: 12mm 12mm; }
@@ -141,6 +145,11 @@ def pinned_image(match: "re.Match") -> str:
     crop = re.search(r"\bcrop\s*:\s*([\d.]+)", spec)
     spec = re.sub(r"\bcrop\s*:\s*[\d.]+", "", spec)
 
+    # h:N — 인쇄 높이 상한(mm)을 화면별로 지정한다.
+    #        한 구획에 화면을 두 장 넣을 때처럼 기본값이 맞지 않는 경우에 쓴다.
+    height_mm = re.search(r"\bh\s*:\s*([\d.]+)", spec)
+    spec = re.sub(r"\bh\s*:\s*[\d.]+", "", spec)
+
     items = re.findall(r"(\S+?)\s*:\s*([\d.]+)\s*,\s*([\d.]+)", spec)
     tags = [
         f'<b class="pin" style="left:{x}%;top:{y}%">{html.escape(label)}</b>'
@@ -148,13 +157,20 @@ def pinned_image(match: "re.Match") -> str:
     ]
 
     cls, style = "shot", ""
-    if crop:
-        size = png_size(BASE_DIR / src)
-        if size:
-            width, height = size
-            visible = height * float(crop.group(1)) / 100
-            cls = "shot shot--crop"
-            style = f' style="aspect-ratio:{width} / {visible:.1f}"'
+    size = png_size(BASE_DIR / src)
+    if crop and size:
+        width, height = size
+        visible = height * float(crop.group(1)) / 100
+        cls = "shot shot--crop"
+        style = f' style="aspect-ratio:{width} / {visible:.1f}"'
+    elif size:
+        # 세로가 긴 화면은 A4 가로 한 페이지를 넘어 다음 장으로 밀린다.
+        # 높이 상한에 맞춰 폭을 제한하면 이미지 상자 전체가 같은 비율로 줄어들어
+        # 배지 위치(백분율)는 그대로 유지된다.
+        width, height = size
+        cap = float(height_mm.group(1)) if height_mm else MAX_SHOT_HEIGHT_MM
+        limit = cap * width / height
+        style = f' style="max-width:{limit:.0f}mm"'
 
     return (
         f'<span class="{cls}"{style}><img src="{src}" alt="{alt}">'
@@ -229,10 +245,12 @@ def convert(md: str) -> str:
                 index += 1
             index += 1
 
+            # 표가 시작되는 줄을 경계로 삼는다. 표 앞의 모든 내용(화면 이미지가
+            # 여러 장이어도)이 좌측 단, 표부터가 우측 단이 된다.
             cut = len(block)
             for offset, item in enumerate(block):
-                if item.strip().startswith("!["):
-                    cut = offset + 1
+                if item.strip().startswith("|"):
+                    cut = offset
                     break
             left = convert("\n".join(block[:cut]))
             right = convert("\n".join(block[cut:]))
