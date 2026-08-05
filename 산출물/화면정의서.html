@@ -368,12 +368,105 @@ figcaption { font-size: 9pt; color: #6b7280; text-align: center; margin-top: 5px
 <blockquote>
 <p><strong>조회 조건과 선택 문서를 모두 URL에 보관한다.</strong> 새로고침·뒤로가기·주소 공유 시 같은 화면이 재현된다.</p>
 </blockquote>
-<h3>화면 캡처</h3>
-<p><img src="캡처/LIST.png" alt="문서 목록 (패널 닫힘)"></p>
+<h3>2.2 화면과 UI 요소</h3>
+<div class="split"><div class="col-shot"><p><span class="shot"><img src="캡처/LIST.png" alt="문서 목록 (패널 닫힘)"><b class="pin" style="left:2.2%;top:12.8%">01</b><b class="pin" style="left:2.2%;top:15.8%">02</b><b class="pin" style="left:91.0%;top:12.8%">03</b><b class="pin" style="left:2.2%;top:21.3%">04</b><b class="pin" style="left:67.0%;top:21.3%">05</b><b class="pin" style="left:73.5%;top:21.3%">06</b><b class="pin" style="left:2.2%;top:27.5%">08</b><b class="pin" style="left:13.0%;top:31.6%">09</b></span></p></div><div class="col-spec"><table><thead><tr>
+<th>ID</th>
+<th>유형</th>
+<th>명칭</th>
+<th>동작 / 유효성</th>
+</tr></thead><tbody>
+<tr>
+<td>LST-01</td>
+<td>텍스트</td>
+<td>문서 목록</td>
+<td>화면 제목</td>
+</tr>
+<tr>
+<td>LST-02</td>
+<td>텍스트</td>
+<td>전체 N건</td>
+<td>검색 조건이 있으면 <code>(검색 결과)</code> 병기</td>
+</tr>
+<tr>
+<td>LST-03</td>
+<td>링크(버튼)</td>
+<td>새 문서 업로드</td>
+<td><code>/upload</code> 로 이동</td>
+</tr>
+<tr>
+<td>LST-04</td>
+<td>입력(search)</td>
+<td>검색어</td>
+<td>파일명 <strong>또는 본문 내용</strong> 부분 일치. <code>Enter</code> 또는 LST-06 으로 실행</td>
+</tr>
+<tr>
+<td>LST-05</td>
+<td>선택(select)</td>
+<td>카테고리</td>
+<td><code>전체 / 계약서 / 보고서 / 회의록 / 공지사항 / 메뉴얼 / 기타</code>. <strong>선택 즉시 조회</strong></td>
+</tr>
+<tr>
+<td>LST-06</td>
+<td>버튼</td>
+<td>검색</td>
+<td>검색어를 URL에 반영하고 1페이지부터 조회</td>
+</tr>
+<tr>
+<td>LST-07</td>
+<td>버튼</td>
+<td>초기화</td>
+<td><strong>조건이 있을 때만 표시.</strong> 모든 조건 해제</td>
+</tr>
+<tr>
+<td>LST-08</td>
+<td>표</td>
+<td>문서 목록</td>
+<td>아래 열 정의 참조</td>
+</tr>
+<tr>
+<td>LST-09</td>
+<td>버튼(링크형)</td>
+<td>파일명</td>
+<td><strong>클릭 시 이동하지 않고 LST-11 패널에 상세 표시.</strong> 해당 행 강조</td>
+</tr>
+<tr>
+<td>LST-10</td>
+<td>페이징</td>
+<td>이전 / N/M / 다음</td>
+<td><strong>총 페이지가 2 이상일 때만 표시.</strong> 경계에서 비활성</td>
+</tr>
+<tr>
+<td>LST-11</td>
+<td>패널</td>
+<td>상세</td>
+<td><code>DocumentDetail</code> 컴포넌트 (DTL 화면의 요소와 동일)</td>
+</tr>
+<tr>
+<td>LST-12</td>
+<td>링크</td>
+<td>전체 화면으로 보기</td>
+<td><code>/documents/{id}</code> (DTL 화면)으로 이동</td>
+</tr>
+<tr>
+<td>LST-13</td>
+<td>버튼</td>
+<td>닫기(✕)</td>
+<td>패널을 닫고 표를 5열로 복원</td>
+</tr>
+</tbody></table></div></div>
 <blockquote>
-<p>캡처 위의 번호는 아래 <strong>UI 요소</strong> 표의 요소 ID 뒷자리와 대응한다 (예: 캡처의 <code>01</code> = <code>LST-01</code>). 해당 요소: LST-01~LST-10</p>
+<p>캡처의 <strong>빨간 번호</strong>가 표의 <code>ID</code> 뒷자리와 대응한다.
+<strong><code>07</code> <code>10</code> <code>11</code> <code>12</code> <code>13</code> 은 이 캡처에 번호가 없다.</strong> 조건부로만 나타나는 요소다 —
+<code>07</code> 초기화는 검색 조건이 있을 때, <code>10</code> 페이징은 20건을 넘을 때, <code>11</code>~<code>13</code> 은 문서를 선택했을 때
+표시된다 (아래 <strong>패널 열림</strong> 캡처와 <code>2.6 상태별 표시</code> 참조).</p>
 </blockquote>
-<h3>2.2 영역 구성</h3>
+<p><strong>패널 열림 (문서 선택 시)</strong></p>
+<p><img src="캡처/LIST2.png" alt="문서 목록 (패널 열림)"></p>
+<blockquote>
+<p>좌측 표에서 파일명(<code>LST-09</code>)을 누르면 우측에 상세 패널(<code>LST-11</code>)이 열리고, 표가 4열로 좁아진다.
+패널 상단에 <code>LST-12</code> 전체 화면으로 보기, <code>LST-13</code> 닫기(✕)가 있다.</p>
+</blockquote>
+<h3>2.3 영역 구성</h3>
 <p><strong>패널 닫힘 (기본)</strong></p>
 <pre><code>┌──────────────────────────────────────────────────┐
 │ LST-01 제목 · 건수                LST-03 업로드 버튼 │
@@ -384,114 +477,13 @@ figcaption { font-size: 9pt; color: #6b7280; text-align: center; margin-top: 5px
 ├──────────────────────────────────────────────────┤
 │ LST-10 페이징                                     │
 └──────────────────────────────────────────────────┘</code></pre>
-<p><img src="캡처/LIST2.png" alt="문서 목록 (패널 열림)"></p>
 <p><strong>패널 열림 (문서 선택 시)</strong></p>
 <pre><code>┌───────────────────────┬──────────────────────────┐
 │ LST-08 문서 표 (4열)   │ LST-11 상세 패널           │
 │ 560px 고정            │ (DTL 화면과 동일 컴포넌트)   │
 │ ※ 스크롤 시 위치 고정   │                          │
 └───────────────────────┴──────────────────────────┘</code></pre>
-<h3>2.3 UI 요소</h3>
-<table><thead><tr>
-<th>요소 ID</th>
-<th>유형</th>
-<th>명칭</th>
-<th>필수</th>
-<th>동작 / 유효성</th>
-</tr></thead><tbody>
-<tr>
-<td>LST-01</td>
-<td>텍스트</td>
-<td>문서 목록</td>
-<td>-</td>
-<td>화면 제목</td>
-</tr>
-<tr>
-<td>LST-02</td>
-<td>텍스트</td>
-<td>전체 N건</td>
-<td>-</td>
-<td>검색 조건이 있으면 <code>(검색 결과)</code> 병기</td>
-</tr>
-<tr>
-<td>LST-03</td>
-<td>링크(버튼)</td>
-<td>새 문서 업로드</td>
-<td>-</td>
-<td><code>/upload</code> 로 이동</td>
-</tr>
-<tr>
-<td>LST-04</td>
-<td>입력(search)</td>
-<td>검색어</td>
-<td>선택</td>
-<td>파일명 <strong>또는 본문 내용</strong> 부분 일치. <code>Enter</code> 또는 LST-06 으로 실행</td>
-</tr>
-<tr>
-<td>LST-05</td>
-<td>선택(select)</td>
-<td>카테고리</td>
-<td>선택</td>
-<td><code>전체 / 계약서 / 보고서 / 회의록 / 공지사항 / 메뉴얼 / 기타</code>. <strong>선택 즉시 조회</strong></td>
-</tr>
-<tr>
-<td>LST-06</td>
-<td>버튼</td>
-<td>검색</td>
-<td>-</td>
-<td>검색어를 URL에 반영하고 1페이지부터 조회</td>
-</tr>
-<tr>
-<td>LST-07</td>
-<td>버튼</td>
-<td>초기화</td>
-<td>-</td>
-<td>조건이 있을 때만 표시. 모든 조건 해제</td>
-</tr>
-<tr>
-<td>LST-08</td>
-<td>표</td>
-<td>문서 목록</td>
-<td>-</td>
-<td>아래 열 정의 참조</td>
-</tr>
-<tr>
-<td>LST-09</td>
-<td>버튼(링크형)</td>
-<td>파일명</td>
-<td>-</td>
-<td><strong>클릭 시 이동하지 않고 LST-11 패널에 상세 표시.</strong> 해당 행 강조</td>
-</tr>
-<tr>
-<td>LST-10</td>
-<td>페이징</td>
-<td>이전 / N/M / 다음</td>
-<td>-</td>
-<td>총 페이지가 2 이상일 때만 표시. 경계에서 비활성</td>
-</tr>
-<tr>
-<td>LST-11</td>
-<td>패널</td>
-<td>상세</td>
-<td>-</td>
-<td><code>DocumentDetail</code> 컴포넌트 (3.3의 DTL-02~DTL-40과 동일)</td>
-</tr>
-<tr>
-<td>LST-12</td>
-<td>링크</td>
-<td>전체 화면으로 보기</td>
-<td>-</td>
-<td><code>/documents/{id}</code> (DTL 화면)으로 이동</td>
-</tr>
-<tr>
-<td>LST-13</td>
-<td>버튼</td>
-<td>닫기(✕)</td>
-<td>-</td>
-<td>패널을 닫고 표를 5열로 복원</td>
-</tr>
-</tbody></table>
-<h4>LST-08 표 열 정의</h4>
+<h3>2.4 LST-08 표 열 정의</h3>
 <table><thead><tr>
 <th>열</th>
 <th>명칭</th>
@@ -538,7 +530,7 @@ figcaption { font-size: 9pt; color: #6b7280; text-align: center; margin-top: 5px
 <blockquote>
 <p>패널이 열리면 요약 전문이 패널에 표시되므로 <strong>요약 열만 숨긴다.</strong></p>
 </blockquote>
-<h3>2.4 연동 API</h3>
+<h3>2.5 연동 API</h3>
 <table><thead><tr>
 <th>시점</th>
 <th>메서드</th>
@@ -578,7 +570,7 @@ figcaption { font-size: 9pt; color: #6b7280; text-align: center; margin-top: 5px
 </tbody></table>
 <p><strong>목록 응답</strong> <code>{ items, page, size, total, total_pages }</code></p>
 <p><strong>항목 필드</strong> <code>id · filename · document_type · status · category · summary_preview · created_at</code></p>
-<h3>2.5 상태별 표시</h3>
+<h3>2.6 상태별 표시</h3>
 <table><thead><tr>
 <th>상태</th>
 <th>표시</th>
@@ -611,7 +603,7 @@ figcaption { font-size: 9pt; color: #6b7280; text-align: center; margin-top: 5px
 <blockquote>
 <p>조회 실패와 동작(분석·다운로드) 실패를 구분한다. 다운로드가 실패해도 보고 있던 문서가 사라지지 않는다.</p>
 </blockquote>
-<h3>2.6 동작 규칙</h3>
+<h3>2.7 동작 규칙</h3>
 <ul>
 <li>검색어는 <code>Enter</code>/버튼으로만 실행한다. 입력 중 매 글자마다 조회하지 않는다 (조회 부하 방지).</li>
 <li>검색·카테고리·페이지가 변경되면 <strong>선택이 해제되어 패널이 닫힌다.</strong></li>
