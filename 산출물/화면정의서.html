@@ -75,13 +75,18 @@ figcaption { font-size: 9pt; color: #6b7280; text-align: center; margin-top: 5px
   margin: 12px auto; page-break-inside: avoid;
 }
 .shot img { margin: 0; display: block; }
+
+/* 캡처의 상단 일부만 보이게 한다 (공통 헤더 설명용).
+   원본 파일은 그대로 두고 표시 영역만 제한하므로 화질에 영향이 없다. */
+.shot--crop { overflow: hidden; width: 100%; }
+.shot--crop img { position: absolute; top: 0; left: 0; width: 100%; }
 /* 캡처(좌) + 요소 설명(우) 두 단 배치.
    번호를 눈으로 좇으며 표와 대조할 수 있도록 한 화면에 함께 둔다. */
 .split {
   display: flex; gap: 16px; align-items: flex-start;
   margin: 14px 0; page-break-inside: avoid;
 }
-.split .col-shot { flex: 0 0 54%; min-width: 0; }
+.split .col-shot { flex: 0 0 60%; min-width: 0; }
 .split .col-spec { flex: 1 1 0; min-width: 0; }
 .split .col-shot .shot { margin: 0; width: 100%; }
 .split .col-shot img { width: 100%; height: auto; }
@@ -181,6 +186,13 @@ figcaption { font-size: 9pt; color: #6b7280; text-align: center; margin-top: 5px
 <th>명칭</th>
 <th>동작</th>
 </tr></thead><tbody>
+</tbody></table>
+<div class="split"><div class="col-shot"><p><span class="shot shot--crop" style="aspect-ratio:1336 / 109.1"><img src="캡처/LIST.png" alt="공통 헤더"><b class="pin" style="left:5.3%;top:72%">01</b><b class="pin" style="left:12.6%;top:72%">02</b><b class="pin" style="left:16.2%;top:72%">03</b><b class="pin" style="left:20.5%;top:72%">04</b><b class="pin" style="left:25.7%;top:72%">05</b><b class="pin" style="left:97.8%;top:72%">06</b></span></p></div><div class="col-spec"><table><thead><tr>
+<th>ID</th>
+<th>유형</th>
+<th>명칭</th>
+<th>동작</th>
+</tr></thead><tbody>
 <tr>
 <td>CMN-01</td>
 <td>링크(로고)</td>
@@ -217,7 +229,10 @@ figcaption { font-size: 9pt; color: #6b7280; text-align: center; margin-top: 5px
 <td>사용자</td>
 <td><strong>동작 없음 — 인증 기능 삽입 지점</strong> (부록 D)</td>
 </tr>
-</tbody></table>
+</tbody></table></div></div>
+<blockquote>
+<p>헤더는 모든 화면에 동일하게 표시된다. 위 캡처는 문서 목록 화면의 <strong>상단 헤더 부분만</strong> 잘라 보인 것이다.</p>
+</blockquote>
 <blockquote>
 <p><strong>업로드 진입점이 두 곳이다.</strong> 헤더 <code>업로드</code> 메뉴와 문서 목록의 <code>새 문서 업로드</code> 버튼이
 같은 화면으로 연결된다. 결정사항 19에서 &quot;헤더에서 제거하고 목록 버튼으로 통일&quot;로 정했으나,

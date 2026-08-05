@@ -7,8 +7,12 @@
 """
 import html
 import re
+import struct
 import sys
 from pathlib import Path
+
+# 이미지 경로를 해석할 기준 폴더 (원본 마크다운이 있는 곳). main 에서 설정한다.
+BASE_DIR = Path(".")
 
 CSS = """
 /* 캡처와 요소 설명을 나란히 두므로 가로 방향이 필요하다 */
@@ -82,13 +86,18 @@ figcaption { font-size: 9pt; color: #6b7280; text-align: center; margin-top: 5px
   margin: 12px auto; page-break-inside: avoid;
 }
 .shot img { margin: 0; display: block; }
+
+/* 캡처의 상단 일부만 보이게 한다 (공통 헤더 설명용).
+   원본 파일은 그대로 두고 표시 영역만 제한하므로 화질에 영향이 없다. */
+.shot--crop { overflow: hidden; width: 100%; }
+.shot--crop img { position: absolute; top: 0; left: 0; width: 100%; }
 /* 캡처(좌) + 요소 설명(우) 두 단 배치.
    번호를 눈으로 좇으며 표와 대조할 수 있도록 한 화면에 함께 둔다. */
 .split {
   display: flex; gap: 16px; align-items: flex-start;
   margin: 14px 0; page-break-inside: avoid;
 }
-.split .col-shot { flex: 0 0 54%; min-width: 0; }
+.split .col-shot { flex: 0 0 60%; min-width: 0; }
 .split .col-spec { flex: 1 1 0; min-width: 0; }
 .split .col-shot .shot { margin: 0; width: 100%; }
 .split .col-shot img { width: 100%; height: auto; }
@@ -127,12 +136,42 @@ def pinned_image(match: "re.Match") -> str:
     이미지 파일 자체는 손대지 않고 번호만 위에 겹치므로 화질이 유지된다.
     """
     alt, src, spec = match.group(1), match.group(2), match.group(3)
+
+    # crop:N — 이미지 상단 N% 만 보인다. 좌표는 잘린 영역 기준으로 적는다.
+    crop = re.search(r"\bcrop\s*:\s*([\d.]+)", spec)
+    spec = re.sub(r"\bcrop\s*:\s*[\d.]+", "", spec)
+
     items = re.findall(r"(\S+?)\s*:\s*([\d.]+)\s*,\s*([\d.]+)", spec)
     tags = [
         f'<b class="pin" style="left:{x}%;top:{y}%">{html.escape(label)}</b>'
         for label, x, y in items
     ]
-    return f'<span class="shot"><img src="{src}" alt="{alt}">' + "".join(tags) + "</span>"
+
+    cls, style = "shot", ""
+    if crop:
+        size = png_size(BASE_DIR / src)
+        if size:
+            width, height = size
+            visible = height * float(crop.group(1)) / 100
+            cls = "shot shot--crop"
+            style = f' style="aspect-ratio:{width} / {visible:.1f}"'
+
+    return (
+        f'<span class="{cls}"{style}><img src="{src}" alt="{alt}">'
+        + "".join(tags)
+        + "</span>"
+    )
+
+
+def png_size(path: Path) -> "tuple[int, int] | None":
+    """PNG 헤더(IHDR)에서 가로·세로 픽셀을 읽는다. 외부 라이브러리가 필요 없다."""
+    try:
+        header = path.read_bytes()[:26]
+        if header[:8] != b"\x89PNG\r\n\x1a\n":
+            return None
+        return struct.unpack(">II", header[16:24])
+    except OSError:
+        return None
 
 
 def inline(text: str) -> str:
@@ -318,6 +357,8 @@ def build(md_path: Path, title: str, footer: str) -> Path:
 if __name__ == "__main__":
     source = Path(sys.argv[1] if len(sys.argv) > 1 else "화면정의서.md")
     doc_title = sys.argv[2] if len(sys.argv) > 2 else source.stem
+    # 이미지 크기를 읽어야 하므로 마크다운이 있는 폴더를 기준으로 잡는다
+    BASE_DIR = source.resolve().parent
     result = build(
         source,
         doc_title,
