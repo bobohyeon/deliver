@@ -62,9 +62,16 @@ def _html(src, crop, holes=(), blur=0.0, veil=0.0, gray=False, ring=3,
     hole_filter = f"filter:{g.strip()};" if gray else ""
 
     hole_html = ""
-    for hl, ht, hw, hh in holes:
+    for hole in holes:
+        hl, ht, hw, hh = hole[:4]
+        # 5번째 값으로 테두리 굵기를 따로 줄 수 있다. 0 이면 테두리 없이
+        # 선명하게만 남긴다 — 넓은 영역은 테두리보다 흐림 대비가 더 잘 읽힌다.
+        r = hole[4] if len(hole) > 4 else ring
+        shadow = (f"box-shadow:0 0 0 {r}px {ACCENT}, 0 6px 18px rgba(0,0,0,.28);"
+                  if r else "")
         hole_html += f"""
-    <div class="hole" style="left:{hl - cl}px;top:{ht - ct}px;width:{hw}px;height:{hh}px">
+    <div class="hole" style="left:{hl - cl}px;top:{ht - ct}px;width:{hw}px;
+         height:{hh}px;{shadow}">
       <img src="{uri}" style="left:{-hl}px;top:{-ht}px;{hole_filter}">
     </div>"""
 
@@ -75,8 +82,7 @@ def _html(src, crop, holes=(), blur=0.0, veil=0.0, gray=False, ring=3,
   .wrap > img.base {{ position:absolute; left:{-cl}px; top:{-ct}px;
            width:{sw}px; height:{sh}px; {base_filter} }}
   .veil {{ position:absolute; inset:0; background:rgba(255,255,255,{veil}); }}
-  .hole {{ position:absolute; overflow:hidden; border-radius:8px;
-           box-shadow:0 0 0 {ring}px {ACCENT}, 0 6px 18px rgba(0,0,0,.28); }}
+  .hole {{ position:absolute; overflow:hidden; border-radius:8px; }}
   .hole > img {{ position:absolute; width:{sw}px; height:{sh}px; }}
 </style></head><body>
   <div class="wrap">
@@ -169,10 +175,70 @@ def listing():
          blur=2.6, veil=0.55, ring=2)
 
 
+# ─────────────────────────────────────────────────────────────
+# 목록 + 상세 패널 (LIST2.png) — 우측 패널과 '전체 화면으로 보기'
+# ─────────────────────────────────────────────────────────────
+# 패널 카드는 x 613~1295, y 28~1370. 세로 1342px 이라 3.68:2.91 가로 비율에
+# 원본 크기로는 전부 들어가지 않는다. 두 가지로 만든다.
+PANEL = (611, 0, 686, 1080, 0)           # 우측 패널 — 테두리 없이 선명하게만
+PANEL_FULL = (611, 22, 686, 1356)        # 패널 전체 — 테두리까지 보이는 판
+FULL_LINK = (628, 54, 122, 34)           # '전체 화면으로 보기' 링크
+
+
+def detail_panel():
+    src = load("LIST2")
+    _, sw, sh = src
+    print("목록 + 상세 패널 (LIST2.png)")
+
+    # (1) 위쪽만 잘라 쓴다. 패널은 흐림 대비로, 링크는 테두리로 강조한다.
+    #     패널 영역이 아래로 넘어가게 잡아 자른 자리에 선이 생기지 않게 한다.
+    make("상세강조_C1", src, (0, 0, sw, 0), [PANEL, FULL_LINK],
+         blur=2.6, veil=0.50)
+
+    # (2) 같은 구도에 패널 테두리까지. 아래로 넘겨 잘리게 두면 화면이 계속
+    #     이어진다는 뜻이 되어 어색하지 않다.
+    make("상세강조_C1_테두리", src, (0, 0, sw, 0),
+         [(611, 22, 686, 1080), FULL_LINK], blur=2.6, veil=0.50)
+
+    # (3) 화면 전체를 담는 판. 좌우에 흰 여백을 붙여 비율을 맞춘다.
+    #     줄이지 않으므로 글자 선명도가 그대로다.
+    canvas_w = round(sh * RATIO)
+    pad = (canvas_w - sw) // 2
+    shoot("상세강조_C1_전체",
+          _html(src, (-pad, 0, canvas_w, sh), [PANEL_FULL, FULL_LINK],
+                blur=2.6, veil=0.50),
+          canvas_w, sh)
+
+
+# ─────────────────────────────────────────────────────────────
+# AI 분석 결과 (LIST2.png) — 선택된 행 · AI 요약 · 분류 근거
+# ─────────────────────────────────────────────────────────────
+SEL_ROW = (53, 82, 541, 61)               # 목록에서 선택된 행
+SUM_CARD = (634, 425, 314, 311)           # AI 요약 카드
+CAT_CARD = (960, 425, 314, 311)           # 분류 근거 카드
+
+
+def analysis():
+    src = load("LIST2")
+    print("AI 분석 결과 (LIST2.png)")
+
+    # 목록에서 고른 문서와 그 분석 결과가 이어진다는 것을 한 장에 담는다
+    make("분석강조_선택과카드", src, (40, 0, 1256, 0),
+         [SEL_ROW, SUM_CARD, CAT_CARD], blur=2.6, veil=0.54)
+
+    # 카드 두 장만 크게. 위쪽 메타 정보가 맥락으로 함께 보인다
+    make("분석강조_카드2개", src, (615, 303, 700, 0),
+         [SUM_CARD, CAT_CARD], blur=2.2, veil=0.50)
+
+
 def main():
     detail()
     print()
     listing()
+    print()
+    detail_panel()
+    print()
+    analysis()
 
 
 if __name__ == "__main__":
