@@ -1,0 +1,741 @@
+// =============================================================================
+// DocFlow — 전체 데이터 모델
+//
+// 이 파일의 책임: 18개 테이블의 컬럼·관계·인덱스를 dbdiagram.io 문법(DBML)으로
+//   정의한다. 팀 공유용 ERD 와 PostgreSQL DDL 의 단일 원천이다.
+// 다른 파일과의 관계: 관리/데이터구조_설계.md 의 서술을 코드로 옮긴 것이다.
+//   설계 의도와 대안 비교는 그 문서를 본다. 기능 ID 는 관리/기능명세서.md 를 따른다.
+// Spring 비교: JPA @Entity 클래스들을 한 파일에 모아 놓은 것에 해당한다.
+//   DBML 은 ORM 이 아니라 스키마 표기법이므로 연관관계 방향만 선언한다.
+//
+// 사용법
+//   1. https://dbdiagram.io 에 접속해 이 파일 내용을 붙여넣으면 ERD 가 그려진다
+//   2. Export → PostgreSQL 로 DDL 을 뽑는다
+//   3. 뽑은 DDL 을 Alembic 첫 마이그레이션의 기준으로 쓴다 (SYS-01)
+//
+// 주의 — DBML 이 표현하지 못하는 것이 셋 있다. 파일 맨 아래 주석에 모아 두었고
+//   마이그레이션에 손으로 넣어야 한다.
+// =============================================================================
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ENUM
+// ─────────────────────────────────────────────────────────────────────────────
+
+Enum member_role {
+  OWNER
+  EDITOR
+  VIEWER
+}
+
+Enum project_status {
+  ACTIVE
+  ARCHIVED
+}
+
+// 추출·분석 파이프라인 상태. 검수 상태와 분리한다 (동시에 다른 값을 가진다)
+Enum document_status {
+  PENDING
+  EXTRACTING
+  EXTRACTED
+  ANALYZING
+  COMPLETED
+  FAILED
+}
+
+// 7종. 미니 프로젝트 6종에 CONTRACT_CHANGE 를 더했다.
+// 원계약은 계약금액, 변경합의서는 증감액을 뽑아 프롬프트가 달라야 한다.
+Enum document_type {
+  CONTRACT
+  CONTRACT_CHANGE
+  MEETING_NOTES
+  REPORT
+  NOTICE
+  MANUAL
+  ETC
+}
+
+// 사람이 AI 판별을 고친 비율(USER_CORRECTED)이 곧 분류 오류율이 된다.
+// 정답 데이터셋 없이 실사용 데이터로 분류 정확도를 잰다.
+Enum document_type_source {
+  USER
+  AI
+  USER_CORRECTED
+}
+
+Enum processing_mode {
+  NORMAL
+  REVIEW
+}
+
+// documents.status 와 별개로 관리한다.
+// status=EXTRACTED + review_status=IN_PROGRESS 같은 상태를 표현해야 한다.
+Enum review_status {
+  NOT_REQUIRED
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+
+Enum ocr_element_source {
+  OCR
+  TEXT_LAYER
+  MANUAL
+  RE_OCR
+}
+
+Enum ocr_review_status {
+  UNREVIEWED
+  REVIEWED
+  REJECTED
+}
+
+Enum ocr_group_type {
+  PARAGRAPH
+  HEADING
+  TABLE
+  TABLE_ROW
+  LIST
+  CAPTION
+  FOOTNOTE
+}
+
+Enum ocr_edit_action {
+  TEXT_EDIT
+  BOX_MOVE
+  BOX_RESIZE
+  BOX_CREATE
+  BOX_DELETE
+  BOX_RESTORE
+  RE_OCR
+  REORDER
+  GROUP_CHANGE
+  REVIEW_COMPLETE
+}
+
+Enum batch_status {
+  QUEUED
+  PROCESSING
+  REVIEW_REQUIRED
+  COMPLETED
+  FAILED
+}
+
+Enum task_status {
+  TODO
+  DOING
+  DONE
+}
+
+// AI 제안의 처리 결과. REJECTED 를 남겨야 채택률을 계산할 수 있다 (ANL-10)
+Enum suggestion_decision {
+  PENDING
+  APPROVED
+  EDITED
+  REJECTED
+}
+
+// PENDING 인 결정이 곧 '다음 회의 안건' 이 된다.
+// REVERSED 는 뒤집힌 결정이고 superseded_by 로 후속 결정을 가리킨다.
+Enum decision_status {
+  DECIDED
+  PENDING
+  REVERSED
+}
+
+Enum schedule_kind {
+  MILESTONE
+  DEADLINE
+  MEETING
+  PERIOD
+}
+
+Enum deliverable_kind {
+  WEEKLY_REPORT
+  DECISION_LOG
+  MEETING_AGENDA
+  PROJECT_STATUS
+}
+
+// 기본값을 두지 않는다. 사용자가 매번 고른다.
+Enum deliverable_format {
+  XLSX
+  HTML
+  MD
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 담당 박세현 — 계정 · 프로젝트 · 협업
+// ─────────────────────────────────────────────────────────────────────────────
+
+Table users {
+  id            bigserial   [pk]
+  email         varchar(255) [not null, unique]
+  password_hash varchar(255) [not null, note: '해시만 저장. 응답에 절대 포함하지 않는다']
+  name          varchar(100) [not null]
+  created_at    timestamptz  [not null, default: `now()`]
+
+  Note: 'AUTH-01~05'
+}
+
+Table projects {
+  id          bigserial      [pk]
+  name        varchar(200)   [not null]
+  description text
+  owner_id    bigint         [not null, ref: > users.id]
+  status      project_status [not null, default: 'ACTIVE']
+  started_on  date           [note: '선택. 일정 산출물에서 전체 일정 대비 현재 위치를 보여줄 때 쓴다']
+  due_on      date           [note: '선택']
+  created_at  timestamptz    [not null, default: `now()`]
+  updated_at  timestamptz    [not null, default: `now()`]
+
+  Note: 'PRJ-01~05'
+}
+
+Table project_members {
+  id         bigserial   [pk]
+  project_id bigint      [not null, ref: > projects.id]
+  user_id    bigint      [not null, ref: > users.id]
+  role       member_role [not null]
+  invited_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (project_id, user_id) [unique, name: 'uq_project_member']
+    user_id               [name: 'ix_member_user']   // 내 프로젝트 목록 조회
+  }
+  Note: 'PRJ-06·PRJ-07. VIEWER 의 금액 열람 여부는 미결'
+}
+
+Table tasks {
+  id          bigserial    [pk]
+  project_id  bigint       [not null, ref: > projects.id]
+  title       varchar(300) [not null]
+  description text
+  assignee_id bigint       [ref: > users.id, note: 'AI 가 담당자를 못 찾으면 NULL. 사람이 채운다']
+  due_date    date         [note: '기한 불명확이면 NULL']
+  status      task_status  [not null, default: 'TODO']
+
+  is_ai_generated bool     [not null, default: false, note: 'TSK-05 배지·필터']
+
+  // 출처 2갈래. 셋 이상이 되면 다형성 참조를 다시 검토한다.
+  // source_type + source_id 방식을 쓰지 않는 이유는 FK 제약을 걸 수 없기 때문이다.
+  source_analysis_id    bigint [ref: > analyses.id,     note: '액션아이템 승인 (TSK-03)']
+  source_amount_item_id bigint [ref: > amount_items.id, note: '금액 불일치·미확정 (AMT-07)']
+
+  created_by   bigint      [ref: > users.id]
+  created_at   timestamptz [not null, default: `now()`]
+  updated_at   timestamptz [not null, default: `now()`]
+  completed_at timestamptz [note: '★신규 필수 — 주간 보고서의 "이번 주 완료 태스크" 재료. status 만으로는 언제 완료됐는지 알 수 없다. 목업 보드가 이미 "3월 7일 완료" 를 표시하고 있다']
+
+  indexes {
+    (project_id, status)       [name: 'ix_task_board']       // 칸반 보드
+    (project_id, completed_at) [name: 'ix_task_completed']   // 주간 보고서
+    (project_id, due_date)     [name: 'ix_task_due']         // 기한 임박
+    source_analysis_id         [name: 'ix_task_src_analysis']
+    source_amount_item_id      [name: 'ix_task_src_amount']
+  }
+  Note: 'TSK-01~08'
+}
+
+Table activity_logs {
+  id          bigserial    [pk]
+  project_id  bigint       [not null, ref: > projects.id]
+  actor_id    bigint       [ref: > users.id]
+  action_type varchar(50)  [not null, note: '값 목록을 팀에서 합의해야 한다. 주간 보고서의 활동 재료']
+  target_type varchar(50)
+  target_id   bigint
+  created_at  timestamptz  [not null, default: `now()`]
+
+  indexes {
+    (project_id, created_at) [name: 'ix_activity_recent']
+  }
+  Note: 'TSK-09'
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 담당 공통 — 문서 · 추출 · 분석  (미니 프로젝트 3테이블의 확장)
+// ─────────────────────────────────────────────────────────────────────────────
+
+Table documents {
+  id           bigserial       [pk]
+  project_id   bigint          [not null, ref: > projects.id, note: '★신규. PRJ-08 스코프 강제의 기준. 리포지토리 계층에서 조건을 강제한다']
+  uploaded_by  bigint          [ref: > users.id]
+
+  filename     varchar(500)    [not null]
+  file_type    varchar(20)     [not null]
+  file_size    bigint          [not null]
+  storage_path varchar(1000)   [not null, note: 'DOC-14 로 S3·MinIO 키가 된다']
+  content_hash char(64)        [note: 'SHA-256. DOC-13 중복 검사']
+
+  status       document_status [not null, default: 'PENDING']
+
+  // 미니 프로젝트에서는 항상 general 인 장식 컬럼이었다. 여기서 실제로 쓰인다.
+  // 분석기 선택 기준으로 쓰려던 계획은 폐기했고(분석기 2개를 항상 다 돌린다),
+  // 목록 필터 · 대시보드 유형 분포 · 산출물 분류 · 프롬프트 힌트에 쓴다.
+  document_type        document_type        [note: 'NULL = 자동 판별 대기. 분류 분석기 결과로 채워진다']
+  document_type_source document_type_source [note: '선택. USER_CORRECTED 비율이 분류 오류율']
+
+  processing_mode processing_mode [not null, default: 'NORMAL']
+  review_status   review_status   [not null, default: 'NOT_REQUIRED']
+  reviewed_by     bigint          [ref: > users.id]
+  reviewed_at     timestamptz
+
+  // revision 전파 사슬의 시작점.
+  // ocr_elements 를 고치면 이 값이 오르고, 하위 파생 데이터가 모두 '오래됨' 이 된다.
+  ocr_revision int [not null, default: 1, note: '★신규. 박스 하나만 고쳐도 항상 올린다']
+
+  batch_item_id bigint [ref: > batch_items.id, note: '일괄 업로드 소속. 처리 모드가 아니라 업로드 경로다']
+
+  // N+1 방지용 비정규화 (SYS-07). 분석 완료 시 서비스 계층에서 함께 쓴다.
+  // 트리거를 쓰지 않는다 — 애플리케이션 로그에 안 남아 디버깅이 어렵다.
+  category_cache  varchar(30)
+  summary_preview varchar(300)
+
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (project_id, created_at) [name: 'ix_doc_list']       // 목록 조회
+    (project_id, document_type) [name: 'ix_doc_type']    // 유형 필터
+    content_hash             [name: 'ix_doc_hash']
+    batch_item_id            [name: 'ix_doc_batch']
+  }
+  Note: 'DOC-01~16'
+}
+
+Table extracted_texts {
+  document_id  bigint      [pk, ref: - documents.id, note: '1:1']
+  content      text        [not null, note: '원천이 아니라 ocr_elements 를 reading_order 로 조립한 스냅샷이다. 검색·분석용 캐시로 취급한다']
+  page_count   int
+  char_count   int
+  extract_method varchar(20) [note: 'TEXT_LAYER / OCR / DOCX / HWPX / HYBRID']
+
+  text_version int         [not null, default: 1, note: '이 텍스트가 반영한 documents.ocr_revision']
+  is_confirmed bool        [not null, default: false, note: 'REV-07 검수 확정']
+  confirmed_by bigint      [ref: > users.id]
+  confirmed_at timestamptz
+  updated_at   timestamptz [not null, default: `now()`]
+
+  Note: 'REV-17. 박스 수정과 재조립은 같은 트랜잭션으로 처리한다'
+}
+
+Table analyses {
+  id            bigserial   [pk]
+  document_id   bigint      [not null, ref: > documents.id]
+  analyzer_type varchar(30) [not null, note: '"document"(요약+분류+액션아이템) / "amount"(금액). 유형 구분 없이 항상 둘 다 돌린다']
+
+  // 분석기마다 결과 모양이 달라 JSONB 로 열어 둔다.
+  // 분석기를 추가해도 API 응답 스펙이 바뀌지 않는다.
+  // 각 제안 원소에 decision(suggestion_decision) 을 넣어 승인·거부를 기록한다.
+  result_json jsonb [not null]
+
+  provider       varchar(30) [not null]
+  model_name     varchar(100) [not null]
+  prompt_version varchar(20)
+  tokens_in      int
+  tokens_out     int
+  latency_ms     int
+
+  source_text_revision int [not null, note: '분석 당시의 documents.ocr_revision. 이 값이 현재보다 작으면 오래된 결과다 (REV-18)']
+
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (document_id, analyzer_type) [name: 'ix_analysis_doc_type']
+  }
+  Note: 'ANL-01~10. 1:N 이라 재분석이 이전 결과를 덮지 않는다'
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 담당 최재정 — OCR 검수
+// 설계는 최재정님 'OCR-DB 설계안' 을 변경 없이 채택했다.
+// ─────────────────────────────────────────────────────────────────────────────
+
+Table document_pages {
+  id             bigserial   [pk]
+  document_id    bigint      [not null, ref: > documents.id]
+  page_number    int         [not null, note: '1 부터 센다. 화면 표시와 일치해 변환이 없다']
+  width          numeric(10,2) [not null, note: '좌표 산출 기준 페이지 너비']
+  height         numeric(10,2) [not null]
+  image_path     varchar(1000) [not null, note: '★좌표 기준본. 렌더링본으로 고정한다. 프런트가 보는 이미지와 달라지면 박스가 어긋난다']
+  thumbnail_path varchar(1000)
+  rotation       int         [not null, default: 0]
+  render_scale   numeric(6,3)
+  created_at     timestamptz [not null, default: `now()`]
+
+  indexes {
+    (document_id, page_number) [unique, name: 'uq_doc_page']
+  }
+  Note: 'REV-01'
+}
+
+Table ocr_elements {
+  id          bigserial [pk, note: '★수정 후에도 유지되는 식별자. 삭제·재생성하면 amount_items 등의 참조가 끊어진다']
+  document_id bigint    [not null, ref: > documents.id]
+  page_id     bigint    [not null, ref: > document_pages.id]
+
+  original_text varchar(2000) [not null, note: '최초 OCR 텍스트. 사용자 수정 시 바꾸지 않는다']
+  text          varchar(2000) [not null, note: '현재 적용 값. 화면·확정 텍스트·분석에 쓴다']
+  confidence    numeric(5,4)  [note: '0~1']
+
+  // 픽셀이 아니라 페이지 크기 대비 비율로 저장한다.
+  // 화면 확대·축소와 무관하게 같은 위치에 박스를 그릴 수 있다.
+  x1 numeric(9,6) [not null]
+  y1 numeric(9,6) [not null]
+  x2 numeric(9,6) [not null]
+  y2 numeric(9,6) [not null]
+  polygon_json jsonb [note: '확장. 기울어진 사각형·다각형. MVP 에서는 컬럼만 준비']
+
+  source         ocr_element_source [not null]
+  ocr_engine     varchar(30)   [note: 'MVP 부터 저장 권장 — 어떤 조건에서 잘 됐는지 볼 수 있다']
+  engine_version varchar(30)
+  preprocess_info jsonb
+
+  reading_order int    [not null, note: '텍스트 조립 순서. 사용자 지정 > 사용자 지정 단락 > 자동 XY-Cut']
+  group_id      bigint [ref: > ocr_groups.id]
+
+  review_status ocr_review_status [not null, default: 'UNREVIEWED']
+  is_deleted    bool [not null, default: false, note: '논리 삭제. 물리 삭제하면 이력과 참조가 사라진다']
+
+  created_by bigint      [ref: > users.id]
+  updated_by bigint      [ref: > users.id]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  version int [not null, default: 1, note: '★동시 수정 충돌 방지(REV-16). 낙관적 락. documents.ocr_revision 과 목적이 다르다 — 이건 충돌 방지, 저건 파생 데이터 신선도']
+
+  indexes {
+    (document_id, reading_order) [name: 'ix_ocr_order']  // 텍스트 재조립
+    page_id                      [name: 'ix_ocr_page']   // 화면 표시
+  }
+  Note: 'REV-02~13'
+}
+
+Table ocr_element_revisions {
+  id             bigserial       [pk]
+  ocr_element_id bigint          [not null, ref: > ocr_elements.id]
+  revision_number int            [not null]
+  action_type    ocr_edit_action [not null]
+  before_json    jsonb
+  after_json     jsonb
+  edited_by      bigint          [ref: > users.id]
+  created_at     timestamptz     [not null, default: `now()`]
+
+  indexes {
+    (ocr_element_id, revision_number) [name: 'ix_ocr_rev']
+  }
+  Note: 'REV-15. P2 — 되돌리기와 수정 이력을 만들 때 추가한다'
+}
+
+Table ocr_groups {
+  id            bigserial      [pk]
+  document_id   bigint         [not null, ref: > documents.id]
+  page_id       bigint         [ref: > document_pages.id]
+  group_type    ocr_group_type [not null]
+  reading_order int            [not null]
+  text_override text
+  created_by    bigint         [ref: > users.id]
+  created_at    timestamptz    [not null, default: `now()`]
+  updated_at    timestamptz    [not null, default: `now()`]
+
+  Note: 'REV-12. P2 — MVP 에서는 ocr_elements.group_id 만 쓰고 이 테이블은 나중에 승격한다'
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 담당 최재정 — 일괄 처리
+// ─────────────────────────────────────────────────────────────────────────────
+
+Table batch_jobs {
+  id           bigserial    [pk]
+  project_id   bigint       [not null, ref: > projects.id]
+  created_by   bigint       [ref: > users.id]
+  status       batch_status [not null, default: 'QUEUED']
+  total_count  int          [not null, default: 0]
+  done_count   int          [not null, default: 0]
+  failed_count int          [not null, default: 0]
+
+  default_document_type document_type [note: '배치 단위 유형 지정. NULL 이면 파일마다 자동 판별. 같은 폴더 문서는 같은 유형인 경우가 많다']
+
+  created_at timestamptz [not null, default: `now()`]
+
+  Note: 'BAT-03'
+}
+
+Table batch_items {
+  id            bigserial    [pk]
+  batch_job_id  bigint       [not null, ref: > batch_jobs.id]
+  filename      varchar(500) [not null]
+  status        batch_status [not null, default: 'QUEUED']
+  error_message text
+  created_at    timestamptz  [not null, default: `now()`]
+
+  indexes {
+    (batch_job_id, status) [name: 'ix_batch_item']
+  }
+  Note: 'BAT-01~04'
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 담당 김보현 — 분석 산물 (금액 · 결정 · 일정)
+//
+// 공통 원칙 — LLM 은 문서에 있는 것만 뽑고, 계산과 집계는 코드가 한다.
+// 문서에 없는 값을 AI 가 만들어내지 않는다.
+// ─────────────────────────────────────────────────────────────────────────────
+
+Table amount_items {
+  id          bigserial [pk]
+  document_id bigint    [not null, ref: > documents.id]
+  analysis_id bigint    [not null, ref: > analyses.id, note: '어느 분석 실행에서 나왔나']
+
+  item_name varchar(300)  [not null]
+  quantity  numeric(18,4) [note: '문서에 없으면 NULL. LLM 이 채우지 않는다']
+  unit      varchar(30)   [note: '명 · 개월 · 건']
+  amount    numeric(18,2) [note: '문서에 적힌 금액. 없으면 NULL']
+  currency  char(3)       [not null, default: 'KRW']
+
+  period_from date
+  period_to   date
+
+  // 근거는 페이지·좌표가 아니라 판단 근거 서술로 표시한다.
+  // 분석기 규격이 analyze(text: str) 로 텍스트만 받아 페이지를 알 수 없고,
+  // 규격을 바꾸면 세 사람이 인터페이스 합의를 기다려야 한다.
+  reason       text          [not null, note: '왜 이 항목으로 봤는지']
+  source_quote varchar(1000) [note: '원문 인용. 표시용이며 클릭 이동은 없다']
+
+  confidence numeric(5,4)
+  decision   suggestion_decision [not null, default: 'PENDING', note: '승인 전에는 어디에도 반영되지 않는다']
+  decided_by bigint      [ref: > users.id]
+  decided_at timestamptz
+
+  source_text_revision int [not null, note: '이 값이 documents.ocr_revision 보다 작으면 오래된 항목이다. 금액은 한 글자가 전부를 바꾸므로 전파가 필수다']
+
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    document_id [name: 'ix_amount_doc']
+    analysis_id [name: 'ix_amount_analysis']
+  }
+  Note: 'AMT-01~09. 추계(없는 금액 만들기)는 하지 않는다 — 집계만 한다. 그래서 단가 마스터·전제 테이블이 없다'
+}
+
+Table decisions {
+  id          bigserial [pk]
+  project_id  bigint    [not null, ref: > projects.id]
+  document_id bigint    [ref: > documents.id, note: '어느 문서에서 나왔나. 사람이 직접 넣으면 NULL']
+  analysis_id bigint    [ref: > analyses.id]
+
+  title   varchar(300) [not null]
+  content text
+  reason  text         [note: '왜 이걸 결정으로 봤는지 — AI 판단 근거']
+
+  // PENDING 인 항목이 그대로 '다음 회의 안건' 산출물이 된다.
+  // 별도 안건 테이블을 만들지 않는 이유다.
+  status decision_status [not null, default: 'DECIDED']
+
+  // 뒤집힌 결정 추적. 킥오프에서 "6개월" 로 정했다가 3월 회의에서 "8개월" 로
+  // 바뀌면, 앞 결정을 REVERSED 로 두고 이 컬럼이 뒤 결정을 가리킨다.
+  superseded_by bigint [ref: > decisions.id]
+
+  decided_on date
+  decided_by bigint [ref: > users.id]
+
+  decision_state suggestion_decision [not null, default: 'PENDING', note: 'AI 제안의 승인 여부. 위 status(결정 자체의 상태)와 다르다']
+  source_text_revision int [not null]
+
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (project_id, decided_on) [name: 'ix_decision_project']
+    (project_id, status)     [name: 'ix_decision_status']  // 미결 = 다음 회의 안건
+  }
+  Note: '산출물 재료. 미니 프로젝트에서 결정사항 29건을 손으로 적은 일을 대신한다'
+}
+
+Table schedule_items {
+  id          bigserial [pk]
+  project_id  bigint    [not null, ref: > projects.id]
+  document_id bigint    [ref: > documents.id]
+  analysis_id bigint    [ref: > analyses.id]
+
+  title     varchar(300)  [not null]
+  kind      schedule_kind [not null]
+  starts_on date
+  ends_on   date
+  reason    text          [note: '왜 이 날짜를 일정으로 봤는지']
+
+  decision  suggestion_decision [not null, default: 'PENDING']
+  source_text_revision int      [not null]
+
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (project_id, starts_on) [name: 'ix_schedule_project']
+    (project_id, ends_on)   [name: 'ix_schedule_due']
+  }
+  Note: '산출물 재료. 날짜는 형식이 있어 추출 정확도를 검증할 수 있다'
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 담당 김보현 — 산출물
+//
+// 이 테이블이 제품의 출력물이다. 문서를 넣으면 문서가 나온다.
+// 태스크 보드는 중간 산물이고, 사람이 실제로 만들어야 하는 것은 보고서다.
+// ─────────────────────────────────────────────────────────────────────────────
+
+Table deliverables {
+  id         bigserial        [pk]
+  project_id bigint           [not null, ref: > projects.id]
+  kind       deliverable_kind [not null]
+  format     deliverable_format [not null, note: '기본값을 두지 않는다. 사용자가 매번 고른다']
+
+  // WEEKLY_REPORT 만 기간이 필요하다.
+  // DECISION_LOG · PROJECT_STATUS 는 기간 무관(전체 누적)이라 NULL 이다.
+  period_from date
+  period_to   date
+
+  title     varchar(300)  [not null]
+  file_path varchar(1000) [not null]
+  file_size bigint
+
+  // 생성 시점 스냅샷. {"documents":7,"tasks_done":8,"decisions":3,...}
+  // 현재 개수와 비교해 '다시 만들기' 배지를 띄운다. 없으면 판정이 부정확해진다.
+  source_counts_json jsonb [not null]
+
+  generated_by bigint      [ref: > users.id]
+  generated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (project_id, generated_at) [name: 'ix_deliverable_recent']
+    (project_id, kind, period_from, period_to) [name: 'ix_deliverable_period']
+  }
+  Note: '주간 보고서의 LLM 호출은 1회뿐이다. 저장된 요약을 재요약하므로 원문을 다시 보내지 않는다 — 문서 10건에 약 1,500 토큰. 나머지 항목(태스크·결정·일정·금액)은 전부 DB 쿼리와 코드 계산이다'
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 그룹  (dbdiagram 에서 담당별로 색이 나뉘어 보인다)
+// ─────────────────────────────────────────────────────────────────────────────
+
+TableGroup "박세현 · 협업" {
+  users
+  projects
+  project_members
+  tasks
+  activity_logs
+}
+
+TableGroup "공통 · 문서와 분석" {
+  documents
+  extracted_texts
+  analyses
+}
+
+TableGroup "최재정 · OCR 검수" {
+  document_pages
+  ocr_elements
+  ocr_element_revisions
+  ocr_groups
+}
+
+TableGroup "최재정 · 일괄 처리" {
+  batch_jobs
+  batch_items
+}
+
+TableGroup "김보현 · 분석 산물" {
+  amount_items
+  decisions
+  schedule_items
+}
+
+TableGroup "김보현 · 산출물" {
+  deliverables
+}
+
+
+// =============================================================================
+// DBML 이 표현하지 못하는 것 — 마이그레이션에 손으로 넣는다
+// =============================================================================
+//
+// 1) CHECK 제약 — tasks 출처는 둘 중 최대 하나만 채워진다
+//
+//    ALTER TABLE tasks ADD CONSTRAINT ck_task_single_source CHECK (
+//        (source_analysis_id    IS NOT NULL)::int
+//      + (source_amount_item_id IS NOT NULL)::int
+//      <= 1
+//    );
+//
+// 2) 부분 인덱스 — 삭제된 박스와 승인 대기 항목
+//
+//    CREATE INDEX ix_ocr_elements_active
+//      ON ocr_elements (document_id, reading_order)
+//      WHERE is_deleted = false;
+//
+//    CREATE INDEX ix_amount_items_pending
+//      ON amount_items (document_id)
+//      WHERE decision = 'PENDING';
+//
+// 3) documents.project_id 를 NOT NULL 로 만드는 3단계
+//    기존 문서에는 project_id 가 없으므로 한 번에 NOT NULL 을 걸 수 없다.
+//      ① nullable 로 컬럼 추가
+//      ② 마이그레이션용 기본 프로젝트를 만들어 기존 문서를 배정
+//      ③ NOT NULL 로 변경
+//
+//
+// revision 전파 사슬 — 이 순서가 깨지면 화면·검색·분석이 서로 다른 값을 본다
+//
+//   ocr_elements.text 수정
+//     └→ documents.ocr_revision += 1                     ┐ 같은
+//     └→ extracted_texts.content 재조립                   │ 트랜잭션
+//     └→ extracted_texts.text_version = ocr_revision     ┘
+//          └→ analyses.source_text_revision      < ocr_revision  → 오래됨
+//          └→ amount_items.source_text_revision  < ocr_revision  → 오래됨
+//          └→ decisions / schedule_items         < ocr_revision  → 오래됨
+//
+//   아래 세 줄은 트랜잭션에 넣지 않고 비교로 판정한다.
+//   플래그 컬럼을 따로 두면 갱신을 놓칠 수 있다.
+//
+//
+// 마이그레이션 순서 (SYS-01 Alembic)
+//
+//    1. users
+//    2. projects, project_members
+//    3. documents 에 project_id(3단계) · uploaded_by 추가
+//    4. batch_jobs, batch_items  (documents.batch_item_id 보다 먼저)
+//    5. document_pages, ocr_elements
+//    6. documents 에 processing_mode · review_status · ocr_revision 추가
+//    7. extracted_texts 에 text_version · is_confirmed 추가
+//    8. analyses 에 source_text_revision 추가
+//    9. amount_items
+//   10. tasks (source_amount_item_id 가 9번을 참조한다), activity_logs
+//   11. decisions, schedule_items
+//   12. deliverables
+//   13. documents 비정규화 컬럼 2개 + 인덱스 + CHECK + 부분 인덱스
+//   14. ocr_element_revisions, ocr_groups   (P2)
+//
+//
+// 폐기한 테이블 — 기록용
+//
+//   analyzer_rules        문서 유형별 분석기 선택 규칙.
+//                         분석기를 2개(document / amount)만 두고 유형 구분 없이
+//                         항상 둘 다 돌리기로 해서 필요 없어졌다. 회의록·보고서에도
+//                         금액이 나오므로 유형으로 껐다 켜면 오히려 놓친다.
+//                         그리고 분류를 먼저 돌려야 해서 asyncio.gather 가 두 단계로
+//                         쪼개지는 문제가 있었다.
+//
+//   unit_prices           단가 마스터.
+//   cost_estimates        추계 실행 결과.
+//   cost_estimate_lines   추계 명세.
+//                         '추계'(없는 금액을 단가로 만들어내기)를 버리고
+//                         '집계'(문서에 적힌 금액을 모으기)로 좁혀서 전부 폐기했다.
+//                         단가 근거를 대야 하는 최대 위험이 함께 사라졌다.
+// =============================================================================
