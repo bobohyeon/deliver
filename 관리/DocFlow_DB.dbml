@@ -1,8 +1,9 @@
 // =============================================================================
 // DocFlow — 전체 데이터 모델
 //
-// 이 파일의 책임: 18개 테이블의 컬럼·관계·인덱스를 dbdiagram.io 문법(DBML)으로
-//   정의한다. 팀 공유용 ERD 와 PostgreSQL DDL 의 단일 원천이다.
+// 이 파일의 책임: 19개 테이블의 컬럼·관계·인덱스를 dbdiagram.io 문법(DBML)으로
+//   정의한다. 사람이 읽는 스키마 정본이고, 실행 가능한 DDL 은
+//   관리/DocFlow_schema.sql 이다. 한쪽을 고치면 다른 쪽도 고친다.
 // 다른 파일과의 관계: 관리/데이터구조_설계.md 의 서술을 코드로 옮긴 것이다.
 //   설계 의도와 대안 비교는 그 문서를 본다. 기능 ID 는 관리/기능명세서.md 를 따른다.
 // Spring 비교: JPA @Entity 클래스들을 한 파일에 모아 놓은 것에 해당한다.
@@ -220,7 +221,7 @@ Table tasks {
 
   // 출처 2갈래. 셋 이상이 되면 다형성 참조를 다시 검토한다.
   // source_type + source_id 방식을 쓰지 않는 이유는 FK 제약을 걸 수 없기 때문이다.
-  source_analysis_id    bigint [ref: > analyses.id,     note: '액션아이템 승인 (TSK-03)']
+  source_action_item_id bigint [ref: > action_items.id, note: '액션아이템 승인 (TSK-03)']
   source_amount_item_id bigint [ref: > amount_items.id, note: '금액 불일치·미확정 (AMT-07)']
 
   created_by   bigint      [ref: > users.id]
@@ -232,7 +233,7 @@ Table tasks {
     (project_id, status)       [name: 'ix_task_board']       // 칸반 보드
     (project_id, completed_at) [name: 'ix_task_completed']   // 주간 보고서
     (project_id, due_date)     [name: 'ix_task_due']         // 기한 임박
-    source_analysis_id         [name: 'ix_task_src_analysis']
+    source_action_item_id      [name: 'ix_task_src_action']
     source_amount_item_id      [name: 'ix_task_src_amount']
   }
   Note: 'TSK-01~08'
@@ -487,6 +488,41 @@ Table batch_items {
 // 문서에 없는 값을 AI 가 만들어내지 않는다.
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ★ 합의 대기 (API_계약서_v2.md 7절) ─────────────────────────────────────────
+// 착수기획서는 액션아이템을 analyses.result_json 안의 배열로 두고
+// tasks.source_analysis_id 로 가리켰다. 그러면 승인·거부 상태를 JSONB 배열
+// 원소로 관리해야 하고 채택률 계산도 다른 셋과 달라진다.
+// 빼려면 이 테이블을 지우고 tasks.source_action_item_id 를
+// source_analysis_id [ref: > analyses.id] 로 되돌린다.
+Table action_items {
+  id          bigserial [pk]
+  document_id bigint    [not null, ref: > documents.id]
+  analysis_id bigint    [not null, ref: > analyses.id]
+
+  title         varchar(300) [not null]
+  description   text
+  assignee_hint varchar(100) [note: 'AI 가 읽은 담당자 이름. 실제 매칭은 사람이 한다']
+  due_date      date         [note: '기한 불명확이면 NULL']
+
+  confidence numeric(5,4)
+  reason     text [not null, note: '왜 이걸 액션으로 봤는지']
+
+  decision   suggestion_decision [not null, default: 'PENDING']
+  decided_by bigint      [ref: > users.id]
+  decided_at timestamptz
+
+  source_text_revision int [not null]
+
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    document_id [name: 'ix_action_doc']
+    analysis_id [name: 'ix_action_analysis']
+  }
+  Note: 'ANL-03. 제안 4종을 대칭으로 만들어 승인 API 를 하나로 통일한다'
+}
+
 Table amount_items {
   id          bigserial [pk]
   document_id bigint    [not null, ref: > documents.id]
@@ -652,6 +688,7 @@ TableGroup "최재정 · 일괄 처리" {
 }
 
 TableGroup "김보현 · 분석 산물" {
+  action_items
   amount_items
   decisions
   schedule_items
@@ -669,7 +706,7 @@ TableGroup "김보현 · 산출물" {
 // 1) CHECK 제약 — tasks 출처는 둘 중 최대 하나만 채워진다
 //
 //    ALTER TABLE tasks ADD CONSTRAINT ck_task_single_source CHECK (
-//        (source_analysis_id    IS NOT NULL)::int
+//        (source_action_item_id IS NOT NULL)::int
 //      + (source_amount_item_id IS NOT NULL)::int
 //      <= 1
 //    );
@@ -715,12 +752,15 @@ TableGroup "김보현 · 산출물" {
 //    6. documents 에 processing_mode · review_status · ocr_revision 추가
 //    7. extracted_texts 에 text_version · is_confirmed 추가
 //    8. analyses 에 source_text_revision 추가
-//    9. amount_items
-//   10. tasks (source_amount_item_id 가 9번을 참조한다), activity_logs
+//    9. action_items, amount_items
+//   10. tasks (출처 FK 2개가 9번을 참조한다), activity_logs
 //   11. decisions, schedule_items
 //   12. deliverables
 //   13. documents 비정규화 컬럼 2개 + 인덱스 + CHECK + 부분 인덱스
 //   14. ocr_element_revisions, ocr_groups   (P2)
+//
+//   실행 가능한 DDL 은 관리/DocFlow_schema.sql 이다. 한 줄로 적용한다.
+//     docker compose exec -T db psql -U postgres -d pdfbrief < DocFlow_schema.sql
 //
 //
 // 폐기한 테이블 — 기록용
