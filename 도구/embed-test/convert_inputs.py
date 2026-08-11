@@ -1,5 +1,6 @@
 # =============================================================================
 # 이 파일의 책임: 원본 문서를 corpus/ 에 넣을 텍스트(.md)로 바꾼다.
+#   .pdf   PyMuPDF 로 텍스트를 뽑는다. 본구현과 같은 도구를 쓴다
 #   .hwpx  zip+XML 을 풀어 문단·표를 텍스트로 (이미지 OCR 은 제외)
 #   .csv   행을 읽을 수 있는 블록으로. 표 데이터를 검색 대상으로 만든다
 #   .txt   그대로 복사
@@ -25,6 +26,40 @@ import re
 import sys
 import zipfile
 from xml.etree import ElementTree as ET
+
+
+# ── .pdf ─────────────────────────────────────────────────────────────────────
+
+def read_pdf(path: pathlib.Path) -> str:
+    """PDF 에서 텍스트를 뽑는다. 페이지 사이에 구분 제목을 넣는다.
+
+    본구현(app/extractors/pdf_extractor.py)도 PyMuPDF 를 쓴다. 같은 도구로
+    뽑으므로 여기서 잘 나오면 실제 파이프라인에서도 잘 나온다.
+
+    나라장터 공고 화면을 인쇄한 PDF 는 텍스트 층이 있어 OCR 이 필요 없다.
+    스캔한 PDF 라면 글자가 거의 안 나오는데, 그때는 본구현의 OCR 경로를
+    써야 하므로 이 도구로는 처리하지 않는다.
+    """
+    try:
+        import pymupdf
+    except ImportError:
+        try:
+            import fitz as pymupdf   # 옛 이름
+        except ImportError:
+            raise ValueError(
+                "PyMuPDF 가 없다. pip install pymupdf") from None
+
+    blocks = []
+    with pymupdf.open(path) as doc:
+        for number, page in enumerate(doc, start=1):
+            text = page.get_text("text").strip()
+            if text:
+                blocks.append(f"## {number}쪽\n\n{text}")
+
+    if not blocks:
+        raise ValueError(
+            "텍스트가 없다. 스캔한 PDF 로 보인다 (OCR 이 필요하다)")
+    return "\n\n".join(blocks)
 
 ROOT = pathlib.Path(__file__).resolve().parent
 INPUT = ROOT / "input"
@@ -172,9 +207,10 @@ HWP_GUIDE = """
     2. 다른 이름으로 저장 -> 파일 형식 "텍스트 문서 (*.txt)"
        가장 단순하다. 표가 탭으로 남는다.
 
-  한글 프로그램이 없으면
-    - 나라장터에서 같은 공고의 PDF 판을 다시 받는다
-    - 문서를 열어 본문을 복사해 .txt 로 붙여넣는다 (분량이 적을 때)
+  한글 프로그램이 없으면 — 이게 가장 확실하다
+    나라장터 공고 상세 화면에서 브라우저 인쇄(Ctrl+P) -> PDF 로 저장.
+    화면에 보이는 표가 그대로 텍스트로 남고, 본구현도 PDF 를 처리하므로
+    파이프라인 검증까지 된다. 첨부 .hwp 를 못 열어도 공고 본문은 얻는다.
 """
 
 
@@ -191,7 +227,7 @@ def main() -> None:
     files = [p for p in sorted(INPUT.iterdir()) if p.is_file()]
     if not files:
         print(f"input 폴더가 비어 있다: {INPUT}")
-        print("원본 문서를 넣고 다시 실행해라. (.hwpx · .csv · .txt · .md)")
+        print("원본 문서를 넣고 다시 실행해라. (.pdf · .hwpx · .csv · .txt · .md)")
         return
 
     converted = skipped = 0
@@ -202,7 +238,9 @@ def main() -> None:
         target = CORPUS / f"{path.stem}.md"
 
         try:
-            if suffix == ".hwpx":
+            if suffix == ".pdf":
+                text = read_pdf(path)
+            elif suffix == ".hwpx":
                 text = read_hwpx(path)
             elif suffix == ".csv":
                 text = read_csv_as_blocks(path, args.rows_per_block)
