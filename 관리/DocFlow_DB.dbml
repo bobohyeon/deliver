@@ -59,14 +59,47 @@ Enum document_status {
 
 // 7종. 미니 프로젝트 6종에 CONTRACT_CHANGE 를 더했다.
 // 원계약은 계약금액, 변경합의서는 증감액을 뽑아 프롬프트가 달라야 한다.
+// 도메인을 공공 SI·용역 사업으로 좁힌 뒤 9종으로 다시 정했다.
+// 아홉 종류 전부가 금액과 관계가 있다. 그게 도메인을 좁힌 효과다.
+// NOTICE·MANUAL 은 이 도메인 문서 흐름에 거의 나오지 않아 뺐다.
 Enum document_type {
-  CONTRACT
-  CONTRACT_CHANGE
-  MEETING_NOTES
-  REPORT
-  NOTICE
-  MANUAL
+  RFP              // 제안요청서 · 입찰공고
+  PROPOSAL         // 제안서 · 기술제안서
+  COST_SHEET       // 산출내역서 · 견적서 · 원가계산서   (금액 기능의 주 입력)
+  CONTRACT         // 계약서 · 과업지시서 · 착수신고서
+  CONTRACT_CHANGE  // 변경계약서 · 과업변경합의서
+  REPORT           // 착수 · 주간 · 월간 · 완료보고서 · 검사조서
+  MEETING_NOTES    // 회의록
+  BILLING          // 대가지급청구서 · 세금계산서
   ETC
+}
+
+// 리비전 0006 에서 documents 에 추가됐다.
+// 업로드 시 텍스트 추출 방식을 사용자가 고를 수 있다.
+Enum extraction_strategy {
+  AUTO
+  TEXT_ONLY
+  TEXT_WITH_IMAGE_OCR
+}
+
+Enum invitation_status {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELED         // 리비전 0005 에서 추가
+}
+
+// 리비전 0006 의 ocr_elements.element_type.
+// 줄 단위가 기본이고, 단락 묶음을 별도 테이블로 두지 않고 이 값으로 표현한다.
+Enum ocr_element_type {
+  TEXT_LINE
+  PARAGRAPH
+  HEADING
+  TABLE
+  TABLE_ROW
+  LIST
+  CAPTION
+  FOOTNOTE
 }
 
 // 사람이 AI 판별을 고친 비율(USER_CORRECTED)이 곧 분류 오류율이 된다.
@@ -98,34 +131,16 @@ Enum ocr_element_source {
   RE_OCR
 }
 
-Enum ocr_review_status {
-  UNREVIEWED
-  REVIEWED
-  REJECTED
-}
-
-Enum ocr_group_type {
-  PARAGRAPH
-  HEADING
-  TABLE
-  TABLE_ROW
-  LIST
-  CAPTION
-  FOOTNOTE
-}
-
-Enum ocr_edit_action {
-  TEXT_EDIT
-  BOX_MOVE
-  BOX_RESIZE
-  BOX_CREATE
-  BOX_DELETE
-  BOX_RESTORE
-  RE_OCR
-  REORDER
-  GROUP_CHANGE
-  REVIEW_COMPLETE
-}
+// 폐기한 Enum — 기록용
+//
+//   ocr_review_status   박스 단위 검수 상태. 리비전 0006 의 ocr_elements 에
+//                       해당 컬럼이 없다. 검수 상태는 documents.review_status
+//                       하나로만 관리한다.
+//   ocr_group_type      ocr_groups 테이블을 두지 않기로 해서 필요 없어졌다.
+//                       ocr_element_type 이 같은 목적을 담당한다.
+//   ocr_edit_action     ocr_element_revisions 가 before_text / after_text /
+//                       from_version / to_version 만 남기는 방식이라
+//                       동작 종류를 따로 기록하지 않는다.
 
 Enum batch_status {
   QUEUED
@@ -185,12 +200,49 @@ Enum deliverable_format {
 
 Table users {
   id            bigserial   [pk]
-  email         varchar(255) [not null, unique]
+  email         varchar(255) [not null, note: 'uq_users_email_lower — lower(email) 에 유니크 인덱스']
+  login_id      varchar(50)  [unique, note: '리비전 0002 에서 추가']
   password_hash varchar(255) [not null, note: '해시만 저장. 응답에 절대 포함하지 않는다']
   name          varchar(100) [not null]
+  is_active     boolean      [not null, default: true]
   created_at    timestamptz  [not null, default: `now()`]
+  updated_at    timestamptz  [not null, default: `now()`]
 
   Note: 'AUTH-01~05'
+}
+
+// 리비전 0004. 로그아웃한 refresh 토큰을 재사용할 수 없게 한다.
+Table refresh_tokens {
+  id         bigserial   [pk]
+  user_id    bigint      [not null, ref: > users.id]
+  token_hash varchar(64) [not null, unique, note: '원본 토큰을 저장하지 않는다']
+  expires_at timestamptz [not null]
+  revoked_at timestamptz [note: 'NULL 이면 유효. 로그아웃 시 채운다']
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    user_id [name: 'ix_refresh_tokens_user_id']
+  }
+  Note: 'AUTH-04'
+}
+
+// 리비전 0003. 초대를 받은 사람이 수락·거절할 수 있게 별도 테이블로 뒀다.
+// project_members 는 수락된 뒤에 만들어진다.
+Table project_invitations {
+  id           bigserial   [pk]
+  project_id   bigint      [not null, ref: > projects.id]
+  invitee_id   bigint      [not null, ref: > users.id]
+  invited_by   bigint      [not null, ref: > users.id]
+  role         varchar(20) [not null, note: "EDITOR · VIEWER 만. OWNER 는 초대로 만들 수 없다"]
+  status       invitation_status [not null, default: 'PENDING']
+  created_at   timestamptz [not null, default: `now()`]
+  responded_at timestamptz
+
+  indexes {
+    (project_id, invitee_id) [unique, name: 'uq_project_invitee']
+    invitee_id [name: 'ix_project_invitations_invitee_id']
+  }
+  Note: 'PRJ-06'
 }
 
 Table projects {
@@ -291,6 +343,9 @@ Table documents {
   document_type        document_type        [note: 'NULL = 자동 판별 대기. 분류 분석기 결과로 채워진다']
   document_type_source document_type_source [note: '선택. USER_CORRECTED 비율이 분류 오류율']
 
+  // 리비전 0006 에서 추가. 업로드 시 추출 방식을 사용자가 고를 수 있다.
+  extraction_strategy extraction_strategy [not null, default: 'AUTO']
+
   processing_mode processing_mode [not null, default: 'NORMAL']
   review_status   review_status   [not null, default: 'NOT_REQUIRED']
   reviewed_by     bigint          [ref: > users.id]
@@ -300,7 +355,8 @@ Table documents {
   // ocr_elements 를 고치면 이 값이 오르고, 하위 파생 데이터가 모두 '오래됨' 이 된다.
   ocr_revision int [not null, default: 1, note: '★신규. 박스 하나만 고쳐도 항상 올린다']
 
-  batch_item_id bigint [ref: > batch_items.id, note: '일괄 업로드 소속. 처리 모드가 아니라 업로드 경로다']
+  // 미구현 — 일괄 업로드가 다른 담당이고 일정이 뒤로 밀렸다. 그쪽 리비전에서 넣는다.
+  batch_item_id bigint [ref: > batch_items.id, note: '★미구현. 일괄 업로드 소속. 처리 모드가 아니라 업로드 경로다']
 
   // N+1 방지용 비정규화 (SYS-07). 분석 완료 시 서비스 계층에서 함께 쓴다.
   // 트리거를 쓰지 않는다 — 애플리케이션 로그에 안 남아 디버깅이 어렵다.
@@ -367,101 +423,77 @@ Table analyses {
 // 담당 최재정 — OCR 검수
 // 설계는 최재정님 'OCR-DB 설계안' 을 변경 없이 채택했다.
 // ─────────────────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// OCR 검수 — 리비전 20260811_0006 (ocr_review) 의 실제 정의
+//
+// 이 세 테이블은 구현이 먼저 들어갔다. 아래는 마이그레이션과 1:1로 맞춘 것이다.
+// 좌표를 x1 y1 x2 y2 두 점으로 두려던 설계안을 x y width height 로 바꿨다.
+// 둘 다 0~1 비율이라 정보량은 같고 상호 변환된다(width = x2 - x1). 화면
+// 구현이 있는 쪽으로 맞췄다.
+// ═══════════════════════════════════════════════════════════════════════════
 
 Table document_pages {
-  id             bigserial   [pk]
-  document_id    bigint      [not null, ref: > documents.id]
-  page_number    int         [not null, note: '1 부터 센다. 화면 표시와 일치해 변환이 없다']
-  width          numeric(10,2) [not null, note: '좌표 산출 기준 페이지 너비']
-  height         numeric(10,2) [not null]
-  image_path     varchar(1000) [not null, note: '★좌표 기준본. 렌더링본으로 고정한다. 프런트가 보는 이미지와 달라지면 박스가 어긋난다']
-  thumbnail_path varchar(1000)
-  rotation       int         [not null, default: 0]
-  render_scale   numeric(6,3)
-  created_at     timestamptz [not null, default: `now()`]
+  id           bigserial   [pk]
+  document_id  bigint      [not null, ref: > documents.id]
+  page_number  int         [not null, note: '1 부터 센다. 화면 표시와 일치해 변환이 없다']
+  page_kind    varchar(20) [not null, default: 'PAGE']
+  image_path   varchar(1000) [not null, note: '★좌표 기준본. 프런트가 보는 이미지와 달라지면 박스가 어긋난다']
+  width        int         [not null, note: '좌표 산출 기준 페이지 너비(px)']
+  height       int         [not null]
 
   indexes {
-    (document_id, page_number) [unique, name: 'uq_doc_page']
+    (document_id, page_number) [unique, name: 'uq_document_page_number']
+    document_id [name: 'ix_document_pages_document_id']
   }
   Note: 'REV-01'
 }
 
 Table ocr_elements {
-  id          bigserial [pk, note: '★수정 후에도 유지되는 식별자. 삭제·재생성하면 amount_items 등의 참조가 끊어진다']
-  document_id bigint    [not null, ref: > documents.id]
-  page_id     bigint    [not null, ref: > document_pages.id]
-
-  original_text varchar(2000) [not null, note: '최초 OCR 텍스트. 사용자 수정 시 바꾸지 않는다']
-  text          varchar(2000) [not null, note: '현재 적용 값. 화면·확정 텍스트·분석에 쓴다']
-  confidence    numeric(5,4)  [note: '0~1']
-
-  // 픽셀이 아니라 페이지 크기 대비 비율로 저장한다.
-  // 화면 확대·축소와 무관하게 같은 위치에 박스를 그릴 수 있다.
-  x1 numeric(9,6) [not null]
-  y1 numeric(9,6) [not null]
-  x2 numeric(9,6) [not null]
-  y2 numeric(9,6) [not null]
-  polygon_json jsonb [note: '확장. 기울어진 사각형·다각형. MVP 에서는 컬럼만 준비']
-
-  source         ocr_element_source [not null]
-  ocr_engine     varchar(30)   [note: 'MVP 부터 저장 권장 — 어떤 조건에서 잘 됐는지 볼 수 있다']
-  engine_version varchar(30)
-  preprocess_info jsonb
-
-  reading_order int    [not null, note: '텍스트 조립 순서. 사용자 지정 > 사용자 지정 단락 > 자동 XY-Cut']
-  group_id      bigint [ref: > ocr_groups.id]
-
-  review_status ocr_review_status [not null, default: 'UNREVIEWED']
-  is_deleted    bool [not null, default: false, note: '논리 삭제. 물리 삭제하면 이력과 참조가 사라진다']
-
-  created_by bigint      [ref: > users.id]
-  updated_by bigint      [ref: > users.id]
-  created_at timestamptz [not null, default: `now()`]
-  updated_at timestamptz [not null, default: `now()`]
-
-  version int [not null, default: 1, note: '★동시 수정 충돌 방지(REV-16). 낙관적 락. documents.ocr_revision 과 목적이 다르다 — 이건 충돌 방지, 저건 파생 데이터 신선도']
+  id            bigserial   [pk, note: '★수정 후에도 유지되는 식별자. 삭제·재생성하면 참조가 끊어진다']
+  page_id       bigint      [not null, ref: > document_pages.id]
+  original_text text        [not null, note: 'OCR 이 처음 읽은 값. 수정해도 남는다']
+  text          text        [not null, note: '현재 값. 사람이 고치면 이쪽만 바뀐다']
+  x             float       [not null, note: '0~1 비율. 좌상단 x']
+  y             float       [not null, note: '0~1 비율. 좌상단 y']
+  width         float       [not null, note: '0~1 비율']
+  height        float       [not null, note: '0~1 비율']
+  confidence    float
+  source        varchar(20) [not null, default: 'OCR']
+  element_type  varchar(20) [not null, default: 'TEXT_LINE']
+  reading_order int         [not null]
+  version       int         [not null, default: 1, note: '낙관적 락. 두 사람이 같은 박스를 고치면 나중 요청이 409']
+  is_deleted    boolean     [not null, default: false, note: '논리 삭제']
+  created_at    timestamptz [not null, default: `now()`]
+  updated_at    timestamptz [not null, default: `now()`]
 
   indexes {
-    (document_id, reading_order) [name: 'ix_ocr_order']  // 텍스트 재조립
-    page_id                      [name: 'ix_ocr_page']   // 화면 표시
+    page_id [name: 'ix_ocr_elements_page_id']
   }
-  Note: 'REV-02~13'
+  Note: 'REV-02 · REV-16. 좌표는 0~1 비율이라 렌더링 배율과 무관하다'
 }
 
 Table ocr_element_revisions {
-  id             bigserial       [pk]
-  ocr_element_id bigint          [not null, ref: > ocr_elements.id]
-  revision_number int            [not null]
-  action_type    ocr_edit_action [not null]
-  before_json    jsonb
-  after_json     jsonb
-  edited_by      bigint          [ref: > users.id]
-  created_at     timestamptz     [not null, default: `now()`]
+  id           bigserial   [pk]
+  element_id   bigint      [not null, ref: > ocr_elements.id]
+  changed_by   bigint      [ref: > users.id]
+  before_text  text        [not null]
+  after_text   text        [not null]
+  from_version int         [not null]
+  to_version   int         [not null]
+  created_at   timestamptz [not null, default: `now()`]
 
   indexes {
-    (ocr_element_id, revision_number) [name: 'ix_ocr_rev']
+    element_id [name: 'ix_ocr_element_revisions_element_id']
   }
-  Note: 'REV-15. P2 — 되돌리기와 수정 이력을 만들 때 추가한다'
+  Note: 'REV-15. 텍스트 수정 이력만 남긴다'
 }
 
-Table ocr_groups {
-  id            bigserial      [pk]
-  document_id   bigint         [not null, ref: > documents.id]
-  page_id       bigint         [ref: > document_pages.id]
-  group_type    ocr_group_type [not null]
-  reading_order int            [not null]
-  text_override text
-  created_by    bigint         [ref: > users.id]
-  created_at    timestamptz    [not null, default: `now()`]
-  updated_at    timestamptz    [not null, default: `now()`]
-
-  Note: 'REV-12. P2 — MVP 에서는 ocr_elements.group_id 만 쓰고 이 테이블은 나중에 승격한다'
-}
-
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 담당 최재정 — 일괄 처리
-// ─────────────────────────────────────────────────────────────────────────────
+// 폐기한 테이블 — ocr_groups
+//
+//   단락 묶음을 별도 테이블로 두려 했다. 남기려면 ocr_elements 에 group_id 가
+//   필요해 이미 구현된 0006 을 고쳐야 한다. element_type 컬럼이 같은 목적을
+//   달성하고 있어 두지 않는다. RAG 청킹에서 단락 단위가 필요하면 연속된 같은
+//   element_type 을 묶어서 쓴다.
 
 Table batch_jobs {
   id           bigserial    [pk]
@@ -594,7 +626,10 @@ Table decisions {
   decided_on date
   decided_by bigint [ref: > users.id]
 
-  decision_state suggestion_decision [not null, default: 'PENDING', note: 'AI 제안의 승인 여부. 위 status(결정 자체의 상태)와 다르다']
+  // suggestion_columns() 공통 컬럼. 위 status(결정 자체의 상태)와 뜻이 다르다.
+  confidence  numeric(5,4)
+  decision    suggestion_decision [not null, default: 'PENDING', note: 'AI 제안의 승인 여부']
+  decided_at  timestamptz
   source_text_revision int [not null]
 
   created_at timestamptz [not null, default: `now()`]
@@ -619,7 +654,11 @@ Table schedule_items {
   ends_on   date
   reason    text          [note: '왜 이 날짜를 일정으로 봤는지']
 
-  decision  suggestion_decision [not null, default: 'PENDING']
+  // suggestion_columns() 공통 컬럼
+  confidence numeric(5,4)
+  decision   suggestion_decision [not null, default: 'PENDING']
+  decided_by bigint      [ref: > users.id]
+  decided_at timestamptz
   source_text_revision int      [not null]
 
   created_at timestamptz [not null, default: `now()`]
