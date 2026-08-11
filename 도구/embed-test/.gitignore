@@ -8,6 +8,10 @@ __pycache__/
 
 # 평가셋은 직접 만든 것이므로 커밋한다 (queries.csv 는 제외 안 함)
 
-# 문서는 저작권·용량 때문에 샘플만 커밋한다
+# 원본 문서는 커밋하지 않는다 (저작권·용량)
+input/*
+!input/.gitkeep
+
+# corpus 는 샘플만 커밋한다
 corpus/*
 !corpus/*_샘플.md
