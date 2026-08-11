@@ -1,9 +1,10 @@
 """OCR 검수 · 분석 산물 · 산출물 테이블 추가
 
 이 파일의 책임: 0001(users·projects·project_members·documents·extracted_texts·
-  analyses) · 0002(users.login_id) · 0003(project_invitations) 위에
+  analyses) · 0002(users.login_id) · 0003(project_invitations) ·
+  0004(refresh_tokens) · 0005(invitation_canceled) 위에
   8개 테이블을 얹는다.
-  앞선 세 리비전이 만든 것은 **하나도 건드리지 않는다.** 기존 테이블에
+  앞선 다섯 리비전이 만든 것은 **하나도 건드리지 않는다.** 기존 테이블에
   컬럼을 추가하지도 않는다(add_column 0건). 테이블 8개 · 인덱스 18개 ·
   제약 11개의 이름이 기존과 겹치지 않는 것을 AST 로 대조해 확인했다.
 다른 파일과의 관계: 최재정님 'OCR 결과 확인·사용자 수정 기능을 위한 DB 설계안'
@@ -32,16 +33,16 @@ ENUM 대신 String + CHECK 를 쓰는 이유
 배치 컬럼을 뺐어도 이 리비전은 독립적으로 적용된다. 8개 테이블 중 batch_items
 를 참조하는 것이 하나도 없기 때문이다(FK 대상 8종 전수 확인).
 
-Revision ID: 20260810_0004
-Revises: 20260810_0003
+Revision ID: 20260811_0006
+Revises: 20260811_0005
 """
 
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision = "20260810_0004"
-down_revision = "20260810_0003"
+revision = "20260811_0006"
+down_revision = "20260811_0005"
 branch_labels = None
 depends_on = None
 
