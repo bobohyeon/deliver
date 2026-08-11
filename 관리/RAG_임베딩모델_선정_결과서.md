@@ -204,9 +204,31 @@ python make_chunks.py          (기본값 --target 500 --max 1200)
 
 | | |
 |---|---|
-| 받는 것 | `ocr_elements` (`element_type` · `page_number` · 좌표 · `is_excluded`) |
+| 받는 것 | `ocr_elements` (`element_type` · 좌표 · `reading_order` · `is_excluded`) |
 | 하는 것 | `element_type` 으로 단락 묶기 → 토큰 수로 자르기 → `document_chunks` 저장 |
 | 의존 | **`RAG-01` 은 `REV-17` 완료에 블로킹된다** (재정 담당 · P1) |
+
+#### 확인 필요 — `element_type` 의 값 집합이 정의되어 있지 않다
+
+Tasqra 코드를 확인한 결과다.
+
+| 확인한 것 | 결과 |
+|---|---|
+| `ocr_elements.element_type` 컬럼 | **있다.** `String(20)` NOT NULL · 기본값 `"TEXT_LINE"` |
+| 허용 값 CHECK 제약 | **없다** (0006 에는 좌표·version CHECK 만 있다) |
+| `models/enums.py` 에 해당 Enum | **없다** |
+| 응답 스키마 `OcrElementResponse` 노출 | **안 된다** (id · text · 좌표 · confidence · source · reading_order · version 만) |
+
+**즉 `"TEXT_LINE"` 하나만 확인되고 나머지 값이 무엇인지 모른다.**
+`RAG-01` 이 이 컬럼으로 단락을 묶는데, **어떤 값이 단락 경계인지 재정님과
+합의해야 한다.** 값 집합이 없으면 청킹 규칙을 쓸 수 없다.
+
+0007 docstring 에 "0006 은 `element_type` 컬럼으로 (단락 묶음) 같은 목적을
+달성하고 있으므로" 라고 적혀 있어 **의도는 있으나 값이 아직 안 정해진 상태다.**
+
+리비전 규칙(0001 부터)이 **ENUM 대신 `String` + CHECK** 이므로,
+값이 정해지면 CHECK 제약을 추가하는 마이그레이션이 필요하다.
+`element_type` 을 응답 스키마에도 노출해야 프런트가 단락을 표시할 수 있다.
 
 `REV-17` 의 완료 판정이 "박스 수정 후 `extracted_texts.content` 가 같은
 트랜잭션에서 갱신된다" 이므로, **그 트랜잭션이 끝난 시점의 텍스트가 청킹 입력이다.**
@@ -779,9 +801,9 @@ PDF 7장에 걸쳐 있어 장당 1,875자로 환산한 값이다. 원문 인쇄 
 13까지 나오므로 **장과 페이지가 일치하지 않는다.** 실제 페이지당 글자 수는
 문서 종류마다 다르므로 이 행은 자릿수 감각으로만 쓴다.
 
-### 9.1 `PER-01` 60초와의 관계 — 응답 지연이 아니라 처리 완료 시간
+### 9.1 `PER-01` 60초 — Worker 는 아직 코드에 없다
 
-`Tasqra/DEVELOPMENT_GUIDE.md` 4.2절이 요청 내부 동기 처리를 폐기했다.
+`Tasqra/DEVELOPMENT_GUIDE.md` 4.2절이 요청 내부 동기 처리를 폐기하기로 했다.
 
 ```
 업로드 요청 -> 문서·작업 생성 -> 큐 등록 -> 즉시 응답
@@ -790,9 +812,31 @@ PDF 7장에 걸쳐 있어 장당 1,875자로 환산한 값이다. 원문 인쇄 
 
 > 오래 걸리는 OCR, 문서 추출, LLM 분석, 일괄 처리는 Worker 에서 실행한다.
 
-**따라서 임베딩도 Worker 에서 돌린다.** 사용자는 화면에서 기다리지 않고
-폴링·SSE 로 상태를 본다. `PER-01` 의 60초는 **응답 지연이 아니라 처리 완료까지의
-시간**이다.
+**그런데 이것은 지향점이고 코드에는 없다.** Tasqra `backend/` 를 확인한 결과다.
+
+| 확인한 것 | 결과 |
+|---|---|
+| 코드에서 `celery` · `redis` · `BackgroundTasks` 검색 | **0건** |
+| `requirements.txt` | celery · redis **없음** |
+| `docker-compose.yml` 서비스 | `db` · `api` · `frontend` **3개뿐** (redis · worker 없음) |
+| `upload_router.py` | 파일을 읽고 **곧바로** `service.upload_and_extract(...)` 호출 후 응답 |
+| 작업 상태 · 진행률 테이블 | `tasks` · `jobs` **없음** (0001~0007 전체 확인) |
+| `DEVELOPMENT_GUIDE` 체크리스트 | `[ ] Celery·Redis Worker 구성` — **미완료 표시** |
+
+`SYS-02`(Celery + Redis)가 **P0 인데 미착수**다. 담당은 재정이다.
+
+**그래서 지금 임베딩을 Worker 로 돌릴 수 없다.** 두 갈래가 된다.
+
+| 선택 | 내용 | 문제 |
+|---|---|---|
+| A | `SYS-02` 완료를 기다린다 | 재정 담당 P0 에 블로킹된다 |
+| B | **기존 관례대로 동기로 만든다** | 업로드·분석이 이미 동기라 일관된다. 대신 응답이 늘어진다 |
+
+**B 가 현재 코드와 일관된다.** 업로드와 분석이 모두 동기이므로 임베딩만
+비동기로 만들면 구조가 어긋난다. `SYS-02` 가 들어오면 셋을 함께 옮기면 된다.
+
+`PER-01` 의 60초는 **현재 코드 기준으로는 응답 지연 그 자체다.**
+Worker 가 생긴 뒤에야 처리 완료 시간이 된다.
 
 그럼에도 예산은 여전히 빡빡하다. CPU 에서 임베딩만 33초면 OCR 과 LLM 분석이
 쓸 시간이 27초 남는다. 스캔 PDF 10페이지 OCR 이 그 안에 끝나지 않는다.
@@ -850,6 +894,31 @@ PDF 7장에 걸쳐 있어 장당 1,875자로 환산한 값이다. 원문 인쇄 
 | 8 | 라이선스 확인 | — | 10절 6번 |
 | 9 | 평가셋 확장 — 팀 문서 구간 보강 | `RAG-10` | 10절 7번 |
 | 10 | CLOVA Studio 비교 (2라운드) | `RAG-02` | 4.2절 |
+
+### 11.0 리비전 `0010` 보다 먼저 해야 할 것 — pgvector 가 설치되어 있지 않다
+
+**DB 이미지에 pgvector 가 없다.** `CREATE EXTENSION vector` 를 넣어도 실패한다.
+
+| 확인한 것 | 결과 |
+|---|---|
+| `docker-compose.yml` DB 이미지 | **`postgres:16-alpine`** — pgvector 미포함 |
+| 마이그레이션에 `CREATE EXTENSION vector` | **없다** (0001~0007 전체 확인) |
+| `requirements.txt` 에 `pgvector` 패키지 | **없다** |
+
+세 가지가 선행되어야 `0010` 이 돌아간다.
+
+| | 할 일 | 주의 |
+|---|---|---|
+| 1 | DB 이미지를 **`pgvector/pgvector:pg16`** 등으로 교체 | **`docker-compose.yml` 은 팀 공유 파일이다. 혼자 바꾸지 않는다** |
+| 2 | `requirements.txt` 에 `pgvector` 추가 | SQLAlchemy 에서 `Vector` 타입을 쓰려면 필요하다 |
+| 3 | `0010` 에서 `op.execute("CREATE EXTENSION IF NOT EXISTS vector")` | 확장 생성이 테이블보다 먼저다 |
+
+**1번이 팀 합의 사항이다.** 작업 규칙에 "`.yml` 처럼 팀 전체가 공유하는 파일은
+혼자 바꾸지 않는다" 가 있다. 이미지를 바꾸면 세 사람 모두 컨테이너를 다시
+만들어야 하므로 미리 알려야 한다.
+
+`0008`(`ocr_exclusion`) 머지 시점과 겹치지 않게 잡는 것이 좋다.
+**이미지 교체와 리비전 추가가 같이 오면 다른 사람 환경이 두 번 깨진다.**
 
 ### 11.1 리비전 번호 — `versions/` 폴더로 확인한 값
 
