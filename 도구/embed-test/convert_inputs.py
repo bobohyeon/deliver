@@ -2,9 +2,11 @@
 # 이 파일의 책임: 원본 문서를 corpus/ 에 넣을 텍스트(.md)로 바꾼다.
 #   .pdf   PyMuPDF 로 텍스트를 뽑는다. 본구현과 같은 도구를 쓴다
 #   .hwpx  zip+XML 을 풀어 문단·표를 텍스트로 (이미지 OCR 은 제외)
+#   .docx  같은 방식. 제목 스타일은 마크다운 제목으로 바꿔 청크 경계를 살린다
 #   .csv   행을 읽을 수 있는 블록으로. 표 데이터를 검색 대상으로 만든다
 #   .txt   그대로 복사
 #   .hwp   변환할 수 없다. 안내만 출력한다
+#   .doc   변환할 수 없다. .docx 로 저장하라고 안내한다
 # 다른 파일과의 관계: input/ 에 원본을 넣고 실행하면 corpus/ 에 .md 가 생긴다.
 #   그 다음 make_chunks.py 가 청크로 쪼갠다.
 #   .hwpx 파싱은 Tasqra 본구현의 app/extractors/hwpx_extractor.py 와 같은
@@ -18,6 +20,8 @@
 #   깨지는 경우가 많다. 한글 프로그램에서 저장하는 편이 확실하다.
 #   실행하면 변환 방법을 안내한다.
 # =============================================================================
+
+from __future__ import annotations   # str | None 어노테이션을 3.9 에서도 쓰려고
 
 import argparse
 import csv
@@ -66,6 +70,7 @@ INPUT = ROOT / "input"
 CORPUS = ROOT / "corpus"
 
 _SECTION = re.compile(r"Contents/section(\d+)\.xml")
+_HEADING = re.compile(r"^(?:heading|제목|개요)\s*(\d)$", re.IGNORECASE)
 
 
 # ── .hwpx ────────────────────────────────────────────────────────────────────
@@ -149,36 +154,193 @@ def read_hwpx(path: pathlib.Path) -> str:
     return "\n\n".join(blocks)
 
 
+# ── .docx ────────────────────────────────────────────────────────────────────
+
+def _docx_style(paragraph) -> str:
+    """문단에 걸린 스타일 이름. 제목 문단을 찾는 데 쓴다."""
+    for pPr in paragraph:
+        if _local(pPr.tag) != "pPr":
+            continue
+        for element in pPr:
+            if _local(element.tag) != "pStyle":
+                continue
+            for key, value in element.attrib.items():
+                if _local(key) == "val":
+                    return value
+    return ""
+
+
+def _docx_paragraph(paragraph) -> str:
+    """문단의 글자를 모은다. 탭·줄바꿈을 살린다."""
+    parts = []
+    for element in paragraph.iter():
+        name = _local(element.tag)
+        if name == "t" and element.text:
+            parts.append(element.text)
+        elif name == "tab":
+            parts.append("\t")
+        elif name in {"br", "cr"}:
+            parts.append("\n")
+    return "".join(parts).strip()
+
+
+def _docx_table(table) -> str:
+    """표를 파이프로 구분한 줄로. hwpx 쪽과 같은 형태로 맞춘다."""
+    rows = []
+    for row in _children(table, "tr"):
+        cells = []
+        for cell in _children(row, "tc"):
+            texts = [_docx_paragraph(p) for p in _children(cell, "p")]
+            cells.append(" ".join(t for t in texts if t).strip())
+        if any(cells):
+            rows.append(" | ".join(cells))
+    return "\n".join(rows)
+
+
+def read_docx(path: pathlib.Path) -> str:
+    """DOCX 에서 문단·표를 텍스트로 뽑는다.
+
+    .docx 는 .hwpx 와 마찬가지로 zip+XML 이라 파이썬으로 열 수 있다.
+    (.doc 는 OLE 바이너리라 안 된다. .hwp 와 같은 사정이다.)
+
+    제목 스타일이 걸린 문단은 마크다운 제목(`#`)으로 바꾼다. make_chunks.py 가
+    절 제목을 청크 경계로 쓰므로, 이걸 살려야 문서 하나가 통째로 한 청크가
+    되는 일을 막을 수 있다.
+    """
+    with zipfile.ZipFile(path) as archive:
+        try:
+            data = archive.read("word/document.xml")
+        except KeyError:
+            raise ValueError(
+                "word/document.xml 이 없다 (.docx 가 아니다)") from None
+
+    root = ET.fromstring(data)
+    bodies = _children(root, "body")
+    body = bodies[0] if bodies else root
+
+    blocks = []
+    for child in body:
+        name = _local(child.tag)
+        if name == "p":
+            text = _docx_paragraph(child)
+            if not text:
+                continue
+            match = _HEADING.match(_docx_style(child).strip())
+            if match:
+                level = min(int(match.group(1)), 6)
+                text = f"{'#' * level} {text}"
+            blocks.append(text)
+        elif name == "tbl":
+            table = _docx_table(child)
+            if table:
+                blocks.append(table)
+
+    if not blocks:
+        raise ValueError("본문에서 글자를 찾지 못했다")
+    return "\n\n".join(blocks)
+
+
 # ── .csv ─────────────────────────────────────────────────────────────────────
 
-def read_csv_as_blocks(path: pathlib.Path, rows_per_block: int) -> str:
+def _read_csv_rows(path: pathlib.Path) -> list[list[str]]:
+    """CSV 를 행 단위 리스트로 읽는다. 인코딩을 차례로 시도한다."""
+    for encoding in ("utf-8-sig", "cp949", "utf-8"):
+        try:
+            with path.open(encoding=encoding, newline="") as f:
+                return [row for row in csv.reader(f)]
+        except UnicodeDecodeError:
+            continue
+    raise ValueError("인코딩을 읽을 수 없다 (utf-8 · cp949 시도함)")
+
+
+def _sniff_header(rows: list[list[str]], limit: int = 15) -> int:
+    """헤더로 보이는 행의 위치를 찾는다.
+
+    엑셀에서 내보낸 CSV 는 1행이 제목이고 그 아래 빈 행이 있는 경우가 많다.
+    csv.DictReader 는 1행을 무조건 헤더로 보므로, 그대로 쓰면 제목 한 칸만
+    열 이름이 되고 나머지 열이 이름 없는 열로 버려진다. 실제로 팀 문서를
+    변환했을 때 번호 열만 남고 본문이 전부 사라졌다.
+
+    채워진 칸이 가장 많은 행을 헤더로 본다. 동수면 앞쪽을 택한다.
+    제목 행은 보통 한 칸만 차 있어서 실제 헤더에 밀린다.
+    """
+    best, best_filled = 0, -1
+    for index, row in enumerate(rows[:limit]):
+        filled = sum(1 for cell in row if (cell or "").strip())
+        if filled > best_filled:
+            best, best_filled = index, filled
+    return best
+
+
+def read_csv_as_blocks(path: pathlib.Path, rows_per_block: int,
+                       header_row: int | None = None) -> str:
     """CSV 를 검색 가능한 텍스트 블록으로 바꾼다.
 
     낙찰현황·준공정보처럼 행이 곧 레코드인 데이터는 표로 붙여두면 검색이
     안 된다. 행마다 "열이름: 값" 형태로 풀어야 의미 검색이 걸린다.
     그렇게 만든 블록이 RAG-12(유사 사업 단가 선례 검색)의 실제 자료가 된다.
-    """
-    for encoding in ("utf-8-sig", "cp949", "utf-8"):
-        try:
-            with path.open(encoding=encoding, newline="") as f:
-                rows = list(csv.DictReader(f))
-            break
-        except UnicodeDecodeError:
-            continue
-    else:
-        raise ValueError("인코딩을 읽을 수 없다 (utf-8 · cp949 시도함)")
 
-    if not rows:
+    header_row 를 주면 그 행(1부터 센다)을 헤더로 쓴다. 주지 않으면 찾는다.
+    헤더 위쪽 제목 줄은 버리지 않고 문서 머리에 남긴다. "주요 결정사항 로그"
+    처럼 그 자체가 검색에 쓸모 있는 정보이기 때문이다.
+    """
+    raw = _read_csv_rows(path)
+    raw = [row for row in raw if row]           # 완전히 빈 줄만 걷어낸다
+    if not raw:
         raise ValueError("내용이 비어 있다")
 
-    # 값이 전부 빈 열은 버린다. 공공 데이터에 빈 열이 흔하다.
-    keys = [k for k in rows[0].keys()
-            if k and any((r.get(k) or "").strip() for r in rows)]
+    if header_row is not None:
+        index = header_row - 1
+        if not 0 <= index < len(raw):
+            raise ValueError(
+                f"--header-row {header_row} 은 범위를 벗어난다 (행 {len(raw)}개)")
+    else:
+        index = _sniff_header(raw)
 
-    blocks = [f"# {path.stem}", f"열: {' · '.join(keys)}", ""]
+    header = [(cell or "").strip() for cell in raw[index]]
+    if not any(header):
+        raise ValueError(f"{index + 1}행이 헤더로 비어 있다")
 
-    for start in range(0, len(rows), rows_per_block):
-        group = rows[start:start + rows_per_block]
+    # 이름 없는 열에 자리 이름을 준다. 예전에는 버렸는데, 값이 있는 열이
+    # 조용히 사라지는 사고가 났다. 버리지 않고 드러낸다.
+    names, unnamed = [], 0
+    for position, cell in enumerate(header, start=1):
+        if cell:
+            names.append(cell)
+        else:
+            names.append(f"열{position}")
+            unnamed += 1
+
+    records = []
+    for row in raw[index + 1:]:
+        if not any((cell or "").strip() for cell in row):
+            continue
+        padded = list(row) + [""] * (len(names) - len(row))
+        records.append(dict(zip(names, padded)))
+
+    if not records:
+        raise ValueError(f"{index + 1}행을 헤더로 봤는데 그 아래 자료가 없다")
+
+    keys = [k for k in names
+            if any((r.get(k) or "").strip() for r in records)]
+
+    print(f"    헤더 {index + 1}행 · 열 {len(keys)}개 · 자료 {len(records)}행", end="")
+    if unnamed:
+        print(f" · 이름 없는 열 {unnamed}개는 열N 으로 넣음", end="")
+    print()
+
+    blocks = [f"# {path.stem}"]
+
+    # 헤더 위쪽 제목·부제를 살린다.
+    for row in raw[:index]:
+        line = " ".join(cell.strip() for cell in row if (cell or "").strip())
+        if line:
+            blocks.append(line)
+
+    blocks += [f"열: {' · '.join(keys)}", ""]
+
+    for start in range(0, len(records), rows_per_block):
+        group = records[start:start + rows_per_block]
         lines = [f"## {start + 1}~{start + len(group)}행"]
         for offset, row in enumerate(group):
             if rows_per_block > 1:
@@ -219,6 +381,8 @@ def main() -> None:
         description="원본 문서를 corpus/ 용 텍스트로 바꾼다")
     parser.add_argument("--rows-per-block", type=int, default=1,
                         help="CSV 몇 행을 한 블록으로 묶을지 (기본 1)")
+    parser.add_argument("--header-row", type=int, metavar="N",
+                        help="CSV 의 N행을 헤더로 쓴다 (1부터). 안 주면 찾는다")
     args = parser.parse_args()
 
     INPUT.mkdir(exist_ok=True)
@@ -242,13 +406,20 @@ def main() -> None:
                 text = read_pdf(path)
             elif suffix == ".hwpx":
                 text = read_hwpx(path)
+            elif suffix == ".docx":
+                text = read_docx(path)
             elif suffix == ".csv":
-                text = read_csv_as_blocks(path, args.rows_per_block)
+                text = read_csv_as_blocks(path, args.rows_per_block,
+                                          args.header_row)
             elif suffix in (".txt", ".md"):
                 text = path.read_text(encoding="utf-8", errors="replace")
             elif suffix == ".hwp":
                 print(f"  건너뜀  {path.name}  (.hwp 는 변환 불가)")
                 hwp_found = True
+                skipped += 1
+                continue
+            elif suffix == ".doc":
+                print(f"  건너뜀  {path.name}  (.doc 는 변환 불가 — .docx 로 저장)")
                 skipped += 1
                 continue
             else:
