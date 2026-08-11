@@ -34,6 +34,8 @@ class ErrorCode(Enum):
     INVITATION_NOT_FOUND = ("INVITATION_NOT_FOUND", "프로젝트 초대를 찾을 수 없습니다.", 404)
     INVITATION_NOT_PENDING = ("INVITATION_NOT_PENDING", "이미 처리된 프로젝트 초대입니다.", 409)
     INVALID_FILE_TYPE = ("INVALID_FILE_TYPE", "지원하지 않는 파일 형식입니다.", 400)
+    INVALID_EXTRACTION_STRATEGY = ("INVALID_EXTRACTION_STRATEGY", "이 파일에서 사용할 수 없는 텍스트 추출 방식입니다.", 400)
+    OCR_EDIT_CONFLICT = ("OCR_EDIT_CONFLICT", "다른 사용자가 먼저 수정했습니다. 최신 내용을 다시 불러와 주세요.", 409)
     FILE_TOO_LARGE = ("FILE_TOO_LARGE", "파일 크기가 허용 범위를 초과했습니다.", 413)
     TOO_MANY_PAGES = ("TOO_MANY_PAGES", "페이지 수가 허용 범위를 초과했습니다.", 413)
     CONTENT_TOO_LARGE = ("CONTENT_TOO_LARGE", "추출된 문서 내용이 허용 범위를 초과했습니다.", 413)
@@ -46,7 +48,6 @@ class ErrorCode(Enum):
     # ── OCR 검수 (리비전 0004: document_pages · ocr_groups · ocr_elements) ──
     PAGE_NOT_FOUND = ("PAGE_NOT_FOUND", "문서 페이지를 찾을 수 없습니다.", 404)
     OCR_ELEMENT_NOT_FOUND = ("OCR_ELEMENT_NOT_FOUND", "인식 영역을 찾을 수 없습니다.", 404)
-    OCR_ELEMENT_CONFLICT = ("OCR_ELEMENT_CONFLICT", "다른 사용자가 먼저 수정했습니다. 새로 불러온 뒤 다시 시도해 주세요.", 409)
     OCR_ELEMENT_DELETED = ("OCR_ELEMENT_DELETED", "삭제된 인식 영역은 수정할 수 없습니다.", 409)
     INVALID_BBOX = ("INVALID_BBOX", "인식 영역의 좌표가 올바르지 않습니다.", 400)
     RE_OCR_FAILED = ("RE_OCR_FAILED", "선택한 영역을 다시 인식하지 못했습니다.", 502)
