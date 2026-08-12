@@ -56,6 +56,24 @@ MODELS = [
         "passage_prefix": "passage: ",
         "note": "384차원. CPU 현실 후보. e5 계열이라 접두어 필수",
     },
+    # ── 차원과 모델 크기를 분리하기 위해 추가한 두 개 ────────────────────
+    # 1차 시험은 384 와 1024 두 점만 재서 "차원이 원인인지 모델 크기가
+    # 원인인지" 를 나눌 수 없었다. e5 원본 계열의 base(768)·large(1024)를
+    # 넣으면 같은 학습 조건 안에서 차원만 다른 비교가 된다.
+    #   e5-base 대 e5-large   = 순수 차원 비교 (같은 계열)
+    #   e5-large 대 KURE-v1   = 한국어 특화 효과 (같은 차원 1024)
+    {
+        "name": "intfloat/multilingual-e5-base",
+        "query_prefix": "query: ",
+        "passage_prefix": "passage: ",
+        "note": "768차원. 384와 1024 사이를 채운다. 12층",
+    },
+    {
+        "name": "intfloat/multilingual-e5-large",
+        "query_prefix": "query: ",
+        "passage_prefix": "passage: ",
+        "note": "1024차원. e5-base 와 같은 계열이라 차원만 다른 비교가 된다",
+    },
 ]
 
 TOP_K = (1, 3, 5, 10)
