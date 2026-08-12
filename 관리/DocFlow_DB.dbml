@@ -795,7 +795,7 @@ TableGroup "김보현 · 산출물" {
 //
 // 마이그레이션 순서 (SYS-01 Alembic)
 //
-//   구현 완료 — main 리비전 0001~0007
+//   구현 완료 — main 리비전 0001~0009
 //     0001  users, projects, project_members, documents, extracted_texts, analyses
 //     0002  users.login_id
 //     0003  project_invitations
@@ -804,6 +804,9 @@ TableGroup "김보현 · 산출물" {
 //     0006  documents.extraction_strategy, document_pages, ocr_elements,
 //           ocr_element_revisions
 //     0007  amount_items, decisions, schedule_items, deliverables
+//     0008  ocr_elements.is_excluded            검수에서 제외 표시
+//     0009  extracted_texts.text_char_count     원본 글자 수
+//           extracted_texts.ocr_char_count      OCR 글자 수
 //
 //   미구현 — 담당·합의 대기
 //     tasks, activity_logs        합의 대기
@@ -811,10 +814,15 @@ TableGroup "김보현 · 산출물" {
 //     batch_jobs, batch_items     일괄 업로드 담당의 리비전에서
 //     documents.batch_item_id     위와 같은 이유
 //
-//   예정 — 리비전 0008 (승인 대기)
+//   예정 — 리비전 0010 (승인 대기)
 //     amount_items.unit_price     단가. 없으면 재계산이 안 된다
 //     amount_items.category       원가 구분. 부가세를 구분하지 않으면 합계가 틀린다
 //     documents.document_type     CHECK 제약 9종 (지금 제약이 아예 없다)
+//     제약 이름은 0009 선례를 따른다 — ck_{테이블단수}_{컬럼}
+//
+//   예정 — 리비전 0011 (RAG 검색. 임베딩 모델 선정 결과서로 차원 확정)
+//     CREATE EXTENSION vector     DB 이미지 교체가 선행이다 (pgvector 미포함)
+//     document_chunks             embedding vector(1024)
 //
 //   리비전 번호가 네 번 겹쳤다. 원인은 하나다 — 브랜치를 딸 때 다른 브랜치의
 //   versions/ 를 보지 않은 것. git 은 서로 다른 새 파일이라 충돌로 잡지 않고
