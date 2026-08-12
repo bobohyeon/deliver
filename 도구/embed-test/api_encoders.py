@@ -29,8 +29,10 @@
 # 팀원 환경의 파이썬 버전이 서로 다를 수 있어서 넣었다.
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import pathlib
 import sys
 import time
 import urllib.error
@@ -68,7 +70,12 @@ class RateLimit:
 
     # 한국어는 토크나이저에 따라 글자당 토큰 수가 크게 다르다.
     # 처음에는 넉넉히 잡고, 응답이 실제 토큰 수를 주면 그 값으로 고친다.
-    INITIAL_TOKENS_PER_CHAR = 1.6
+    #
+    # 1.6 으로 시작했더니 2배 보수적이어서 첫 배치들이 쓸데없이 작았다.
+    # Voyage 실측이 글자당 0.79 토큰이었다(한국어 공고문·계약 CSV 기준).
+    # 1.1 로 낮춰 잡는다 — 실측보다 40% 여유가 있어 첫 배치도 안전하고,
+    # 한 번 응답을 받으면 실측값으로 바뀐다.
+    INITIAL_TOKENS_PER_CHAR = 1.1
 
     def __init__(self, rpm: int = 0, tpm: int = 0) -> None:
         self.rpm = rpm
@@ -178,6 +185,77 @@ def _l2(vecs: np.ndarray) -> np.ndarray:
     return vecs / norms
 
 
+class Cache:
+    """받아온 벡터를 파일에 남긴다. 같은 텍스트를 두 번 사지 않기 위한 것이다.
+
+    왜 필요한가
+      한도가 3 RPM 이면 청크 127개에 10분이 걸린다. 그 뒤 코드에서 예외가
+      한 번 나면 10분치가 통째로 사라진다. 실제로 그렇게 버렸다.
+      배치마다 파일에 덧붙이므로 중간에 죽어도 거기까지는 남는다.
+
+    키를 무엇으로 잡나
+      (제공자, 모델, 차원, 역할, 텍스트) 다섯이 다르면 벡터가 다르다.
+      특히 역할(query / document)을 키에 넣어야 한다 — Voyage 는 input_type,
+      Gemini 는 taskType 으로 같은 문장에도 다른 벡터를 준다. 이걸 빼면
+      질의 벡터를 문서 벡터로 잘못 재사용해 점수가 조용히 틀린다.
+
+    Spring 비교: @Cacheable 을 파일로 손수 만든 것이다. 키 설계가 같은 문제다.
+    """
+
+    DIR = pathlib.Path(__file__).resolve().parent / ".embed_cache"
+
+    def __init__(self, provider: str, model: str, dim: int, enabled: bool = True):
+        self.enabled = enabled
+        self.hit = 0
+        self.miss = 0
+        self._mem: dict[str, list[float]] = {}
+        safe = f"{provider}__{model}__{dim}".replace("/", "_")
+        self.path = self.DIR / f"{safe}.jsonl"
+        if not enabled:
+            return
+        self.DIR.mkdir(exist_ok=True)
+        if self.path.exists():
+            broken = 0
+            with self.path.open(encoding="utf-8") as f:
+                for line in f:
+                    try:
+                        rec = json.loads(line)
+                        self._mem[rec["k"]] = rec["v"]
+                    except (json.JSONDecodeError, KeyError):
+                        broken += 1        # 중간에 죽어 잘린 마지막 줄
+            print(f"    캐시 {len(self._mem):,}건 읽음 ({self.path.name})"
+                  + (f" · 깨진 줄 {broken} 무시" if broken else ""),
+                  file=sys.stderr)
+
+    @staticmethod
+    def _key(role: str, text: str) -> str:
+        h = hashlib.sha1(text.encode("utf-8")).hexdigest()[:16]
+        return f"{role}:{h}"
+
+    def get(self, role: str, text: str):
+        if not self.enabled:
+            return None
+        v = self._mem.get(self._key(role, text))
+        if v is None:
+            self.miss += 1
+        else:
+            self.hit += 1
+        return v
+
+    def put_many(self, role: str, texts: list[str], vecs: list[list[float]]) -> None:
+        """배치 하나가 끝날 때마다 바로 쓴다. 끝까지 모아두지 않는다."""
+        if not self.enabled:
+            return
+        with self.path.open("a", encoding="utf-8") as f:
+            for t, v in zip(texts, vecs):
+                k = self._key(role, t)
+                self._mem[k] = v
+                # 소수점을 줄여 파일 크기를 4분의 1로 만든다.
+                # 검색 순위에 영향을 줄 자리수가 아니다.
+                f.write(json.dumps({"k": k, "v": [round(x, 6) for x in v]},
+                                   ensure_ascii=False) + "\n")
+
+
 class ApiEncoder:
     """SentenceTransformer 와 같은 메서드 두 개만 맞춘다.
 
@@ -191,10 +269,12 @@ class ApiEncoder:
     batch_limit = 64
 
     def __init__(self, model: str, dim: int,
-                 limit: "RateLimit | None" = None) -> None:
+                 limit: "RateLimit | None" = None,
+                 cache: bool = True) -> None:
         self.model = model
         self.dim = dim
         self.limit = limit or RateLimit()
+        self.cache = Cache(self.provider, model, dim, cache)
         self.total_tokens = 0
         self.api_calls = 0
         self.key = os.environ.get(self.env_key, "").strip()
@@ -222,6 +302,28 @@ class ApiEncoder:
         """
         texts = list(texts)
         size = min(batch_size or self.batch_limit, self.batch_limit)
+
+        # 캐시에 없는 것만 사 온다. 순서를 지켜야 하므로 자리를 비워두고
+        # 나중에 채운다. 같은 텍스트가 두 번 나오면 한 번만 사면 되므로
+        # 중복을 없앤 목록으로 요청한다.
+        slots: list[list[float] | None] = [self.cache.get(input_role, t)
+                                           for t in texts]
+        todo: list[str] = []
+        seen: set[str] = set()
+        for t, v in zip(texts, slots):
+            if v is None and t not in seen:
+                seen.add(t)
+                todo.append(t)
+        if self.cache.enabled:
+            print(f"    캐시 적중 {self.cache.hit} · 살 것 {len(todo)}"
+                  f"{' (중복 제외)' if len(todo) < len(texts) - self.cache.hit else ''}",
+                  file=sys.stderr)
+        if not todo:
+            vecs = np.asarray(slots, dtype=np.float32)
+            return _l2(vecs)
+
+        bought: dict[str, list[float]] = {}
+        texts_all, texts = texts, todo
         out: list[list[float]] = []
         i = 0
         while i < len(texts):
@@ -243,8 +345,20 @@ class ApiEncoder:
                 self.limit.wait(est)
 
             before = self.total_tokens
-            out.extend(self._encode_batch(part, input_role))
+            got = self._encode_batch(part, input_role)
             self.limit.record(chars, est, (self.total_tokens - before) or None)
+
+            if got and len(got[0]) != self.dim:
+                raise ApiError(
+                    f"차원이 다르다. 요청 {self.dim} · 응답 {len(got[0])}. "
+                    f"이 모델이 그 차원을 지원하지 않는 것이다"
+                )
+
+            # 배치가 끝날 때마다 바로 파일에 남긴다. 뒤에서 죽어도 이건 남는다.
+            self.cache.put_many(input_role, part, got)
+            for t, v in zip(part, got):
+                bought[t] = v
+            out.extend(got)
 
             self.api_calls += 1
             i += len(part)
@@ -254,7 +368,10 @@ class ApiEncoder:
         if show_progress_bar:
             print(file=sys.stderr)
 
-        vecs = np.asarray(out, dtype=np.float32)
+        # 비워둔 자리를 채운다. 캐시에 있던 것과 방금 산 것을 합친다.
+        filled = [v if v is not None else bought[t]
+                  for t, v in zip(texts_all, slots)]
+        vecs = np.asarray(filled, dtype=np.float32)
         if vecs.shape[1] != self.dim:
             raise ApiError(
                 f"차원이 다르다. 요청 {self.dim} · 응답 {vecs.shape[1]}. "
@@ -329,8 +446,9 @@ class GeminiEncoder(ApiEncoder):
     RECOMMENDED_DIMS = (768, 1536, 3072)
 
     def __init__(self, model: str, dim: int,
-                 limit: "RateLimit | None" = None) -> None:
-        super().__init__(model, dim, limit)
+                 limit: "RateLimit | None" = None,
+                 cache: bool = True) -> None:
+        super().__init__(model, dim, limit, cache)
         if dim not in self.RECOMMENDED_DIMS:
             print(f"    주의 — {dim} 은 Gemini 권장 차원이 아니다 "
                   f"(권장 {self.RECOMMENDED_DIMS}). 잘라낸 벡터를 "
@@ -361,8 +479,8 @@ PROVIDERS = {
 
 
 def build(provider: str, model: str, dim: int,
-          limit: RateLimit | None = None) -> ApiEncoder:
+          limit: RateLimit | None = None, cache: bool = True) -> ApiEncoder:
     if provider not in PROVIDERS:
         raise ApiError(f"모르는 제공자: {provider}. "
                        f"쓸 수 있는 것 — {', '.join(PROVIDERS)}")
-    return PROVIDERS[provider](model, dim, limit)
+    return PROVIDERS[provider](model, dim, limit, cache)

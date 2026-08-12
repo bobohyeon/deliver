@@ -15,3 +15,4 @@ input/*
 # corpus 는 샘플만 커밋한다
 corpus/*
 !corpus/*_샘플.md
+.embed_cache/

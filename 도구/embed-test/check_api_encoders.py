@@ -238,9 +238,10 @@ ae.time.sleep = lambda s: NAPS.append(s)
 
 lim = ae.RateLimit(rpm=3, tpm=10000)
 check("한도가 켜졌다", lim.active())
-# 기본 추정 1.6 토큰/글자 · TPM 의 절반 → 10000*0.5/1.6 = 3125 자
-check("배치 글자 상한을 TPM 에서 계산한다", lim.batch_chars() == 3125,
-      lim.batch_chars())
+# 기본 추정 1.1 토큰/글자 · TPM 의 절반 → 10000*0.5/1.1 = 4545 자
+expected_cap = int(10000 * 0.5 / ae.RateLimit.INITIAL_TOKENS_PER_CHAR)
+check(f"배치 글자 상한을 TPM 에서 계산한다 ({expected_cap}자)",
+      lim.batch_chars() == expected_cap, lim.batch_chars())
 
 def realistic(url, payload, headers):
     CAPTURED.append({"url": url, "payload": payload, "headers": headers})
@@ -252,13 +253,18 @@ def realistic(url, payload, headers):
 ae._post = realistic
 CAPTURED.clear()
 NAPS.clear()
-enc = ae.build("voyage", "voyage-4", 1024, lim)
-# 청크 하나가 400자라고 보고 30개 = 12,000자. 상한 3125자면 여러 번 쪼개진다.
-enc.encode(["가" * 400] * 30, input_role="document")
+# 캐시를 끈다. 한도 로직만 보려는 것이고, 캐시가 켜져 있으면 두 번째
+# 실행부터 API 를 안 불러 대기가 일어나지 않는다.
+enc = ae.build("voyage", "voyage-4", 1024, lim, cache=False)
+# 청크 하나가 400자라고 보고 30개 = 12,000자. 상한이 있으면 여러 번 쪼개진다.
+# 텍스트를 서로 다르게 만든다 — 같으면 중복 제거가 하나로 줄여버린다.
+enc.encode([f"청크{i:02d}" + "가" * 394 for i in range(30)],
+           input_role="document")
 sizes = [sum(len(s) for s in c["payload"]["input"]) for c in CAPTURED]
-# 첫 배치는 추정치(1.6 토큰/글자)로 3,125자에 맞춘다. 응답이 실제 토큰을
-# 알려주면(0.9) 추정이 보정되어 이후 배치 상한이 늘어난다. 의도한 동작이다.
-check("첫 배치는 보수적 추정으로 3,125자 안에 든다", sizes[0] <= 3125, sizes[0])
+# 첫 배치는 추정치로 상한에 맞춘다. 응답이 실제 토큰을 알려주면(0.9)
+# 추정이 보정되어 이후 배치 상한이 늘어난다. 의도한 동작이다.
+check(f"첫 배치는 보수적 추정으로 {expected_cap}자 안에 든다",
+      sizes[0] <= expected_cap, sizes[0])
 check("보정 뒤 배치는 더 커진다 (상한이 늘어난다)",
       len(sizes) > 1 and max(sizes[1:]) > sizes[0], sizes)
 check("어떤 배치도 분당 토큰 예산의 절반을 넘지 않는다",
@@ -283,6 +289,59 @@ check("429 재시도 하한을 올릴 수 있다",
 ae.set_retry_floor(2.0)
 ae.time.sleep = real_sleep
 ae._post = spy
+
+head("캐시 — 같은 텍스트를 두 번 사지 않는다")
+import shutil
+ae.Cache.DIR = ROOT / ".embed_cache_test"
+shutil.rmtree(ae.Cache.DIR, ignore_errors=True)
+
+CAPTURED.clear()
+enc = ae.build("voyage", "voyage-4", 1024)
+v1 = enc.encode(["문서1", "문서2", "문서3"], input_role="document")
+first_calls = len(CAPTURED)
+check("처음에는 API 를 부른다", first_calls >= 1, first_calls)
+check("캐시 파일이 만들어진다", enc.cache.path.exists(), enc.cache.path)
+
+# 새 인코더 = 새 프로세스를 흉내낸다. 파일에서 읽어야 한다.
+CAPTURED.clear()
+enc2 = ae.build("voyage", "voyage-4", 1024)
+v2 = enc2.encode(["문서1", "문서2", "문서3"], input_role="document")
+check("두 번째에는 API 를 아예 안 부른다", len(CAPTURED) == 0, len(CAPTURED))
+check("캐시 적중이 3건", enc2.cache.hit == 3, enc2.cache.hit)
+check("값이 같다", [list(r) for r in v1] == [list(r) for r in v2])
+
+# 역할이 다르면 다른 벡터다. 재사용하면 점수가 조용히 틀린다.
+CAPTURED.clear()
+enc2.encode(["문서1"], input_role="query")
+check("역할이 다르면 캐시를 재사용하지 않는다", len(CAPTURED) == 1, len(CAPTURED))
+
+# 차원이 다르면 다른 파일이다.
+enc3 = ae.build("voyage", "voyage-4", 512)
+check("차원이 다르면 캐시 파일이 다르다", enc3.cache.path != enc.cache.path,
+      enc3.cache.path.name)
+
+# 일부만 캐시에 있을 때
+CAPTURED.clear()
+enc4 = ae.build("voyage", "voyage-4", 1024)
+v4 = enc4.encode(["문서1", "새문서", "문서3"], input_role="document")
+sent = [t for c in CAPTURED for t in c["payload"]["input"]]
+check("캐시에 없는 것만 산다", sent == ["새문서"], sent)
+check("순서가 유지된다", len(v4) == 3 and list(v4[0]) == list(v1[0]),
+      len(v4))
+
+# 같은 텍스트가 중복으로 들어오면 한 번만 산다
+CAPTURED.clear()
+enc5 = ae.build("voyage", "voyage-4", 1024)
+enc5.encode(["중복", "중복", "중복"], input_role="document")
+sent = [t for c in CAPTURED for t in c["payload"]["input"]]
+check("중복 텍스트는 한 번만 산다", sent == ["중복"], sent)
+
+enc6 = ae.build("voyage", "voyage-4", 1024, cache=False)
+CAPTURED.clear()
+enc6.encode(["문서1"], input_role="document")
+check("--no-cache 면 캐시를 안 쓴다", len(CAPTURED) == 1 and not enc6.cache.enabled)
+
+shutil.rmtree(ae.Cache.DIR, ignore_errors=True)
 
 head("실수 막기 — 키가 없을 때 · 모르는 제공자")
 saved = os.environ.pop("VOYAGE_API_KEY")

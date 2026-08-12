@@ -211,7 +211,8 @@ class _FakeModel:
 
 def evaluate(model_cfg: dict, chunks: list[dict], queries: list[dict],
              batch_size: int, self_test: bool = False,
-             rpm: int = 0, tpm: int = 0) -> tuple[dict, list[dict]]:
+             rpm: int = 0, tpm: int = 0,
+             cache: bool = True) -> tuple[dict, list[dict]]:
     provider = model_cfg.get("provider", "local")
     is_api = provider != "local"
 
@@ -231,7 +232,7 @@ def evaluate(model_cfg: dict, chunks: list[dict], queries: list[dict],
             api_encoders.set_retry_floor(60.0 / rpm + 2 if rpm else 20.0)
             print(f"  한도 적용 — {rpm or '제한없음'} RPM · "
                   f"{tpm or '제한없음'} TPM · 배치 상한 {limit.batch_chars():,}자")
-        model = api_encoders.build(provider, name, model_cfg["dim"], limit)
+        model = api_encoders.build(provider, name, model_cfg["dim"], limit, cache)
     elif self_test:
         model = _FakeModel(name, device="cpu")
     else:
@@ -314,6 +315,13 @@ def evaluate(model_cfg: dict, chunks: list[dict], queries: list[dict],
             "top1_score": round(float(sims[qi][order[0]]), 4),
         })
 
+    # model 을 지우기 전에 필요한 값을 다 꺼내 둔다.
+    # 여기서 안 꺼내고 summary 안에서 model 을 참조하면 아래 del 때문에
+    # UnboundLocalError 가 난다. 실제로 그렇게 터뜨렸다 — API 26회를 다 쓰고
+    # 마지막 한 줄에서 죽어서 10분치 결과를 버렸다.
+    limit_obj = getattr(model, "limit", None)
+    wait_sec = round(limit_obj.waited_sec, 1) if is_api and limit_obj else ""
+
     del model, doc_vecs, q_vecs, sims
     gc.collect()
 
@@ -331,8 +339,7 @@ def evaluate(model_cfg: dict, chunks: list[dict], queries: list[dict],
         "api_calls": api_calls if is_api else "",
         "api_tokens": api_tokens if is_api else "",
         # 한도 때문에 잔 시간. encode_sec 안에 포함돼 있다.
-        "wait_sec": round(getattr(model, "limit", None).waited_sec, 1)
-                    if is_api and getattr(model, "limit", None) else "",
+        "wait_sec": wait_sec,
     }
     for group in ("all", "overlap", "no_overlap"):
         n = counts[group]
@@ -499,6 +506,9 @@ def main() -> None:
     parser.add_argument("--tpm", type=int, default=0,
                         help="분당 토큰 수 한도. 배치를 자동으로 작게 쪼갠다 "
                              "(Voyage 카드 미등록이면 10000)")
+    parser.add_argument("--no-cache", action="store_true",
+                        help="받아온 벡터를 파일에 남기지 않는다. 기본은 남긴다 "
+                             "— 한도가 낮아 같은 텍스트를 두 번 사면 아깝다")
     parser.add_argument("--voyage-free", action="store_true",
                         help="Voyage 카드 미등록 한도를 그대로 적용한다 "
                              "(--rpm 3 --tpm 10000 과 같다)")
@@ -599,7 +609,7 @@ def main() -> None:
         try:
             summary, detail = evaluate(cfg, chunks, queries,
                                        args.batch_size, args.self_test,
-                                       args.rpm, args.tpm)
+                                       args.rpm, args.tpm, not args.no_cache)
         except Exception as exc:
             print(f"  실패: {cfg['name']} — {type(exc).__name__}: {exc}")
             continue
