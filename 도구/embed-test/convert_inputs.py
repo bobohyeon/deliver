@@ -383,10 +383,41 @@ def main() -> None:
                         help="CSV 몇 행을 한 블록으로 묶을지 (기본 1)")
     parser.add_argument("--header-row", type=int, metavar="N",
                         help="CSV 의 N행을 헤더로 쓴다 (1부터). 안 주면 찾는다")
+    parser.add_argument("--clean", action="store_true",
+                        help="corpus 의 기존 .md 를 지우고 새로 만든다 "
+                             "(샘플 파일은 남긴다)")
     args = parser.parse_args()
 
     INPUT.mkdir(exist_ok=True)
     CORPUS.mkdir(exist_ok=True)
+
+    # ── 같은 문서가 두 벌 들어가는 것을 막는다 ──────────────────────────
+    # input 에서 파일 이름을 바꾸면(예: 01_ 접두어를 붙이면) corpus 에 옛
+    # 이름의 변환본이 그대로 남아 있어 같은 문서가 두 벌이 된다. 그러면
+    # 같은 텍스트가 두 청크에 있고, 모델이 옛 쪽을 1위로 올려도 오답으로
+    # 채점되어 측정이 오염된다. 실제로 5건이 중복됐다.
+    existing = [p for p in CORPUS.glob("*.md") if "_샘플" not in p.stem]
+    if existing:
+        if args.clean:
+            for p in existing:
+                p.unlink()
+            print(f"  corpus 의 기존 변환본 {len(existing)}개를 지웠다 "
+                  f"(샘플은 남김)\n")
+        else:
+            will = {p.stem for p in INPUT.iterdir() if p.is_file()}
+            stale = [p.stem for p in existing if p.stem not in will]
+            print("!" * 66)
+            print(f"  corpus 에 변환본이 이미 {len(existing)}개 있다.")
+            if stale:
+                print(f"  그중 {len(stale)}개는 지금 input 에 없는 이름이다 "
+                      f"— 같은 문서가 두 벌이 될 수 있다.")
+                for s in stale[:6]:
+                    print(f"    {s[:56]}")
+                if len(stale) > 6:
+                    print(f"    ... 그리고 {len(stale) - 6}개 더")
+            print("  이름을 바꿨거나 다시 만드는 것이면 --clean 을 붙여라.")
+            print("!" * 66)
+            print()
 
     files = [p for p in sorted(INPUT.iterdir()) if p.is_file()]
     if not files:
