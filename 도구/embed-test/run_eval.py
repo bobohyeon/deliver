@@ -331,6 +331,87 @@ def evaluate(model_cfg: dict, chunks: list[dict], queries: list[dict],
     return summary, detail
 
 
+def api_check(only: list[str] | None) -> int:
+    """API 키·모델명·차원을 짧은 문장 하나로 확인한다.
+
+    본 실행은 청크 127개와 질의 73개를 보낸다. 키가 틀렸거나 모델명이 틀렸으면
+    그걸 다 보낸 뒤에 실패한다. 그 전에 값싸게 확인하려고 만들었다.
+    문서를 보내지 않으므로 데이터 유출 걱정도 없다.
+    """
+    import api_encoders
+
+    probe = "입찰 참가 자격을 확인한다"
+    targets = API_MODELS
+    if only:
+        targets = [m for m in API_MODELS
+                   if any(p.lower() in m["name"].lower() or
+                          p.lower() == m["provider"] for p in only)]
+        if not targets:
+            print("--only 에 맞는 API 모델이 없다. --list 로 이름을 본다.",
+                  file=sys.stderr)
+            return 1
+
+    print("=" * 70)
+    print("API 예비 점검 — 짧은 문장 하나만 보낸다 (문서는 나가지 않는다)")
+    print(f'  보낼 문장: "{probe}"')
+    print("=" * 70)
+
+    bad = 0
+    for cfg in targets:
+        label = f"{cfg['provider']:8} {cfg['name']:26}"
+        try:
+            enc = api_encoders.build(cfg["provider"], cfg["name"], cfg["dim"])
+        except api_encoders.ApiError as exc:
+            print(f"  건너뜀  {label} 키가 없다")
+            print(f"           {exc}".replace("\n", "\n           "))
+            continue
+
+        t0 = time.perf_counter()
+        try:
+            vecs = enc.encode([probe], input_role="query")
+        except api_encoders.ApiError as exc:
+            print(f"  실패    {label}")
+            print(f"           {exc}")
+            print(f"           {_explain(str(exc))}")
+            bad += 1
+            continue
+        except Exception as exc:                      # noqa: BLE001
+            print(f"  실패    {label} {type(exc).__name__}: {exc}")
+            bad += 1
+            continue
+
+        ms = int((time.perf_counter() - t0) * 1000)
+        norm = float(np.linalg.norm(vecs[0]))
+        tok = f" · 토큰 {enc.total_tokens}" if enc.total_tokens else ""
+        print(f"  통과    {label} 차원 {vecs.shape[1]} · {ms}ms · "
+              f"길이 {norm:.4f}{tok}")
+
+    print("=" * 70)
+    if bad:
+        print(f"실패 {bad}건 — 위 설명을 보고 고친 뒤 다시 돌린다.")
+    else:
+        print("쓸 수 있는 모델은 위에 '통과' 로 나온 것이다.")
+        print("본 실행:  python run_eval.py --api-only")
+    print("=" * 70)
+    return 1 if bad else 0
+
+
+def _explain(msg: str) -> str:
+    """제공자 오류를 무엇을 고쳐야 하는지로 바꿔준다."""
+    if "HTTP 401" in msg or "HTTP 403" in msg:
+        return "키가 틀렸거나 권한이 없다. 환경변수 값을 다시 확인한다."
+    if "HTTP 404" in msg:
+        return ("모델 이름이 틀렸다. 제공자 문서에서 현재 이름을 확인하고 "
+                "API_MODELS 의 name 을 고친다.")
+    if "HTTP 429" in msg:
+        return "호출 한도에 걸렸다. 잠시 뒤에 다시 돌린다."
+    if "output_dimension" in msg or "dimension" in msg.lower():
+        return "이 모델이 그 차원을 지원하지 않는다. dim 을 고친다."
+    if "연결 실패" in msg:
+        return "네트워크가 막혀 있다. 회사망·프록시를 확인한다."
+    return "제공자 문서에서 요청 형식이 바뀌었는지 확인한다."
+
+
 def print_table(rows: list[dict]) -> None:
     print(f"\n\n{'=' * 78}")
     print("결과 — no_overlap 의 R@5 를 먼저 본다")
@@ -394,6 +475,11 @@ def main() -> None:
                         help="API 모델만 잰다. 로컬은 건너뛴다")
     parser.add_argument("--list", action="store_true",
                         help="쓸 수 있는 모델 이름만 출력하고 끝낸다")
+    parser.add_argument("--api-check", action="store_true",
+                        help="API 키·모델명·차원만 확인한다. 짧은 문장 하나만 "
+                             "보내므로 문서가 나가지 않고 돈도 거의 안 든다")
+    parser.add_argument("--yes", action="store_true",
+                        help="API 전송 확인 물음을 건너뛴다")
     args = parser.parse_args()
 
     if args.list:
@@ -402,12 +488,14 @@ def main() -> None:
             print(f"  {m['name']}")
         print("\nAPI 모델 (--api 또는 --api-only 일 때만)")
         for m in API_MODELS:
-            key = f"{m['provider'].upper()}_API_KEY"
-            if m["provider"] == "gemini":
-                key = "GEMINI_API_KEY"
-            print(f"  {m['name']:28} {m['provider']:8} dim={m['dim']}  {key}")
+            print(f"  {m['name']:26} {m['provider']:8} dim={m['dim']:<5} "
+                  f"{m['provider'].upper()}_API_KEY")
         print("\n--only 는 이름의 일부만 적으면 된다. 예 — --only e5-base")
+        print("키를 넣었는지 먼저 확인하려면 --api-check 를 쓴다.")
         return
+
+    if args.api_check:
+        sys.exit(api_check(args.only))
 
     chunks = load_csv(CHUNKS, ["chunk_id", "doc", "text"])
     if args.limit_chunks:
@@ -446,12 +534,34 @@ def main() -> None:
 
     api_targets = [m for m in targets if m.get("provider", "local") != "local"]
     if api_targets:
-        print("\n" + "!" * 66)
-        print("API 모델을 켰다 — 청크 전문이 외부 서버로 전송된다.")
-        print("입찰·계약 문서를 넣은 상태라면 팀 합의가 먼저다.")
+        docs: dict[str, int] = {}
+        for c in chunks:
+            docs[c.get("doc", "?")] = docs.get(c.get("doc", "?"), 0) + 1
+        chars = sum(len(c["text"]) for c in chunks)
+
+        print("\n" + "!" * 70)
+        print("API 모델을 켰다 — 아래 문서의 본문이 외부 서버로 전송된다.")
+        print("!" * 70)
+        for d, cnt in sorted(docs.items(), key=lambda x: -x[1]):
+            print(f"  청크 {cnt:>4}개   {d}")
+        print(f"  합계 {len(chunks)}청크 · {chars:,}자 · 질의 {len(queries)}개도 함께 나간다")
+        print()
         for m in api_targets:
-            print(f"  {m['provider']:8} {m['name']}")
-        print("!" * 66)
+            print(f"  보낼 곳 — {m['provider']:8} {m['name']}")
+        print()
+        print("  무료 등급 주의 — Gemini 무료 등급은 프롬프트와 응답이 Google")
+        print("  제품 개선에 쓰일 수 있다고 공식 문서에 적혀 있다. 결제 계정을")
+        print("  붙여 유료 등급으로 올리면 쓰이지 않는다.")
+        print("  공개 입찰공고가 아닌 문서가 위 목록에 있으면 멈추고 팀에 물어라.")
+        print("!" * 70)
+        if not args.yes:
+            try:
+                if input("  계속하려면 yes 를 입력한다: ").strip().lower() != "yes":
+                    print("  중단했다.")
+                    return
+            except (EOFError, KeyboardInterrupt):
+                print("\n  중단했다.")
+                return
 
     print(f"청크 {len(chunks)}개 · 질의 {len(queries)}개 · 모델 {len(targets)}개")
     if args.self_test:

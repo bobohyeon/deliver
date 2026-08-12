@@ -15,6 +15,7 @@
 # =============================================================================
 """API 요청 본문 검사. 실행: python check_api_encoders.py"""
 
+import math
 import os
 import pathlib
 import sys
@@ -40,15 +41,42 @@ def install_numpy_stub() -> None:
     stub.float32 = "float32"
 
     class _Arr(list):
+        """2차원 리스트에 shape 과 나눗셈만 붙인 것. 정규화 검사에 필요하다."""
+
         @property
         def shape(self):
             return (len(self), len(self[0]) if self else 0)
 
+        def __truediv__(self, norms):
+            return _Arr([[v / norms[i][0] for v in row]
+                         for i, row in enumerate(self)])
+
+    def _norm(x, axis=None, keepdims=False):
+        if axis == 1:
+            out = [[math.sqrt(sum(v * v for v in row))] for row in x]
+            return _Norms(out)
+        return math.sqrt(sum(v * v for v in x))
+
+    class _Norms(list):
+        def __eq__(self, other):        # norms[norms == 0] = 1.0 을 받아낸다
+            return _Mask([row[0] == other for row in self])
+
+        def __setitem__(self, key, value):
+            if isinstance(key, _Mask):
+                for i, hit in enumerate(key):
+                    if hit:
+                        self[i][0] = value
+                return
+            list.__setitem__(self, key, value)
+
+    class _Mask(list):
+        pass
+
     stub.ndarray = _Arr          # 타입 힌트가 참조한다
     stub.asarray = lambda x, dtype=None: _Arr(x)
-    stub.linalg = types.SimpleNamespace(norm=lambda *a, **k: None)
+    stub.linalg = types.SimpleNamespace(norm=_norm)
     sys.modules["numpy"] = stub
-    print("  (numpy 가 없어 흉내로 대신한다. 요청 본문 검사에는 지장 없다)\n")
+    print("  (numpy 가 없어 흉내로 대신한다. 정규화까지 검사할 수 있다)\n")
 
 
 install_numpy_stub()
@@ -159,14 +187,48 @@ check("배치 안에 두 건이 들어간다", len(doc["requests"]) == 2,
 head("배치 쪼개기 — 제공자 한도를 넘기지 않는다")
 CAPTURED.clear()
 enc = ae.build("gemini", "gemini-embedding-001", 1024)   # batch_limit = 32
-try:
-    enc.encode([f"청크{i}" for i in range(70)], input_role="document")
-except Exception:
-    pass   # numpy 흉내라 마지막 정규화에서 멈춘다. 호출 횟수만 본다.
+out = enc.encode([f"청크{i}" for i in range(70)], input_role="document")
 check("70개를 32씩 3번에 나눈다", len(CAPTURED) == 3, len(CAPTURED))
 check("마지막 배치는 6개다",
       len(CAPTURED[-1]["payload"]["requests"]) == 6,
       len(CAPTURED[-1]["payload"]["requests"]))
+check("결과 개수가 입력과 같다", len(out) == 70, len(out))
+
+head("정규화 — Gemini 의 잘린 벡터 때문에 반드시 필요하다")
+# 잘린 벡터를 흉내낸다. 길이가 1이 아닌 값을 응답으로 준다.
+def unnormalized(url, payload, headers):
+    CAPTURED.append({"url": url, "payload": payload, "headers": headers})
+    n = len(payload["requests"])
+    dim = payload["requests"][0]["outputDimensionality"]
+    # 각 성분이 0.5 인 dim 차원 벡터. 길이는 0.5*sqrt(dim) 으로 1이 아니다.
+    return {"embeddings": [{"values": [0.5] * dim} for _ in range(n)]}
+
+ae._post = unnormalized
+CAPTURED.clear()
+enc = ae.build("gemini", "gemini-embedding-001", 1024)
+raw_len = 0.5 * math.sqrt(1024)          # = 16.0
+vecs = enc.encode(["문서1", "문서2"], input_role="document")
+lens = [math.sqrt(sum(v * v for v in row)) for row in vecs]
+check(f"제공자가 준 벡터는 길이가 1이 아니다 ({raw_len:.1f})",
+      abs(raw_len - 16.0) < 1e-9, raw_len)
+check("어댑터를 지나면 길이가 1이 된다",
+      all(abs(l - 1.0) < 1e-6 for l in lens), lens)
+check("차원은 그대로 1024 다", len(vecs[0]) == 1024, len(vecs[0]))
+ae._post = spy
+
+head("차원이 안 맞으면 잡아낸다")
+def wrong_dim(url, payload, headers):
+    return {"data": [{"embedding": [0.1] * 768, "index": 0}],
+            "usage": {"total_tokens": 5}}
+ae._post = wrong_dim
+enc = ae.build("voyage", "voyage-4", 1024)
+try:
+    enc.encode(["문서1"], input_role="document")
+    check("요청한 차원과 다르면 막는다", False, "예외가 나지 않았다")
+except ae.ApiError as exc:
+    check("요청한 차원과 다르면 막는다",
+          "1024" in str(exc) and "768" in str(exc), str(exc))
+ae._post = spy
 
 head("실수 막기 — 키가 없을 때 · 모르는 제공자")
 saved = os.environ.pop("VOYAGE_API_KEY")
