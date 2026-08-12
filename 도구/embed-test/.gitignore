@@ -16,3 +16,4 @@ input/*
 corpus/*
 !corpus/*_샘플.md
 .embed_cache/
+g2b_raw/

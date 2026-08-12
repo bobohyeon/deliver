@@ -46,18 +46,38 @@ def read_documents() -> list[tuple[str, str]]:
         print("폴더를 만들고 .txt 또는 .md 파일을 넣어라.", file=sys.stderr)
         sys.exit(1)
 
+    # 파일명 순서로 청크 번호를 매기므로 새 문서가 중간에 끼어들면
+    # 기존 번호가 전부 밀리고 queries.csv 의 gold_chunk_ids 가 어긋난다.
+    # 파일명에 두 자리 숫자를 붙여 순서를 고정하고, doc 칸에는 그 접두어를
+    # 떼고 적는다. 새 문서는 큰 번호를 붙여 뒤에 놓으면 기존 번호가 보존된다.
+    #
+    #   01_기초과학연구원...    ->  청크   1 ~   6
+    #   02_[수의시담] 중앙보훈...->  청크   7 ~  39
+    #   ...
+    #   06_새로 받은 공고        ->  청크 128 부터   기존 번호 안 밀린다
     docs = []
     for path in sorted(CORPUS.iterdir()):
         if path.suffix.lower() not in (".txt", ".md"):
             continue
         text = path.read_text(encoding="utf-8", errors="replace")
         if text.strip():
-            docs.append((path.stem, text))
+            docs.append((strip_order_prefix(path.stem), text))
 
     if not docs:
         print(f"corpus 안에 읽을 파일이 없다: {CORPUS}", file=sys.stderr)
         sys.exit(1)
     return docs
+
+
+def strip_order_prefix(stem: str) -> str:
+    """파일명 앞의 정렬용 숫자 접두어를 뗀다.
+
+    `01_한국지역난방공사_...` -> `한국지역난방공사_...`
+    접두어가 없으면 그대로 돌려준다. 결과서와 results_detail.csv 의
+    문서명이 접두어 때문에 달라지는 것을 막기 위한 것이다.
+    """
+    import re
+    return re.sub(r"^\d{1,3}[_\-. ]+", "", stem)
 
 
 def split_paragraphs(text: str) -> list[str]:
