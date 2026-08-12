@@ -230,6 +230,60 @@ except ae.ApiError as exc:
           "1024" in str(exc) and "768" in str(exc), str(exc))
 ae._post = spy
 
+head("한도 대응 — Voyage 카드 미등록(3 RPM · 10K TPM)")
+# 실제로 자지 않게 가로챈다. 얼마나 자려 했는지만 기록한다.
+NAPS: list[float] = []
+real_sleep = ae.time.sleep
+ae.time.sleep = lambda s: NAPS.append(s)
+
+lim = ae.RateLimit(rpm=3, tpm=10000)
+check("한도가 켜졌다", lim.active())
+# 기본 추정 1.6 토큰/글자 · TPM 의 절반 → 10000*0.5/1.6 = 3125 자
+check("배치 글자 상한을 TPM 에서 계산한다", lim.batch_chars() == 3125,
+      lim.batch_chars())
+
+def realistic(url, payload, headers):
+    CAPTURED.append({"url": url, "payload": payload, "headers": headers})
+    n = len(payload["input"])
+    chars = sum(len(s) for s in payload["input"])
+    return {"data": [{"embedding": [0.5] * 1024, "index": i} for i in range(n)],
+            "usage": {"total_tokens": int(chars * 0.9)}}   # 글자당 0.9 토큰
+
+ae._post = realistic
+CAPTURED.clear()
+NAPS.clear()
+enc = ae.build("voyage", "voyage-4", 1024, lim)
+# 청크 하나가 400자라고 보고 30개 = 12,000자. 상한 3125자면 여러 번 쪼개진다.
+enc.encode(["가" * 400] * 30, input_role="document")
+sizes = [sum(len(s) for s in c["payload"]["input"]) for c in CAPTURED]
+# 첫 배치는 추정치(1.6 토큰/글자)로 3,125자에 맞춘다. 응답이 실제 토큰을
+# 알려주면(0.9) 추정이 보정되어 이후 배치 상한이 늘어난다. 의도한 동작이다.
+check("첫 배치는 보수적 추정으로 3,125자 안에 든다", sizes[0] <= 3125, sizes[0])
+check("보정 뒤 배치는 더 커진다 (상한이 늘어난다)",
+      len(sizes) > 1 and max(sizes[1:]) > sizes[0], sizes)
+check("어떤 배치도 분당 토큰 예산의 절반을 넘지 않는다",
+      all(s * 0.9 <= 10000 * 0.55 for s in sizes),
+      [round(s * 0.9) for s in sizes])
+check("여러 번에 나눠 보낸다", len(CAPTURED) >= 3, len(CAPTURED))
+check("보낸 텍스트 총 개수가 입력과 같다",
+      sum(len(c["payload"]["input"]) for c in CAPTURED) == 30,
+      sum(len(c["payload"]["input"]) for c in CAPTURED))
+check("3 RPM 을 넘으면 기다린다", len(NAPS) > 0, NAPS)
+check("기다린 시간이 60초 창에 맞다", all(0 < s <= 65 for s in NAPS), NAPS)
+check("응답의 실제 토큰으로 추정을 고친다",
+      abs(lim.tokens_per_char - 0.9 * 1.1) < 0.01, lim.tokens_per_char)
+check("보정 후 배치 상한이 늘어난다", lim.batch_chars() > 3125, lim.batch_chars())
+
+lim2 = ae.RateLimit()
+check("한도를 안 주면 쪼개지 않는다",
+      not lim2.active() and lim2.batch_chars() > 10 ** 8, lim2.batch_chars())
+
+check("429 재시도 하한을 올릴 수 있다",
+      (ae.set_retry_floor(22.0), ae.RETRY_MIN_SEC == 22.0)[1], ae.RETRY_MIN_SEC)
+ae.set_retry_floor(2.0)
+ae.time.sleep = real_sleep
+ae._post = spy
+
 head("실수 막기 — 키가 없을 때 · 모르는 제공자")
 saved = os.environ.pop("VOYAGE_API_KEY")
 try:

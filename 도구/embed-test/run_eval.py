@@ -19,6 +19,9 @@
 #   검색으로도 찾히므로 임베딩을 쓸 근거가 되지 않는다.
 # =============================================================================
 
+# int | None 같은 표기를 파이썬 3.9 에서도 쓸 수 있게 한다.
+from __future__ import annotations
+
 import argparse
 import csv
 import gc
@@ -207,7 +210,8 @@ class _FakeModel:
 
 
 def evaluate(model_cfg: dict, chunks: list[dict], queries: list[dict],
-             batch_size: int, self_test: bool = False) -> tuple[dict, list[dict]]:
+             batch_size: int, self_test: bool = False,
+             rpm: int = 0, tpm: int = 0) -> tuple[dict, list[dict]]:
     provider = model_cfg.get("provider", "local")
     is_api = provider != "local"
 
@@ -221,7 +225,13 @@ def evaluate(model_cfg: dict, chunks: list[dict], queries: list[dict],
     t0 = time.perf_counter()
     if is_api:
         import api_encoders
-        model = api_encoders.build(provider, name, model_cfg["dim"])
+        limit = api_encoders.RateLimit(rpm, tpm)
+        if limit.active():
+            # 3 RPM 이면 창이 비는 데 20초가 걸린다. 2초씩 물러나도 소용없다.
+            api_encoders.set_retry_floor(60.0 / rpm + 2 if rpm else 20.0)
+            print(f"  한도 적용 — {rpm or '제한없음'} RPM · "
+                  f"{tpm or '제한없음'} TPM · 배치 상한 {limit.batch_chars():,}자")
+        model = api_encoders.build(provider, name, model_cfg["dim"], limit)
     elif self_test:
         model = _FakeModel(name, device="cpu")
     else:
@@ -320,6 +330,9 @@ def evaluate(model_cfg: dict, chunks: list[dict], queries: list[dict],
         "mem_mb": "" if is_api else (round(peak - before, 0) if peak == peak else ""),
         "api_calls": api_calls if is_api else "",
         "api_tokens": api_tokens if is_api else "",
+        # 한도 때문에 잔 시간. encode_sec 안에 포함돼 있다.
+        "wait_sec": round(getattr(model, "limit", None).waited_sec, 1)
+                    if is_api and getattr(model, "limit", None) else "",
     }
     for group in ("all", "overlap", "no_overlap"):
         n = counts[group]
@@ -480,7 +493,19 @@ def main() -> None:
                              "보내므로 문서가 나가지 않고 돈도 거의 안 든다")
     parser.add_argument("--yes", action="store_true",
                         help="API 전송 확인 물음을 건너뛴다")
+    parser.add_argument("--rpm", type=int, default=0,
+                        help="분당 요청 수 한도. 넘지 않게 기다린다 "
+                             "(Voyage 카드 미등록이면 3)")
+    parser.add_argument("--tpm", type=int, default=0,
+                        help="분당 토큰 수 한도. 배치를 자동으로 작게 쪼갠다 "
+                             "(Voyage 카드 미등록이면 10000)")
+    parser.add_argument("--voyage-free", action="store_true",
+                        help="Voyage 카드 미등록 한도를 그대로 적용한다 "
+                             "(--rpm 3 --tpm 10000 과 같다)")
     args = parser.parse_args()
+
+    if args.voyage_free:
+        args.rpm, args.tpm = args.rpm or 3, args.tpm or 10000
 
     if args.list:
         print("로컬 모델 (기본 실행)")
@@ -573,7 +598,8 @@ def main() -> None:
     for cfg in targets:
         try:
             summary, detail = evaluate(cfg, chunks, queries,
-                                       args.batch_size, args.self_test)
+                                       args.batch_size, args.self_test,
+                                       args.rpm, args.tpm)
         except Exception as exc:
             print(f"  실패: {cfg['name']} — {type(exc).__name__}: {exc}")
             continue

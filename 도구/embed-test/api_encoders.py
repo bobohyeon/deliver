@@ -25,6 +25,10 @@
 # =============================================================================
 """임베딩 API 어댑터. 실행에 API 키가 필요하다 (run_eval.py --api)."""
 
+# int | None 같은 표기를 파이썬 3.9 에서도 쓸 수 있게 한다.
+# 팀원 환경의 파이썬 버전이 서로 다를 수 있어서 넣었다.
+from __future__ import annotations
+
 import json
 import os
 import sys
@@ -35,7 +39,97 @@ import urllib.request
 import numpy as np
 
 TIMEOUT_SEC = 120
-MAX_RETRY = 4
+MAX_RETRY = 6
+
+# 429 재시도 최소 대기(초). 한도가 낮으면 run_eval 이 이 값을 올린다.
+# 3 RPM 이면 20초를 기다려야 창이 비므로 2초씩 물러나는 것은 의미가 없다.
+RETRY_MIN_SEC = 2.0
+
+
+def set_retry_floor(seconds: float) -> None:
+    global RETRY_MIN_SEC
+    RETRY_MIN_SEC = max(2.0, seconds)
+
+
+class RateLimit:
+    """분당 요청 수(RPM)와 분당 토큰 수(TPM)를 지킨다.
+
+    Voyage 는 결제 수단을 등록하지 않으면 3 RPM · 10K TPM 으로 묶인다.
+    Gemini 무료 등급도 비슷하게 낮다. 배치를 크게 잡으면 429 만 받고 끝난다.
+
+    Spring 비교: Resilience4j 의 RateLimiter 를 손으로 만든 것이다.
+    최근 60초 안의 (보낸 시각, 토큰 수) 를 들고 있다가 한도를 넘으면
+    가장 오래된 기록이 창을 벗어날 때까지 잔다 — 슬라이딩 윈도우다.
+
+    이 대기는 검색 품질에 영향을 주지 않는다. 임베딩은 텍스트마다 독립이라
+    배치 크기를 바꿔도 같은 청크는 같은 벡터가 나온다. 망가지는 것은
+    속도 지표뿐이고 그것은 애초에 로컬과 비교할 수 없는 값이다.
+    """
+
+    # 한국어는 토크나이저에 따라 글자당 토큰 수가 크게 다르다.
+    # 처음에는 넉넉히 잡고, 응답이 실제 토큰 수를 주면 그 값으로 고친다.
+    INITIAL_TOKENS_PER_CHAR = 1.6
+
+    def __init__(self, rpm: int = 0, tpm: int = 0) -> None:
+        self.rpm = rpm
+        self.tpm = tpm
+        self.tokens_per_char = self.INITIAL_TOKENS_PER_CHAR
+        self.waited_sec = 0.0
+        self._events: list[tuple[float, int]] = []
+        self._calibrated = False
+
+    def active(self) -> bool:
+        return bool(self.rpm or self.tpm)
+
+    def estimate(self, texts: list[str]) -> int:
+        return int(sum(len(t) for t in texts) * self.tokens_per_char) + 1
+
+    def batch_chars(self) -> int:
+        """한 배치가 넘지 말아야 할 글자 수.
+
+        TPM 의 절반으로 잡는다. 한 배치가 분당 한도를 다 쓰면 매 요청마다
+        60초를 기다려야 해서 전체가 훨씬 느려진다.
+        """
+        if not self.tpm:
+            return 10 ** 9
+        return max(200, int(self.tpm * 0.5 / self.tokens_per_char))
+
+    def _prune(self, now: float) -> None:
+        self._events = [(t, n) for t, n in self._events if now - t < 60.0]
+
+    def wait(self, est_tokens: int) -> None:
+        while True:
+            now = time.monotonic()
+            self._prune(now)
+            need = []
+            oldest = self._events[0][0] if self._events else now
+            if self.rpm and len(self._events) >= self.rpm:
+                need.append(60.0 - (now - oldest))
+            if self.tpm and self._events:
+                used = sum(n for _, n in self._events)
+                if used + est_tokens > self.tpm:
+                    need.append(60.0 - (now - oldest))
+            if not need:
+                return
+            nap = min(65.0, max(0.5, max(need)))
+            used = sum(n for _, n in self._events)
+            print(f"    한도 대기 {nap:.0f}초 "
+                  f"(최근 60초: 요청 {len(self._events)}회 · 토큰 {used:,})",
+                  file=sys.stderr)
+            time.sleep(nap)
+            self.waited_sec += nap
+
+    def record(self, chars: int, est_tokens: int, actual: int | None) -> None:
+        self._events.append((time.monotonic(), actual or est_tokens))
+        if actual and chars > 0:
+            measured = actual / chars
+            # 과소평가하면 429 가 나므로 10% 여유를 둔다.
+            self.tokens_per_char = measured * 1.1
+            if not self._calibrated:
+                print(f"    토큰 실측 — 글자당 {measured:.2f} 토큰 "
+                      f"(추정은 {self.INITIAL_TOKENS_PER_CHAR} 였다)",
+                      file=sys.stderr)
+                self._calibrated = True
 
 
 class ApiError(RuntimeError):
@@ -60,8 +154,16 @@ def _post(url: str, payload: dict, headers: dict) -> dict:
             # 400·401·403 은 다시 던져도 같은 답이 온다. 키나 요청이 잘못됐다.
             if exc.code in (400, 401, 403, 404):
                 raise ApiError(last) from None
-            wait = 2 ** attempt
-            print(f"    {exc.code} 응답. {wait}초 후 재시도 "
+            # Retry-After 를 주면 그것을 따른다. 없으면 지수 후퇴하되
+            # 한도가 낮을 때는 창이 비는 시간(RETRY_MIN_SEC)보다 짧게
+            # 기다리는 것이 의미가 없으므로 그 값을 밑으로 둔다.
+            hinted = exc.headers.get("Retry-After") if exc.headers else None
+            try:
+                wait = float(hinted) if hinted else 0.0
+            except ValueError:
+                wait = 0.0
+            wait = max(wait, RETRY_MIN_SEC, 2 ** attempt)
+            print(f"    {exc.code} 응답. {wait:.0f}초 후 재시도 "
                   f"({attempt + 1}/{MAX_RETRY})", file=sys.stderr)
             time.sleep(wait)
         except urllib.error.URLError as exc:
@@ -88,9 +190,11 @@ class ApiEncoder:
     # 한 번에 보낼 텍스트 개수. 제공자 제한보다 넉넉히 낮춰 잡았다.
     batch_limit = 64
 
-    def __init__(self, model: str, dim: int) -> None:
+    def __init__(self, model: str, dim: int,
+                 limit: "RateLimit | None" = None) -> None:
         self.model = model
         self.dim = dim
+        self.limit = limit or RateLimit()
         self.total_tokens = 0
         self.api_calls = 0
         self.key = os.environ.get(self.env_key, "").strip()
@@ -119,14 +223,34 @@ class ApiEncoder:
         texts = list(texts)
         size = min(batch_size or self.batch_limit, self.batch_limit)
         out: list[list[float]] = []
-        for i in range(0, len(texts), size):
-            part = texts[i:i + size]
+        i = 0
+        while i < len(texts):
+            # 개수 한도와 글자 한도 둘 다 지켜 한 배치를 만든다.
+            # 글자 한도는 TPM 에서 나온다. 첫 텍스트는 혼자라도 넣는다 —
+            # 그 하나가 한도를 넘으면 어차피 쪼갤 수 없다.
+            cap = self.limit.batch_chars()
+            part = [texts[i]]
+            chars = len(texts[i])
+            while len(part) < size and i + len(part) < len(texts):
+                nxt = texts[i + len(part)]
+                if chars + len(nxt) > cap:
+                    break
+                part.append(nxt)
+                chars += len(nxt)
+
+            est = self.limit.estimate(part)
+            if self.limit.active():
+                self.limit.wait(est)
+
+            before = self.total_tokens
             out.extend(self._encode_batch(part, input_role))
+            self.limit.record(chars, est, (self.total_tokens - before) or None)
+
             self.api_calls += 1
+            i += len(part)
             if show_progress_bar:
-                done = min(i + size, len(texts))
-                print(f"\r    {self.provider} {done}/{len(texts)}",
-                      end="", file=sys.stderr)
+                print(f"\r    {self.provider} {i}/{len(texts)} "
+                      f"(요청 {self.api_calls}회)", end="", file=sys.stderr)
         if show_progress_bar:
             print(file=sys.stderr)
 
@@ -204,8 +328,9 @@ class GeminiEncoder(ApiEncoder):
     BASE = "https://generativelanguage.googleapis.com/v1beta"
     RECOMMENDED_DIMS = (768, 1536, 3072)
 
-    def __init__(self, model: str, dim: int) -> None:
-        super().__init__(model, dim)
+    def __init__(self, model: str, dim: int,
+                 limit: "RateLimit | None" = None) -> None:
+        super().__init__(model, dim, limit)
         if dim not in self.RECOMMENDED_DIMS:
             print(f"    주의 — {dim} 은 Gemini 권장 차원이 아니다 "
                   f"(권장 {self.RECOMMENDED_DIMS}). 잘라낸 벡터를 "
@@ -235,8 +360,9 @@ PROVIDERS = {
 }
 
 
-def build(provider: str, model: str, dim: int) -> ApiEncoder:
+def build(provider: str, model: str, dim: int,
+          limit: RateLimit | None = None) -> ApiEncoder:
     if provider not in PROVIDERS:
         raise ApiError(f"모르는 제공자: {provider}. "
                        f"쓸 수 있는 것 — {', '.join(PROVIDERS)}")
-    return PROVIDERS[provider](model, dim)
+    return PROVIDERS[provider](model, dim, limit)
