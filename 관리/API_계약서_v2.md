@@ -63,6 +63,25 @@ Authorization: Bearer <access_token>
 **모든 프로젝트 스코프 API 에 `get_current_user` 의존성을 붙인다** (`AUTH-05`).
 라우터마다 손으로 검사하면 누락되므로 의존성 주입으로 강제한다.
 
+### 경로 규칙 — **모든 자원은 프로젝트 아래에 둔다**
+
+구현이 이미 이 패턴이다. `GET /api/documents/{did}` 가 아니라
+**`GET /api/projects/{pid}/documents/{did}`** 다.
+
+**이유는 `PRJ-08` 이다.** 경로에 `project_id` 가 있으면 리포지토리에서
+스코프를 빼먹을 여지가 없다. 계약서를 먼저 쓸 때는 리포지토리 계층에서
+막기로 했는데, **구현이 경로로 막는 쪽을 택했고 그것이 더 확실하다.**
+
+미구현 엔드포인트도 같은 패턴으로 미리 맞췄다. 나중에 만들 때 또 어긋나지
+않게 하려는 것이다. **다르게 가야 할 이유가 있으면 알려 주기 바란다.**
+
+예외는 둘뿐이다.
+
+| 경로 | 왜 프로젝트 밖인가 |
+|---|---|
+| `/api/auth/*` | 로그인 전이라 프로젝트가 없다 |
+| `/api/invitations/*` | **받는 사람 기준**이다. 아직 그 프로젝트의 멤버가 아니다 |
+
 ### 스코프 강제 (`PRJ-08`)
 
 **경로에 `project_id` 가 없는 엔드포인트도 스코프를 검사한다.**
@@ -95,7 +114,7 @@ Authorization: Bearer <access_token>
 
 | # | Method | Path | 설명 | 기능 | 우선 |
 |---|---|---|---|---|---|
-| 1 | POST | `/api/auth/register` | 회원가입 | `AUTH-01` | P0 |
+| 1 | POST | `/api/auth/signup` | 회원가입 | `AUTH-01` | P0 |
 | 2 | POST | `/api/auth/login` | 로그인 | `AUTH-02` | P0 |
 | 3 | POST | `/api/auth/refresh` | 토큰 갱신 | `AUTH-04` | P0 |
 | 4 | POST | `/api/auth/logout` | 로그아웃 | `AUTH-04` | P0 |
@@ -115,48 +134,70 @@ Authorization: Bearer <access_token>
 | 13 | PATCH | `/api/projects/{pid}/members/{uid}` | 역할 변경 | `PRJ-07` | P0 |
 | 14 | DELETE | `/api/projects/{pid}/members/{uid}` | 제거 | `PRJ-07` | P0 |
 
+#### B-2. 초대 — **구현에서 별도 리소스로 분리됐다. 계약서에 없었다**
+
+계약서는 `12 POST /api/projects/{pid}/members` 하나로 초대를 처리했다.
+구현은 **초대를 따로 두고 받는 사람이 수락·거절하는 흐름**을 만들었다
+(리비전 `0003` `project_invitations`). **재정님 확인 필요.**
+
+| # | Method | Path | 설명 | 기능 |
+|---|---|---|---|---|
+| 14-1 | POST | `/api/projects/{pid}/invitations` | 초대 보내기 | `PRJ-06` |
+| 14-2 | GET | `/api/projects/{pid}/invitations` | 보낸 초대 목록 | `PRJ-06` |
+| 14-3 | DELETE | `/api/projects/{pid}/invitations/{iid}` | 초대 취소 (리비전 `0005` `CANCELED`) | `PRJ-06` |
+| 14-4 | GET | `/api/invitations` | **내가 받은 초대 목록** | `PRJ-06` |
+| 14-5 | GET | `/api/invitations/recent-invitees` | 최근 초대한 사람 | `PRJ-06` |
+| 14-6 | POST | `/api/invitations/{iid}/accept` | 수락 | `PRJ-06` |
+| 14-7 | POST | `/api/invitations/{iid}/decline` | 거절 | `PRJ-06` |
+
 ### C. 문서 — 담당 재정 (`16`·`19` 보현)
 
 | # | Method | Path | 설명 | 기능 | 우선 |
 |---|---|---|---|---|---|
 | 15 | POST | `/api/projects/{pid}/documents` | **업로드 → 202** | `DOC-01`·`DOC-06` | P0 |
 | 16 | GET | `/api/projects/{pid}/documents` | 목록 · 검색 · 필터 | `DOC-08` | P0 |
-| 17 | GET | `/api/documents/{did}` | 상세 | `DOC-09` | P0 |
-| 18 | GET | `/api/documents/{did}/status` | **진행 상태 폴링** | `DOC-07` | P0 |
-| 19 | PATCH | `/api/documents/{did}` | 문서 유형 수정 | `DOC-16` | P1 |
-| 20 | GET | `/api/documents/{did}/file` | 원본 다운로드 | `DOC-10` | P0 |
-| 21 | DELETE | `/api/documents/{did}` | 삭제 | `DOC-11` | P0 |
-| 22 | POST | `/api/documents/{did}/analyze` | 분석 실행 · 재분석 | `ANL-*`·`DOC-12` | P0 |
+| 17 | GET | `/api/projects/{pid}/documents/{did}` | 상세 | `DOC-09` | P0 |
+| 18 | GET | `/api/projects/{pid}/documents/{did}/status` | 진행 상태 폴링 | `DOC-07` | P0 · **미구현** |
+| 19 | PATCH | `/api/projects/{pid}/documents/{did}` | 문서 유형 수정 | `DOC-16` | P1 · **미구현** |
+| 20 | GET | `/api/projects/{pid}/documents/{did}/download` | 원본 다운로드 | `DOC-10` | P0 |
+| 21 | DELETE | `/api/projects/{pid}/documents/{did}` | 삭제 | `DOC-11` | P0 |
+| 22 | POST | `/api/projects/{pid}/documents/{did}/analyze` | 분석 실행 · 재분석 | `ANL-*`·`DOC-12` | P0 |
+| 22-1 | GET | `/api/projects/{pid}/documents/{did}/source` | 추출 원문 | `DOC-09` | **구현됨 · 계약서에 없었다** |
+| 22-2 | GET | `/api/projects/{pid}/documents/{did}/history` | 분석 이력 | `ANL-07`·`DOC-12` | **구현됨 · 계약서에 없었다** |
 
 ### D. OCR 검수 — 담당 재정
 
 | # | Method | Path | 설명 | 기능 | 우선 |
 |---|---|---|---|---|---|
-| 23 | GET | `/api/documents/{did}/pages` | 페이지 이미지 · 좌표 기준 크기 | `REV-01` | P1 |
-| 24 | GET | `/api/documents/{did}/ocr-elements` | 박스 목록 (`page`·`max_confidence` 필터) | `REV-02`·`REV-06` | P1 |
-| 25 | PATCH | `/api/ocr-elements/{eid}` | **텍스트·좌표 수정 (version 필요)** | `REV-05`·`REV-16` | P1 |
-| 26 | POST | `/api/documents/{did}/review/complete` | 검수 완료 → 분석 1회 | `REV-07` | P1 |
-| 27 | POST | `/api/documents/{did}/ocr-elements` | 박스 생성 | `REV-09` | P2 |
-| 28 | DELETE | `/api/ocr-elements/{eid}` | 논리 삭제 | `REV-09` | P2 |
-| 29 | POST | `/api/documents/{did}/re-ocr` | 선택 영역 재OCR | `REV-11` | P2 |
-| 30 | PATCH | `/api/documents/{did}/reading-order` | 읽기 순서 · 단락 | `REV-12`·`REV-13` | P2 |
+| 23 | GET | `/api/projects/{pid}/documents/{did}/review` | **페이지 이미지 + 박스 목록을 한 번에** | `REV-01`·`REV-02`·`REV-06` | P1 |
+| 23-1 | GET | `/api/projects/{pid}/documents/{did}/review/pages/{page_id}/image` | 페이지 이미지 파일 | `REV-01` | **구현됨 · 계약서에 없었다** |
+| 25 | PATCH | `/api/projects/{pid}/documents/{did}/ocr-elements/{eid}` | **텍스트·좌표 수정 (version 필요)** | `REV-05`·`REV-16` | P1 |
+| 25-1 | PATCH | `/api/projects/{pid}/documents/{did}/ocr-elements/{eid}/exclusion` | **검수 제외 표시** (리비전 `0008`) | `REV-09` | **구현됨 · 계약서에 없었다** |
+| 26 | POST | `/api/projects/{pid}/documents/{did}/review/complete` | 검수 완료 → 분석 1회 | `REV-07` | P1 |
+| 27 | POST | `/api/projects/{pid}/documents/{did}/ocr-elements` | 박스 생성 | `REV-09` | P2 · 미구현 |
+| 28 | DELETE | `/api/projects/{pid}/documents/{did}/ocr-elements/{eid}` | 논리 삭제 | `REV-09` | P2 · 미구현 |
+| 29 | POST | `/api/projects/{pid}/documents/{did}/re-ocr` | 선택 영역 재OCR | `REV-11` | P2 · 미구현 |
+| 30 | PATCH | `/api/projects/{pid}/documents/{did}/reading-order` | 읽기 순서 · 단락 | `REV-12`·`REV-13` | P2 · 미구현 |
+
+**`23` · `24` 가 하나로 합쳐졌다.** 구현은 `GET .../review` 하나로 페이지
+이미지 정보와 박스 목록을 함께 준다. **재정님 확인 필요.**
 
 ### E. 일괄 처리 — 담당 재정
 
 | # | Method | Path | 설명 | 기능 | 우선 |
 |---|---|---|---|---|---|
 | 31 | POST | `/api/projects/{pid}/batch-jobs` | 일괄 등록 | `BAT-01` | P1 |
-| 32 | GET | `/api/batch-jobs/{jid}` | 전체 진행률 | `BAT-02` | P1 |
-| 33 | GET | `/api/batch-jobs/{jid}/items` | 파일별 상태 | `BAT-02` | P1 |
-| 34 | POST | `/api/batch-jobs/{jid}/retry` | 실패 재시도 | `BAT-04` | P2 |
+| 32 | GET | `/api/projects/{pid}/batch-jobs/{jid}` | 전체 진행률 | `BAT-02` | P1 |
+| 33 | GET | `/api/projects/{pid}/batch-jobs/{jid}/items` | 파일별 상태 | `BAT-02` | P1 |
+| 34 | POST | `/api/projects/{pid}/batch-jobs/{jid}/retry` | 실패 재시도 | `BAT-04` | P2 |
 
 ### F. 제안 승인 — 담당 보현 (승인 후 태스크 생성은 세현)
 
 | # | Method | Path | 설명 | 기능 | 우선 |
 |---|---|---|---|---|---|
-| 35 | GET | `/api/documents/{did}/suggestions` | **제안 4종 조회** | `ANL-03`·`ANL-14`·`ANL-15`·`AMT-01` | P1 |
-| 36 | PATCH | `/api/suggestions/{kind}/{sid}` | **승인 · 수정 · 거부** | `TSK-03`·`TSK-07`·`AMT-02` | P1 |
-| 37 | POST | `/api/documents/{did}/suggestions/approve` | 일괄 승인 | `TSK-08` | P1 |
+| 35 | GET | `/api/projects/{pid}/documents/{did}/suggestions` | **제안 4종 조회** | `ANL-03`·`ANL-14`·`ANL-15`·`AMT-01` | P1 |
+| 36 | PATCH | `/api/projects/{pid}/suggestions/{kind}/{sid}` | **승인 · 수정 · 거부** | `TSK-03`·`TSK-07`·`AMT-02` | P1 |
+| 37 | POST | `/api/projects/{pid}/documents/{did}/suggestions/approve` | 일괄 승인 | `TSK-08` | P1 |
 
 ### G. 태스크 — 담당 세현
 
@@ -164,8 +205,8 @@ Authorization: Bearer <access_token>
 |---|---|---|---|---|---|
 | 38 | GET | `/api/projects/{pid}/tasks` | 보드 (필터) | `TSK-02`·`TSK-05` | P1 |
 | 39 | POST | `/api/projects/{pid}/tasks` | 직접 생성 | `TSK-01` | P1 |
-| 40 | PATCH | `/api/tasks/{tid}` | 수정 · 상태 변경 | `TSK-01`·`TSK-06` | P1 |
-| 41 | DELETE | `/api/tasks/{tid}` | 삭제 | `TSK-01` | P1 |
+| 40 | PATCH | `/api/projects/{pid}/tasks/{tid}` | 수정 · 상태 변경 | `TSK-01`·`TSK-06` | P1 |
+| 41 | DELETE | `/api/projects/{pid}/tasks/{tid}` | 삭제 | `TSK-01` | P1 |
 
 ### H. 산출물 — 담당 보현
 
@@ -174,8 +215,8 @@ Authorization: Bearer <access_token>
 | 42 | GET | `/api/projects/{pid}/deliverables/preview` | **생성 대상 미리보기** | `DLV-03` | P1 |
 | 43 | POST | `/api/projects/{pid}/deliverables` | **생성** | `DLV-04`~`DLV-07` | P1 |
 | 44 | GET | `/api/projects/{pid}/deliverables` | 생성 이력 | `DLV-09` | P1 |
-| 45 | GET | `/api/deliverables/{delid}/file` | 다운로드 | `DLV-09` | P1 |
-| 46 | DELETE | `/api/deliverables/{delid}` | 삭제 | `DLV-09` | P2 |
+| 45 | GET | `/api/projects/{pid}/deliverables/{delid}/file` | 다운로드 | `DLV-09` | P1 |
+| 46 | DELETE | `/api/projects/{pid}/deliverables/{delid}` | 삭제 | `DLV-09` | P2 |
 
 ### I. 가시성 — 담당 공통
 
@@ -326,7 +367,7 @@ Authorization: Bearer <access_token>
 
 ---
 
-### ④ GET `/api/documents/{did}/suggestions` — 제안 4종 조회
+### ④ GET `/api/projects/{pid}/documents/{did}/suggestions` — 제안 4종 조회
 
 **Query** `decision` = `PENDING`(기본) · `ALL`
 
@@ -388,7 +429,7 @@ Authorization: Bearer <access_token>
 
 ---
 
-### ⑤ PATCH `/api/suggestions/{kind}/{sid}` — 승인 · 수정 · 거부
+### ⑤ PATCH `/api/projects/{pid}/suggestions/{kind}/{sid}` — 승인 · 수정 · 거부
 
 `kind` = `action_item` · `decision` · `schedule` · `amount`
 
@@ -646,27 +687,48 @@ Authorization: Bearer <access_token>
 | error_code | HTTP | 상황 |
 |---|---|---|
 | `UNAUTHORIZED` | 401 | 토큰 없음 · 만료 |
-| `EMAIL_ALREADY_EXISTS` | 409 | 가입 중복 |
+| `DUPLICATE_USER` | 409 | 가입 중복 |
 | `INVALID_CREDENTIALS` | 401 | 로그인 실패 |
-| `FORBIDDEN_ROLE` | 403 | 권한 부족 |
+| `PROJECT_FORBIDDEN` | 403 | 권한 부족 |
 | `PROJECT_NOT_FOUND` | 404 | **타 프로젝트 접근도 이 코드** |
-| `ALREADY_MEMBER` | 409 | 중복 초대 |
-| `OCR_ELEMENT_CONFLICT` | 409 | **`version` 불일치** |
+| `DUPLICATE_MEMBER` | 409 | 중복 초대 |
+| `OCR_EDIT_CONFLICT` | 409 | **`version` 불일치** |
 | `REVIEW_NOT_COMPLETED` | 409 | 검수 미완료 상태에서 확정 요청 |
 | `SUGGESTION_ALREADY_DECIDED` | 409 | 이미 승인·거부됨 |
 | `DELIVERABLE_EMPTY` | 422 | **해당 기간에 담을 내용이 없다** |
 | `FORMAT_REQUIRED` | 422 | `format` 미지정 |
 | `QUOTA_EXCEEDED` | 429 | 프로젝트 월 호출 한도 |
 
-**응답 형식은 v1 그대로다.**
+### 응답 형식 — **필드 이름이 `code` 다. `error_code` 가 아니다**
+
+구현 `schemas/error.py` 를 정본으로 한다. 계약서가 `error_code` 로 적혀
+있었는데 **서버는 `code` 를 준다.** 계약서대로 프런트를 만들면 에러 처리가
+통째로 동작하지 않는다.
 
 ```json
 {
-  "error_code": "OCR_ELEMENT_CONFLICT",
+  "code": "OCR_EDIT_CONFLICT",
   "message": "다른 사용자가 먼저 수정했습니다. 새로 불러온 뒤 다시 시도해 주세요.",
   "request_id": "a1b2c3d4"
 }
 ```
+
+**검증 에러(422)는 `errors` 가 더 붙는다.** 이것도 계약서에 없었다.
+
+```json
+{
+  "code": "VALIDATION_ERROR",
+  "message": "입력값을 확인해 주세요.",
+  "request_id": "a1b2c3d4",
+  "errors": [
+    { "field": "project_name", "reason": "1자 이상 100자 이하여야 합니다" }
+  ]
+}
+```
+
+> **에러코드는 구현이 52종, 이 문서가 34종이다.** 36종이 문서에 빠져 있다.
+> 전체 목록은 `Tasqra backend/app/core/error_codes.py` 를 정본으로 본다.
+> 이 문서의 표는 v1 대비 신규만 적은 것이라 전수 목록이 아니다.
 
 **`SYS-09` 를 첫날 고친다.** 미니 프로젝트에서 `business_error_handler` 에 로그
 호출이 없어 `404` · `409` · `413` 이 서버 로그에 남지 않았다 (`ISS-046`).
