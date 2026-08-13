@@ -393,10 +393,13 @@ P2 이고 화면이 없어도 되므로 **상세 계약은 `RAG-01` 완성 후�
 | `char_count` | `Integer` | NOT NULL | |
 | `token_count` | `Integer` | NOT NULL | **`RAG-01` 이 토큰 수 기준으로 자른다** |
 | `embedding` | `Vector(1024)` | NOT NULL | **이 문서가 정한 차원** |
-| `embedding_model` | `String(100)` | NOT NULL | **`RAG-02` 완료 판정** |
-| `embedding_dim` | `Integer` | NOT NULL | 같은 이유. 값 검증용 |
+| `embedding_model` | `String(100)` | NOT NULL | **`RAG-02` 완료 판정 + 모델 교체 (7-1절)** |
+| `embedding_dim` | `SmallInteger` | NOT NULL · **CHECK `= 1024`** | 값 검증. 제약명 `ck_document_chunk_embedding_dim` |
 | `text_version` | `Integer` | NOT NULL | **stale 판정.** `extracted_texts.text_version` 복사 |
 | `created_at` · `updated_at` | `DateTime(tz)` | NOT NULL | `timestamps()` 헬퍼 |
+
+`embedding_dim` 은 값이 1024 하나뿐이므로 `SmallInteger` 로 충분하다.
+CHECK 명명은 선례(`ck_extracted_text_char_count`)의 `ck_{테이블단수}_{컬럼}` 을 따른다.
 
 인덱스
 
@@ -404,9 +407,97 @@ P2 이고 화면이 없어도 되므로 **상세 계약은 `RAG-01` 완성 후�
 |---|---|---|
 | `ix_chunk_doc` | `(document_id, seq)` | 문서별 조회·삭제 |
 | `ix_chunk_stale` | `(document_id, text_version)` | stale 판정 |
+| `ix_chunk_model` | `(embedding_model, document_id)` | **모델 교체 진행률·잔여 조회 (7-1절)** |
 | `ix_chunk_vec` | `embedding` · **HNSW** `vector_cosine_ops` | 유사도 검색 |
 
 `UNIQUE (document_id, seq)` 를 걸어 재색인 중복을 막는다.
+**한 청크에 벡터는 하나만 둔다** — 이 선택의 대가는 7-1절에 적었다.
+
+---
+
+## 7-1. 모델 교체를 가능하게 하는 것
+
+**차원을 1024 로 맞춘 이유가 여기 있다.** 후보 넷(`KURE-v1` · `bge-m3` ·
+`arctic-embed-l-v2.0` · `BGE-m3-ko`)이 모두 1024 이므로 **컬럼을 안 건드리고
+벡터만 다시 만들면 모델을 바꿀 수 있다.** 768 로 정했다면 컬럼 타입 변경이
+따라붙는다.
+
+교체 근거와 판정 조건은 `관리/RAG_임베딩모델_선정기준표.md` 를 본다.
+
+### 벡터가 섞이면 오류 없이 검색이 망가진다
+
+모델이 다르면 좌표계가 다르다. **KURE 벡터와 다른 모델 벡터를 한 테이블에
+두고 코사인 검색을 하면, 예외가 나지 않고 순위만 엉망이 된다.**
+재색인이 중간에 실패하면 바로 이 상태가 된다.
+
+그래서 두 가지를 규칙으로 둔다.
+
+| | 규칙 |
+|---|---|
+| **1** | **`semantic`·`hybrid` 검색은 `embedding_model = 설정값` 조건을 반드시 넣는다.** 조건이 없으면 옛 모델 벡터가 결과에 섞인다 |
+| **2** | 재색인은 **문서 단위로 원자적으로** 한다. 한 문서의 청크는 전부 새 모델이거나 전부 옛 모델이다 |
+
+이 두 규칙의 대가는 **재색인이 끝나지 않은 문서가 `semantic` 결과에서 빠지는
+것**이다. 결과가 오염되는 것보다 누락되는 편이 낫다. 누락은 셀 수 있고
+오염은 알 수 없다.
+
+**`mode=hybrid` 면 그 문서도 낱말 검색으로는 계속 잡힌다.** 하이브리드를
+기본으로 두는 이유가 하나 더 늘었다.
+
+### 교체 절차
+
+| | 단계 | 확인 |
+|---|---|---|
+| 1 | 설정의 모델 이름을 새 값으로 바꾼다 | 접두어도 함께 바뀐다 (아래) |
+| 2 | `R3 재색인` 을 문서 단위로 돌린다 | `ix_chunk_model` 로 잔여 문서 수를 센다 |
+| 3 | 잔여 0 을 확인한다 | `SELECT embedding_model, count(*) FROM document_chunks GROUP BY 1` 이 한 줄이어야 한다 |
+| 4 | HNSW 인덱스를 다시 만든다 | 벡터 분포가 바뀌었다 |
+
+**진행 중에도 검색은 동작한다.** 옛 모델 문서는 `semantic` 에서 빠지고
+`keyword` 로 잡힌다. 완전 무중단이 필요하면 `UNIQUE (document_id, seq,
+embedding_model)` 로 바꿔 두 모델을 함께 보관하면 되지만 **저장이 2배**가 된다.
+학습 프로젝트 규모에는 과하다고 보아 채택하지 않았다.
+
+### 접두어를 코드에 박으면 교체가 깨진다
+
+모델마다 질의·문서에 붙이는 접두어가 다르다. **틀리면 오류 없이 성능만
+떨어진다.**
+
+| 모델 | 질의 | 문서 |
+|---|---|---|
+| `KURE-v1` · `bge-m3` · `BGE-m3-ko` | 없음 | 없음 |
+| `arctic-embed-l-v2.0` | `query: ` | 없음 |
+| `nomic-embed-text-v2-moe` | `search_query: ` | `search_document: ` |
+
+그러므로 **접두어는 모델별 설정으로 둔다.** 시험 도구(`도구/embed-test/run_eval.py`)가
+이미 이 구조다.
+
+```python
+{"name": "...", "query_prefix": "...", "passage_prefix": "..."}
+```
+
+Spring 으로 바꿔 말하면, 구현체마다 다른 설정을 `@Value` 로 코드에 박지 않고
+`Map<String, ModelProperties>` 로 주입해 두는 것과 같다. 구현체를 갈아 끼울 때
+설정만 따라 바뀐다.
+
+### 재색인 비용 (추산 — 실측 아님)
+
+`도구/embed-test` 실측 649청크 / 1024 모델 / CPU 기준으로 늘려 잡은 값이다.
+
+| 청크 수 | CPU |
+|---|---|
+| 649 | 4~5분 **(실측)** |
+| 1만 | 60~75분 (추산) |
+| 10만 | 10~12시간 (추산) |
+
+**낱말 색인은 다시 만들 필요가 없다.** 벡터만 바꾼다.
+
+### 모델·차원이 어긋난 것을 감지하는 방법
+
+에러코드 `EMBEDDING_MODEL_MISMATCH`(409)가 8절에 있다.
+**적재 시점에 한 번 확인하는 것으로는 부족하다** — 재색인 중 섞인 상태는
+질의 시점에 드러난다. 검색 응답의 `is_stale` 과 같은 자리에서
+`embedding_model` 불일치도 판정한다.
 
 **선행 조건 세 개** (결과서 11.0절)
 
