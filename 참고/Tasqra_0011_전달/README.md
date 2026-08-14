@@ -79,8 +79,11 @@ docker compose down -v
 docker compose up -d --build
 docker compose exec api alembic upgrade head
 docker compose exec db psql -U postgres -d tasqra -c "\d document_chunks"
-docker compose exec db psql -U postgres -d tasqra -c "\di document_chunks*"
+docker compose exec db psql -U postgres -d tasqra -c "\di *chunk*"
 ```
+
+인덱스 이름이 `ix_` · `uq_` 로 시작하므로 `\di document_chunks*` 로는 PK 만 잡힌다.
+`\di *chunk*` 로 봐야 다 나온다.
 
 **`down -v` 로 개발 데이터가 지워진다.** DB 이미지가 alpine -> debian 이라
 기존 볼륨이 붙지 않으므로 `-v` 가 필요하다. **팀에 공지 완료 상태다.**
@@ -91,7 +94,7 @@ docker compose exec db psql -U postgres -d tasqra -c "\di document_chunks*"
 |---|---|
 | `alembic current` | `20260814_0011 (head)` |
 | `\d document_chunks` | 컬럼 15개 · CHECK 8개 |
-| `\di document_chunks*` | 인덱스 4개 (PK · `uq_document_chunk_seq` · `ix_chunk_stale` · `ix_chunk_model` · `ix_chunk_vec`) |
+| `\di *chunk*` | **인덱스 5개** — `document_chunks_pkey` · `uq_document_chunk_seq` · `ix_chunk_stale` · `ix_chunk_model` · `ix_chunk_vec` |
 | `ix_chunk_vec` | `hnsw` · `vector_cosine_ops` |
 
 **HNSW 인덱스 생성이 가장 먼저 깨질 수 있는 지점이다.** pgvector 0.5.0 이상이
