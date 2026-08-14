@@ -1,0 +1,123 @@
+diff --git a/backend/app/models/chunk.py b/backend/app/models/chunk.py
+index 2547f84..c3a6d85 100644
+--- a/backend/app/models/chunk.py
++++ b/backend/app/models/chunk.py
+@@ -7,6 +7,8 @@
+ #   content_start / content_end 는 extracted_texts.content 문자열 안의 위치이며,
+ #   같은 좌표계를 쓰는 ocr_elements(리비전 0010) 와 구간이 겹치는지로 교집합을
+ #   구해 원본 페이지 이미지의 x·y·width·height 를 얻는다 -> 검색 근거 하이라이트.
++#   project_id 는 documents 에서 내려온 역정규화 컬럼이다(리비전 0013). 프로젝트
++#   범위 벡터 검색에서 조건이 인덱스 스캔 단계로 내려가야 하기 때문이다.
+ #   models/__init__.py 에서 import 되어야 Base.metadata 에 등록된다.
+ # Spring 비교: JPA @Entity + @Table(uniqueConstraints=..., indexes=...) 에 대응한다.
+ #   Mapped[int] = mapped_column(...) 은 @Column 필드 선언과 같고,
+@@ -75,6 +77,9 @@ class DocumentChunk(Base):
+             postgresql_using="hnsw",
+             postgresql_ops={"embedding": "vector_cosine_ops"},
+         ),
++        # 프로젝트가 아주 작을 때는 HNSW 를 훑는 것보다 이 인덱스로 그 프로젝트의
++        # 청크만 읽어 정확한 거리를 계산하는 편이 빠르다. 계획 선택지를 준다.
++        Index("ix_chunk_project", "project_id", "document_id"),
+     )
+ 
+     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+@@ -83,6 +88,14 @@ class DocumentChunk(Base):
+         ForeignKey("documents.id", ondelete="CASCADE"),
+         nullable=False,
+     )
++    # documents.project_id 의 역정규화. 프로젝트 범위 벡터 검색을 위한 것이며
++    # 조회할 때 SET LOCAL hnsw.iterative_scan = strict_order 와 함께 쓴다.
++    # 문서를 다른 프로젝트로 옮기는 기능이 생기면 이 값도 같이 갱신해야 한다.
++    project_id: Mapped[int] = mapped_column(
++        BigInteger,
++        ForeignKey("projects.id", ondelete="CASCADE"),
++        nullable=False,
++    )
+     seq: Mapped[int] = mapped_column(Integer, nullable=False)
+     page_number: Mapped[int | None] = mapped_column(Integer)
+     text: Mapped[str] = mapped_column(Text, nullable=False)
+diff --git a/backend/migrations/versions/20260814_0013_document_chunk_project.py b/backend/migrations/versions/20260814_0013_document_chunk_project.py
+new file mode 100644
+index 0000000..2d30b97
+--- /dev/null
++++ b/backend/migrations/versions/20260814_0013_document_chunk_project.py
+@@ -0,0 +1,79 @@
++"""add project_id to document_chunks for project-scoped vector search
++
++왜 역정규화를 하는가
++    프로젝트 범위 벡터 검색(SRH-001 "다른 프로젝트 문서는 제외된다")을 하려면
++    거리 정렬에 프로젝트 조건이 함께 걸려야 한다. project_id 가 없으면
++    documents 를 조인해서 걸러야 하는데, 그러면 조건이 인덱스 스캔 단계로
++    내려가지 않는다.
++
++    pgvector 의 HNSW 는 거리 순으로 후보를 ef_search 개(기본 40)만 꺼내고
++    그 다음에 조건을 검사한다. 프로젝트가 전체 청크의 5% 면 40개 중 2개만
++    살아남아 결과가 조용히 부족해진다. 에러가 아니라 "결과가 적게 나오는"
++    방식으로 실패하므로 발견이 늦다.
++
++    pgvector 0.8.0 이상의 hnsw.iterative_scan 이 이 문제를 풀어주지만,
++    그것은 "스캔 중인 테이블에서 평가할 수 있는 조건" 에만 적용된다.
++    조인 조건은 해당되지 않는다. 그래서 project_id 를 같은 테이블에 둔다.
++
++    조회 시에는 이렇게 쓴다.
++        SET LOCAL hnsw.iterative_scan = strict_order;
++        SELECT * FROM document_chunks
++        WHERE project_id = :project_id
++        ORDER BY embedding <=> :query LIMIT :k;
++
++문서를 다른 프로젝트로 옮기는 기능은 기능명세서에 없다
++    그래서 project_id 는 사실상 불변값이고 역정규화 위험이 낮다.
++    만약 이동 기능이 생기면 documents.project_id 를 바꿀 때
++    document_chunks.project_id 도 같이 갱신해야 한다.
++
++컬럼 추가를 3단계로 하는 이유
++    NOT NULL 을 한 번에 걸면 기존 행이 있는 개발자의 DB 에서 실패한다.
++    nullable 로 넣고 채운 뒤 NOT NULL 로 올린다.
++"""
++
++from alembic import op
++import sqlalchemy as sa
++
++
++revision = "20260814_0013"
++down_revision = "20260814_0012"
++branch_labels = None
++depends_on = None
++
++
++def upgrade():
++    # 1) nullable 로 추가한다.
++    op.add_column("document_chunks", sa.Column("project_id", sa.BigInteger(), nullable=True))
++
++    # 2) documents 에서 채운다. 청크는 반드시 문서에 속하므로 빈 값이 남지 않는다.
++    op.execute(
++        """
++        UPDATE document_chunks AS c
++        SET project_id = d.project_id
++        FROM documents AS d
++        WHERE d.id = c.document_id
++        """
++    )
++
++    # 3) NOT NULL 로 올리고 FK 와 인덱스를 붙인다.
++    #    FK 이름은 이 레포의 인라인 ForeignKey 가 만들던 PostgreSQL 기본 규칙
++    #    ({테이블}_{컬럼}_fkey) 을 그대로 따른다.
++    op.alter_column("document_chunks", "project_id", nullable=False)
++    op.create_foreign_key(
++        "document_chunks_project_id_fkey",
++        "document_chunks",
++        "projects",
++        ["project_id"],
++        ["id"],
++        ondelete="CASCADE",
++    )
++
++    # 프로젝트가 아주 작을 때는 HNSW 를 훑는 것보다 이 인덱스로 그 프로젝트의
++    # 청크만 읽어 정확한 거리를 계산하는 편이 빠르다. 계획을 고를 여지를 준다.
++    op.create_index("ix_chunk_project", "document_chunks", ["project_id", "document_id"])
++
++
++def downgrade():
++    op.drop_index("ix_chunk_project", table_name="document_chunks")
++    op.drop_constraint("document_chunks_project_id_fkey", "document_chunks", type_="foreignkey")
++    op.drop_column("document_chunks", "project_id")
