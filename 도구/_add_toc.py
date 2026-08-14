@@ -60,15 +60,30 @@ def slug(text: str) -> str:
 
 
 def headings(lines: list[str]) -> list[tuple[int, str, int]]:
-    """(깊이, 제목, 줄번호) 목록을 만든다. 코드블록 안은 제목이 아니다.
+    """(깊이, 제목, 줄번호) 목록을 만든다. 코드블록 안과 목차 구간 안은 제목이 아니다.
 
     결과서 안에 코드블록으로 감싼 `## 1~1행` 예시가 있다. 렌더링될 때는
     제목이 아니므로 앵커도 생기지 않는다. 울타리(```)를 세어 걸러낸다.
+
+    목차 구간(BEGIN~END)도 건너뛴다. 이 구간에는 도구가 넣은 `## 목차` 제목이
+    들어 있어서, 걸러내지 않으면 두 번째 실행부터 목차가 자기 자신을 항목으로
+    넣어 `- [목차](#목차)` 가 생긴다. 실제로 그렇게 새는 것을 확인해 고쳤다.
     """
     found = []
     fence = None
+    in_toc = False
     for number, line in enumerate(lines):
         stripped = line.strip()
+
+        # 목차 구간은 도구가 쓴 자리다. 훑을 대상이 아니다.
+        if stripped == BEGIN:
+            in_toc = True
+            continue
+        if stripped == END:
+            in_toc = False
+            continue
+        if in_toc:
+            continue
 
         # 울타리는 ``` 와 ~~~ 두 가지다. 같은 문자로만 닫힌다.
         mark = re.match(r"(`{3,}|~{3,})", stripped)
