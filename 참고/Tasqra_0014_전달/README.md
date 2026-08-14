@@ -1,4 +1,4 @@
-# Tasqra 리비전 0013 전달 — document_chunks.project_id
+# Tasqra 리비전 0014 전달 — document_chunks.project_id
 
 ```
 작성      2026-08-14  김보현
@@ -13,7 +13,7 @@
 
 | 파일 | 상태 |
 |---|---|
-| `backend/migrations/versions/20260814_0013_document_chunk_project.py` | 신규 |
+| `backend/migrations/versions/20260814_0014_document_chunk_project.py` | 신규 |
 | `backend/app/models/chunk.py` | 수정 (+13줄) |
 
 ## 왜 — `iterative_scan` 이 작동하려면 같은 테이블의 조건이어야 한다
@@ -99,14 +99,24 @@ document_chunks_project_id_fkey
 
 ## 적용
 
+> **먼저 확인** — `document-async-processing` 이 main 에 머지됐는지 본다.
+> 안 됐으면 패치 적용·커밋까지는 해도 되지만 **`alembic upgrade head` 는
+> 머지 뒤에 돌린다.** 아래 "리비전 번호" 절 참고.
+>
+> ```powershell
+> git log --oneline origin/main -3
+> git ls-tree --name-only origin/main backend/migrations/versions/ | Select-Object -Last 3
+> ```
+> `20260814_0013_document_processing_error.py` 가 보이면 머지된 것이다.
+
 ```powershell
 cd C:\dev\Tesqra\Tasqra
 git checkout main
 git pull
 git checkout -b feat/chunk-project-scope
 
-git apply --check "C:\dev\deliver\참고\Tasqra_0013_전달\0013-chunk-project-id.patch"
-git apply "C:\dev\deliver\참고\Tasqra_0013_전달\0013-chunk-project-id.patch"
+git apply --check "C:\dev\deliver\참고\Tasqra_0014_전달\0014-chunk-project-id.patch"
+git apply "C:\dev\deliver\참고\Tasqra_0014_전달\0014-chunk-project-id.patch"
 git status
 ```
 
@@ -114,7 +124,7 @@ git status
 
 ```
  M backend/app/models/chunk.py
-?? backend/migrations/versions/20260814_0013_document_chunk_project.py
+?? backend/migrations/versions/20260814_0014_document_chunk_project.py
 ```
 
 **`c3246e6` 기준으로 깨끗하게 적용되는 것을 별도 클론에서 확인했다.**
@@ -122,14 +132,14 @@ git status
 ## 커밋
 
 ```powershell
-git add backend/app/models/chunk.py backend/migrations/versions/20260814_0013_document_chunk_project.py
+git add backend/app/models/chunk.py backend/migrations/versions/20260814_0014_document_chunk_project.py
 git diff --cached --check
 git diff --cached --stat
-git commit -m "feat: document_chunks 에 project_id 추가 (리비전 0013) - 프로젝트 범위 벡터 검색"
+git commit -m "feat: document_chunks 에 project_id 추가 (리비전 0014) - 프로젝트 범위 벡터 검색"
 git push -u origin feat/chunk-project-scope
 ```
 
-`--stat` 은 **2개 파일 · 92 insertions** 여야 한다.
+`--stat` 은 **2개 파일 · 101 insertions** 여야 한다.
 
 ## 검증
 
@@ -142,7 +152,7 @@ docker compose exec db psql -U postgres -d tasqra -P pager=off -c "\di *chunk*"
 
 | 확인 | 기대값 |
 |---|---|
-| `alembic current` | `20260814_0013 (head)` |
+| `alembic current` | `20260814_0014 (head)` |
 | `\d document_chunks` | 컬럼 **16개** (기존 15 + `project_id`) · CHECK 8개 |
 | FK | `document_chunks_project_id_fkey` -> `projects(id)` ON DELETE CASCADE |
 | `\di *chunk*` | 인덱스 **6개** (기존 5 + `ix_chunk_project`) |
@@ -150,17 +160,53 @@ docker compose exec db psql -U postgres -d tasqra -P pager=off -c "\di *chunk*"
 **컨테이너 재생성이 필요 없다.** `docker-compose.yml` 을 건드리지 않았고
 `alembic upgrade head` 만으로 올라간다. 팀 공지도 필요 없다.
 
-## 리비전 번호
+## 리비전 번호 — 0013 이 아니라 0014 다
 
 ```
-20260814_0012  ocr_element_structure    재정 · 머지됨
-20260814_0013  document_chunk_project   보현 · 이 전달분
+20260814_0011  document_chunks             보현 · 머지됨
+20260814_0012  ocr_element_structure       재정 · 머지됨
+20260814_0013  document_processing_error   재정 · document-async-processing 브랜치
+20260814_0014  document_chunk_project      보현 · 이 전달분
 ```
 
-**`0012` 는 원래 단가·원가구분 CHECK 용으로 예정해뒀는데 재정님이 먼저 썼다.**
-`0010` 때와 같은 일이다. 그 작업은 `0014` 이후로 밀린다.
+> **세 번째 리비전 번호 충돌이었다. 커밋 직전에 잡았다.**
+>
+> 처음에 `0013` 으로 썼는데, `document-async-processing` 브랜치가 이미
+> `20260814_0013_document_processing_error.py` 를 쓰고 있었다. `revision` 과
+> `down_revision` 이 **완전히 동일**해서 둘 다 머지되면 alembic 이 같은
+> 식별자를 두 개 보게 되고 `upgrade head` 가 실패한다.
+>
+> **`origin/main` 의 `versions/` 만 보는 것으로는 부족하다.** 그 브랜치는 아직
+> main 에 머지되지 않아 main 만 확인했을 때는 `0013` 이 비어 있었다.
+> **머지되지 않은 원격 브랜치까지 확인해야 한다.**
+>
+> ```bash
+> git fetch --all
+> for b in $(git branch -r | grep -v HEAD); do
+>   echo "--- $b"; git ls-tree --name-only $b backend/migrations/versions/ | tail -3
+> done
+> ```
 
-`PR #19` 에는 마이그레이션이 없어서 `0013` 은 비어 있었다.
-**리비전을 쓸 때는 항상 `origin/main` 의 `versions/` 를 먼저 확인한다.**
+### down_revision 을 0012 가 아니라 0013 으로 둔 이유
 
-리비전 사슬 검증 — 13개 · head 하나(`20260814_0013`) · 분기 없음.
+`0012` 로 두면 `0012` 에서 `0013`(재정)과 `0014`(우리)로 **두 갈래로 분기**한다.
+alembic 은 분기를 허용하지만 **head 가 둘이 되어 `upgrade head` 가 모호해지고
+별도 merge revision 을 만들어야 한다.** 그래서 재정님 `0013` 뒤에 붙였다.
+
+### 그래서 순서 의존이 생겼다
+
+> **`document-async-processing` 이 main 에 머지된 뒤에 이 리비전을 올려야 한다.**
+>
+> 먼저 올리면 `down_revision = "20260814_0013"` 이 존재하지 않아
+> `alembic upgrade head` 가 `KeyError` 로 실패한다.
+>
+> 재정님 쪽이 `SYS-002-2`(비동기 작업 큐, P0)라 먼저 머지될 가능성이 높다.
+> 만약 우리가 먼저 올려야 하는 상황이 되면 `down_revision` 을 `0012` 로 돌리고
+> 재정님 쪽 번호를 `0014` 로 미루도록 조율한다.
+
+**두 파일을 함께 놓고 사슬을 검증했다** — 리비전 14개 · head 하나
+(`20260814_0014`) · 중복 없음.
+
+```
+0011 -> 0012 -> 0013(재정) -> 0014(우리)
+```

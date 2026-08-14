@@ -1,12 +1,12 @@
 diff --git a/backend/app/models/chunk.py b/backend/app/models/chunk.py
-index 2547f84..c3a6d85 100644
+index 2547f84..6659da8 100644
 --- a/backend/app/models/chunk.py
 +++ b/backend/app/models/chunk.py
 @@ -7,6 +7,8 @@
  #   content_start / content_end 는 extracted_texts.content 문자열 안의 위치이며,
  #   같은 좌표계를 쓰는 ocr_elements(리비전 0010) 와 구간이 겹치는지로 교집합을
  #   구해 원본 페이지 이미지의 x·y·width·height 를 얻는다 -> 검색 근거 하이라이트.
-+#   project_id 는 documents 에서 내려온 역정규화 컬럼이다(리비전 0013). 프로젝트
++#   project_id 는 documents 에서 내려온 역정규화 컬럼이다(리비전 0014). 프로젝트
 +#   범위 벡터 검색에서 조건이 인덱스 스캔 단계로 내려가야 하기 때문이다.
  #   models/__init__.py 에서 import 되어야 Base.metadata 에 등록된다.
  # Spring 비교: JPA @Entity + @Table(uniqueConstraints=..., indexes=...) 에 대응한다.
@@ -36,12 +36,12 @@ index 2547f84..c3a6d85 100644
      seq: Mapped[int] = mapped_column(Integer, nullable=False)
      page_number: Mapped[int | None] = mapped_column(Integer)
      text: Mapped[str] = mapped_column(Text, nullable=False)
-diff --git a/backend/migrations/versions/20260814_0013_document_chunk_project.py b/backend/migrations/versions/20260814_0013_document_chunk_project.py
+diff --git a/backend/migrations/versions/20260814_0014_document_chunk_project.py b/backend/migrations/versions/20260814_0014_document_chunk_project.py
 new file mode 100644
-index 0000000..2d30b97
+index 0000000..86b5564
 --- /dev/null
-+++ b/backend/migrations/versions/20260814_0013_document_chunk_project.py
-@@ -0,0 +1,79 @@
++++ b/backend/migrations/versions/20260814_0014_document_chunk_project.py
+@@ -0,0 +1,88 @@
 +"""add project_id to document_chunks for project-scoped vector search
 +
 +왜 역정규화를 하는가
@@ -70,6 +70,15 @@ index 0000000..2d30b97
 +    만약 이동 기능이 생기면 documents.project_id 를 바꿀 때
 +    document_chunks.project_id 도 같이 갱신해야 한다.
 +
++리비전 번호 — 0013 이 아니라 0014 다
++    document-async-processing 브랜치가 0013(document_processing_error)을 쓰고 있다.
++    origin/main 에는 아직 없어서 main 만 보고는 알 수 없었다. 머지 안 된 원격
++    브랜치까지 확인해야 한다.
++
++    down_revision 을 0012 로 두면 0012 에서 두 갈래로 분기해 head 가 둘이 되고
++    별도 merge revision 이 필요해진다. 그래서 재정님 0013 뒤에 붙였다.
++    => 이 리비전은 document-async-processing 이 main 에 머지된 뒤에 올려야 한다.
++
 +컬럼 추가를 3단계로 하는 이유
 +    NOT NULL 을 한 번에 걸면 기존 행이 있는 개발자의 DB 에서 실패한다.
 +    nullable 로 넣고 채운 뒤 NOT NULL 로 올린다.
@@ -79,8 +88,8 @@ index 0000000..2d30b97
 +import sqlalchemy as sa
 +
 +
-+revision = "20260814_0013"
-+down_revision = "20260814_0012"
++revision = "20260814_0014"
++down_revision = "20260814_0013"
 +branch_labels = None
 +depends_on = None
 +

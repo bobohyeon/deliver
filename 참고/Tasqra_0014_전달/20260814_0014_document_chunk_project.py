@@ -26,6 +26,15 @@
     만약 이동 기능이 생기면 documents.project_id 를 바꿀 때
     document_chunks.project_id 도 같이 갱신해야 한다.
 
+리비전 번호 — 0013 이 아니라 0014 다
+    document-async-processing 브랜치가 0013(document_processing_error)을 쓰고 있다.
+    origin/main 에는 아직 없어서 main 만 보고는 알 수 없었다. 머지 안 된 원격
+    브랜치까지 확인해야 한다.
+
+    down_revision 을 0012 로 두면 0012 에서 두 갈래로 분기해 head 가 둘이 되고
+    별도 merge revision 이 필요해진다. 그래서 재정님 0013 뒤에 붙였다.
+    => 이 리비전은 document-async-processing 이 main 에 머지된 뒤에 올려야 한다.
+
 컬럼 추가를 3단계로 하는 이유
     NOT NULL 을 한 번에 걸면 기존 행이 있는 개발자의 DB 에서 실패한다.
     nullable 로 넣고 채운 뒤 NOT NULL 로 올린다.
@@ -35,8 +44,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision = "20260814_0013"
-down_revision = "20260814_0012"
+revision = "20260814_0014"
+down_revision = "20260814_0013"
 branch_labels = None
 depends_on = None
 
