@@ -34,14 +34,25 @@
 
 ## 적용 방법 — 패치 하나로
 
+**경로 주의** — 레포 두 개의 실제 위치는 이렇다. 상대경로(`..\deliver\...`)를 쓰면
+안 된다. 두 레포가 형제 폴더가 아니다.
+
+```
+C:\dev\deliver              deliver (개인 · 산출물)
+C:\dev\Tesqra\Tasqra        Tasqra (팀 · 코드)   <- 바깥 폴더 이름이 Tesqra 다
+```
+
+**패치는 반드시 `Tasqra` 레포 안에서 절대경로로 실행한다.** 패치 안의 경로가
+`backend/...` · `docker-compose.yml` 로 Tasqra 루트 기준이기 때문이다.
+
 ```powershell
-cd C:\dev\Tasqra
+cd C:\dev\Tesqra\Tasqra
 git checkout main
 git pull
 git checkout -b feat/rag-document-chunks
 
-git apply --check ..\deliver\참고\Tasqra_0011_전달\0011-document-chunks.patch
-git apply ..\deliver\참고\Tasqra_0011_전달\0011-document-chunks.patch
+git apply --check "C:\dev\deliver\참고\Tasqra_0011_전달\0011-document-chunks.patch"
+git apply "C:\dev\deliver\참고\Tasqra_0011_전달\0011-document-chunks.patch"
 git status
 ```
 
@@ -53,6 +64,7 @@ git status
 ## 커밋
 
 ```powershell
+cd C:\dev\Tesqra\Tasqra
 git add backend/migrations/versions/20260814_0011_document_chunks.py backend/app/models/chunk.py backend/app/models/__init__.py backend/app/models/document.py backend/requirements.txt
 git commit -m "feat: document_chunks 테이블 추가 (리비전 0011) - RAG 벡터 검색용"
 
@@ -75,6 +87,7 @@ git push -u origin feat/rag-document-chunks
 그래서 **문법(`py_compile`)과 리비전 사슬까지만 확인했다.** 아래는 로컬에서 해야 한다.
 
 ```powershell
+cd C:\dev\Tesqra\Tasqra
 docker compose down -v
 docker compose up -d --build
 docker compose exec api alembic upgrade head
