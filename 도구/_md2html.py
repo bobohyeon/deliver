@@ -3,13 +3,23 @@
 
 브라우저에서 열어 Ctrl+P → 'PDF로 저장' 하면 표와 코드가 정리된 PDF가 나온다.
 외부 라이브러리 없이 동작하도록 필요한 문법만 직접 처리한다.
-지원: h1~h4 / 표 / 코드블록 / 인용 / 목록 / 굵게 / 인라인코드 / 구분선
+지원: h1~h4 / 표 / 코드블록 / 인용 / 목록(중첩) / 굵게 / 인라인코드 / 구분선
+
+꾸밈새는 두 가지다.
+    기본     화면 캡처를 다루는 문서용. A4 가로 · 파란 제목띠.
+    --흑백   글과 표만 있는 문서용. A4 세로 · 무채색. 관리/*.md 공유에 쓴다.
 """
+from __future__ import annotations  # 3.9 에서도 Path | None 표기를 쓴다
+
 import html
 import re
 import struct
 import sys
 from pathlib import Path
+
+# 목차 링크가 HTML 에서도 동작하도록 제목에 같은 규칙의 앵커를 붙인다.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _add_toc import slug  # noqa: E402
 
 # 이미지 경로를 해석할 기준 폴더 (원본 마크다운이 있는 곳). main 에서 설정한다.
 BASE_DIR = Path(".")
@@ -130,6 +140,85 @@ figcaption { font-size: 9pt; color: #6b7280; text-align: center; margin-top: 5px
 }
 """
 
+# 글과 표만 있는 산출물용 꾸밈새.
+# 색을 쓰지 않는다. 강조는 검정 채움 하나(h2 제목띠)로만 준다.
+# 알아볼 수 있으면 충분하므로 테두리와 여백만으로 구분한다.
+CSS_MONO = """
+@page { size: A4 portrait; margin: 18mm 16mm; }
+* { box-sizing: border-box; }
+body {
+  font-family: "Malgun Gothic", "맑은 고딕", -apple-system, sans-serif;
+  font-size: 10.5pt; line-height: 1.6; color: #111;
+  max-width: 900px; margin: 0 auto; padding: 24px;
+}
+h1 {
+  font-size: 19pt; margin: 0 0 6px; padding-bottom: 10px;
+  border-bottom: 2px solid #111; color: #000;
+}
+h2 {
+  font-size: 13pt; margin: 26px 0 10px; padding: 6px 10px;
+  background: #111; color: #fff;
+  page-break-after: avoid;
+}
+h3 {
+  font-size: 11.5pt; margin: 18px 0 8px; padding-left: 8px;
+  border-left: 3px solid #111; color: #000;
+  page-break-after: avoid;
+}
+h4 {
+  font-size: 10.5pt; margin: 14px 0 6px; color: #000;
+  page-break-after: avoid;
+}
+p { margin: 7px 0; }
+table {
+  width: 100%; border-collapse: collapse; margin: 10px 0 16px;
+  font-size: 9.5pt; page-break-inside: avoid;
+}
+th, td {
+  border: 1px solid #999; padding: 5px 8px;
+  text-align: left; vertical-align: top; word-break: break-word;
+}
+th { background: #e8e8e8; color: #000; font-weight: 600; }
+pre {
+  background: #f4f4f4; border: 1px solid #ccc; border-left: 3px solid #666;
+  padding: 9px 12px; margin: 10px 0;
+  font-family: Consolas, "D2Coding", monospace; font-size: 9pt;
+  line-height: 1.45; white-space: pre-wrap; page-break-inside: avoid;
+}
+code {
+  font-family: Consolas, "D2Coding", monospace; font-size: 9.2pt;
+  background: #eee; padding: 1px 4px; color: #000;
+}
+pre code { background: none; padding: 0; }
+blockquote {
+  margin: 10px 0; padding: 8px 13px;
+  background: #f6f6f6; border-left: 3px solid #666; color: #222;
+}
+blockquote p { margin: 4px 0; }
+ul, ol { margin: 7px 0; padding-left: 20px; }
+li { margin: 2px 0; }
+/* 중첩 목록은 <ul> 이 <li> 의 형제로 놓인다. 자손 선택자로 잡는다. */
+ul ul { margin: 2px 0; }
+hr { border: 0; border-top: 1px solid #ccc; margin: 20px 0; }
+strong { color: #000; }
+a { color: #000; text-decoration: underline; }
+
+/* 목차는 촘촘하게. 문서 첫 장에서 한눈에 들어와야 한다. */
+h2 + ul { font-size: 10pt; line-height: 1.45; }
+h2 + ul li { margin: 1px 0; }
+
+.doc-foot {
+  margin-top: 28px; padding-top: 10px; border-top: 1px solid #ccc;
+  font-size: 8.5pt; color: #555; text-align: center;
+}
+@media print {
+  body { padding: 0; }
+  h2 { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  a { text-decoration: none; color: #000; }
+}
+"""
+
 
 def pinned_image(match: "re.Match") -> str:
     """번호가 달린 캡처를 만든다.
@@ -221,17 +310,29 @@ def convert(md: str) -> str:
     lines = md.split("\n")
     out: list[str] = []
     index = 0
-    in_list = False
 
-    def close_list() -> None:
-        nonlocal in_list
-        if in_list:
+    # 열려 있는 <ul> 의 들여쓰기 칸 수. 목차의 계층을 살리기 위해 쌓아 둔다.
+    depths: list[int] = []
+
+    def close_list(deeper_than: int = -1) -> None:
+        """들여쓰기가 기준보다 깊은 목록을 닫는다. 기본값은 전부 닫는다."""
+        while depths and depths[-1] > deeper_than:
             out.append("</ul>")
-            in_list = False
+            depths.pop()
 
     while index < len(lines):
         line = lines[index]
         stripped = line.strip()
+
+        # --- HTML 주석 ---
+        #     `<!-- 목차 시작 -->` 같은 표시를 화면에 내보내지 않는다.
+        #     여러 줄 주석도 닫힘까지 건너뛴다.
+        if stripped.startswith("<!--"):
+            close_list()
+            while index < len(lines) and "-->" not in lines[index]:
+                index += 1
+            index += 1
+            continue
 
         # --- 두 단 구획: 캡처(좌) + 요소 설명(우) ---
         #     :::split 로 열고 ::: 로 닫는다. 구획 안의 첫 이미지까지가 좌측,
@@ -310,7 +411,12 @@ def convert(md: str) -> str:
         if heading:
             close_list()
             level = len(heading.group(1))
-            out.append(f"<h{level}>{inline(heading.group(2))}</h{level}>")
+            title = heading.group(2)
+            # 목차의 `](#앵커)` 가 걸릴 자리를 만든다. 규칙은 _add_toc.py 와 같다.
+            # 같은 제목이 두 번 나오면 앞의 것으로 이동한다 (현재 산출물에는 없다).
+            out.append(
+                f'<h{level} id="{slug(title)}">{inline(title)}</h{level}>'
+            )
             index += 1
             continue
 
@@ -331,9 +437,12 @@ def convert(md: str) -> str:
         # --- 목록 ---
         item = re.match(r"[-*]\s+(.*)", stripped)
         if item:
-            if not in_list:
+            indent = len(line) - len(line.lstrip())
+            if depths and indent < depths[-1]:
+                close_list(indent)
+            if not depths or indent > depths[-1]:
                 out.append("<ul>")
-                in_list = True
+                depths.append(indent)
             out.append(f"<li>{inline(item.group(1))}</li>")
             index += 1
             continue
@@ -350,7 +459,8 @@ def convert(md: str) -> str:
     return "\n".join(out)
 
 
-def build(md_path: Path, title: str, footer: str) -> Path:
+def build(md_path: Path, title: str, footer: str,
+          css: str = CSS, out_dir: Path | None = None) -> Path:
     md = md_path.read_text(encoding="utf-8")
     body = convert(md)
 
@@ -359,7 +469,7 @@ def build(md_path: Path, title: str, footer: str) -> Path:
 <head>
 <meta charset="UTF-8">
 <title>{html.escape(title)}</title>
-<style>{CSS}</style>
+<style>{css}</style>
 </head>
 <body>
 {body}
@@ -367,19 +477,42 @@ def build(md_path: Path, title: str, footer: str) -> Path:
 </body>
 </html>
 """
-    out_path = md_path.with_suffix(".html")
+    if out_dir is None:
+        out_path = md_path.with_suffix(".html")
+    else:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_path = out_dir / (md_path.stem + ".html")
     out_path.write_text(document, encoding="utf-8")
     return out_path
 
 
 if __name__ == "__main__":
-    source = Path(sys.argv[1] if len(sys.argv) > 1 else "화면정의서.md")
-    doc_title = sys.argv[2] if len(sys.argv) > 2 else source.stem
-    # 이미지 크기를 읽어야 하므로 마크다운이 있는 폴더를 기준으로 잡는다
-    BASE_DIR = source.resolve().parent
-    result = build(
-        source,
-        doc_title,
-        "PDF Brief AI · 김보현 · 브라우저에서 Ctrl+P → 'PDF로 저장'",
-    )
-    print(f"생성: {result} ({result.stat().st_size:,} bytes)")
+    argv = sys.argv[1:]
+
+    mono = "--흑백" in argv
+    argv = [a for a in argv if a != "--흑백"]
+
+    out_dir = None
+    for arg in list(argv):
+        if arg.startswith("--출력="):
+            out_dir = Path(arg.split("=", 1)[1])
+            argv.remove(arg)
+
+    if not argv:
+        argv = ["화면정의서.md"]
+
+    # 여러 파일을 한 번에 넘기면 제목은 파일 이름을 쓴다.
+    sources = [Path(p) for p in argv if p.endswith(".md")]
+    given_title = next((a for a in argv if not a.endswith(".md")), None)
+
+    for source in sources:
+        # 이미지 크기를 읽어야 하므로 마크다운이 있는 폴더를 기준으로 잡는다
+        BASE_DIR = source.resolve().parent
+        result = build(
+            source,
+            given_title if given_title and len(sources) == 1 else source.stem,
+            "PDF Brief AI · 김보현 · 브라우저에서 Ctrl+P → 'PDF로 저장'",
+            css=CSS_MONO if mono else CSS,
+            out_dir=out_dir,
+        )
+        print(f"생성: {result} ({result.stat().st_size:,} bytes)")
