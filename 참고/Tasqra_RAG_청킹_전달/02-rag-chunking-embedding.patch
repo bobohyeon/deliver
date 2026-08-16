@@ -1243,10 +1243,10 @@ index 0000000..b952850
 +    return max(values) if values else None
 diff --git a/backend/app/services/chunking_service.py b/backend/app/services/chunking_service.py
 new file mode 100644
-index 0000000..2b6731a
+index 0000000..efff8da
 --- /dev/null
 +++ b/backend/app/services/chunking_service.py
-@@ -0,0 +1,250 @@
+@@ -0,0 +1,264 @@
 +# =============================================================================
 +# 이 파일의 책임: 문서 하나를 "청크 + 임베딩"으로 만들어 DB 에 넣는 전 과정을
 +#   조립한다 (RAG-01 청킹 · RAG-02 임베딩 생성·저장). 순서는 이렇다.
@@ -1421,7 +1421,17 @@ index 0000000..2b6731a
 +    def _load_elements(self, document_id: int) -> list[TextUnit]:
 +        """검수 요소를 읽어 TextUnit 으로 바꾼다.
 +
-+        읽는 순서가 곧 청크 순서이므로 (page_number, reading_order) 로 정렬한다.
++        읽는 순서가 곧 청크 순서이므로 (page_number, page_id, reading_order) 로
++        정렬한다. page_id 를 동점 처리로 넣은 이유:
++
++        document_pages 에는 page_kind 가 두 종류다 — "PAGE" 와, 문서 안에 박힌
++        이미지를 OCR 한 "EMBEDDED_IMAGE"(extractors/review_page.py). 지금은
++        docx · hwpx 모두 len(review_pages) + 1 로 문서 단위 연번을 매겨서 같은
++        page_number 가 둘 생기지 않는다. 하지만 그 규칙이 바뀌어 번호가 겹치면
++        reading_order 는 페이지마다 다시 시작하므로 두 페이지의 요소가 서로
++        섞인다. 에러가 나지 않고 청크 내용만 조용히 달라지는 종류의 고장이다.
++        page_id 를 끼워 두면 삽입 순서(=추출 순서)로 항상 결정적이 된다.
++
 +        지운 것 · 제외한 것 · 본문에 안 들어간 것은 뺀다 — 본문(content)에
 +        반영되지 않은 요소를 청킹하면 content_start 좌표가 본문과 어긋난다.
 +        """
@@ -1432,7 +1442,11 @@ index 0000000..2b6731a
 +            .where(OcrElement.is_deleted.is_(False))
 +            .where(OcrElement.is_excluded.is_(False))
 +            .where(OcrElement.is_in_content.is_(True))
-+            .order_by(DocumentPage.page_number, OcrElement.reading_order)
++            .order_by(
++                DocumentPage.page_number,
++                DocumentPage.id,
++                OcrElement.reading_order,
++            )
 +        )
 +        rows = self._db.execute(stmt).all()
 +        return [

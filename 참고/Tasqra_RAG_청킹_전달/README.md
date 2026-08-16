@@ -80,7 +80,7 @@ git push -u origin feat/rag-chunking-embedding
 ```
 
 기대값 — 패치 1: 2파일 · 44 insertions · 2 deletions.
-패치 2: 13파일 · 1,855 insertions · 3 deletions.
+패치 2: 13파일 · 1,869 insertions · 3 deletions.
 
 두 패치 모두 `b449909` 기준으로 적용을 확인했고, 적용한 트리에서 검사 75개가 통과한다.
 `core.autocrlf=true` 라 whitespace 경고는 정상이다.
@@ -179,7 +179,18 @@ BGE-M3 는 **CLS 풀링**이라 앞쪽 토큰이 주제 신호로 더 크게 작
 통과**했다. `assert` 로 던지게 바꾸고, 단독 실행 시에는 테스트 함수 단위로 예외를
 잡아 요약을 만들게 했다. 일부러 로직을 깨서 실제로 잡히는지 확인했다.
 
-### 5. `EMBEDDING_DIM` 을 `core/constants.py` 로 옮겼다
+### 5. 요소 정렬에 동점 처리가 없었다
+
+`(page_number, reading_order)` 로만 정렬해서, 같은 `page_number` 를 가진
+`DocumentPage` 가 둘 생기면 두 페이지 요소가 섞인다. `document_pages` 에는
+`page_kind` 가 `"PAGE"` 와 `"EMBEDDED_IMAGE"` 두 종류가 있다.
+
+확인해 보니 **현재는 충돌하지 않는다** — `docx`·`hwpx` 모두
+`len(review_pages) + 1` 로 문서 단위 연번을 쓴다. 그래도 `page_id` 를 동점
+처리로 넣었다. 그 규칙이 바뀌면 **에러 없이 청크 내용만 조용히 달라지는** 고장이
+되기 때문이다.
+
+### 6. `EMBEDDING_DIM` 을 `core/constants.py` 로 옮겼다
 
 가짜 임베더가 상수 하나 때문에 ORM 전체를 끌어와서, DB 드라이버 없이 단독 검증을
 할 수 없었다. `models/chunk.py` 에서 이름을 다시 내보내 기존 import 는 그대로 된다.
