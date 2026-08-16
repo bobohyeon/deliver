@@ -1,0 +1,4 @@
+# 패치 파일은 줄바꿈을 변환하면 git apply 가 깨진다.
+# core.autocrlf=true 환경에서 LF 가 CRLF 로 바뀌어 헤더가 손상된 사례가 있었다.
+*.patch -text
+*.diff -text

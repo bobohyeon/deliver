@@ -56,16 +56,29 @@ sentence-transformers 가 있고, 컨테이너에 넣을 이유가 없었다.
 
 ---
 
-## 적용 방법
+## 적용 방법 — 파일 복사 (권장)
+
+**패치 파일(`.patch`)은 이 환경에서 쓰지 마세요.** `core.autocrlf=true` 때문에
+GitHub 에서 받을 때 `LF` 가 `CRLF` 로 바뀌어 `git apply` 가 깨집니다
+(`git diff header lacks filename information` 오류). 실제로 한 번 겪었습니다.
+`.gitattributes` 에 `*.patch -text` 를 넣어 앞으로는 안 바뀌게 했지만,
+**이미 받은 파일은 여전히 CRLF 입니다.**
+
+파이썬 파일은 CRLF 여도 정상 동작하므로 **소스 파일을 그대로 복사하는 것이
+안전합니다.** 두 방식이 바이트 단위로 같은 결과를 내는 것을 확인했습니다 (13/13 동일).
 
 ```powershell
-cd C:\dev\Tesqra\Tasqra
-git checkout main
+cd C:\dev\deliver
 git pull
 
 # 1) structure.py 오탐 수정 (어제 것)
+cd C:\dev\Tesqra\Tasqra
+git checkout main
+git pull
 git checkout -b fix/structure-false-positives
-git apply "C:\dev\deliver\참고\Tasqra_RAG_청킹_전달\01-structure-fix-numeric-and-paren.patch"
+robocopy "C:\dev\deliver\참고\Tasqra_RAG_청킹_전달\파일-01-structure\backend" ^
+         "C:\dev\Tesqra\Tasqra\backend" /E /NFL /NDL /NJH /NJS
+git status --short
 git add backend/app/extractors/structure.py backend/tests/test_structure.py
 git commit -m "fix: detect_heading 실측 오탐 수정 (수치 표현 · 끝 괄호)"
 git push -u origin fix/structure-false-positives
@@ -73,17 +86,60 @@ git push -u origin fix/structure-false-positives
 # 2) 청킹 + 임베딩
 git checkout main
 git checkout -b feat/rag-chunking-embedding
-git apply "C:\dev\deliver\참고\Tasqra_RAG_청킹_전달\02-rag-chunking-embedding.patch"
+robocopy "C:\dev\deliver\참고\Tasqra_RAG_청킹_전달\파일-02-rag\backend" ^
+         "C:\dev\Tesqra\Tasqra\backend" /E /NFL /NDL /NJH /NJS
+git status --short
+```
+
+`robocopy` 의 `/E` 는 하위 폴더까지 포함하고, 나머지 옵션은 출력을 줄이는 것입니다.
+같은 이름의 파일은 덮어씁니다.
+
+**커밋 전에 반드시 2단계 검증을 먼저 하세요** (아래 「검증」). 확인된 뒤에:
+
+```powershell
 git add backend/app backend/tests/test_chunking.py
 git commit -m "feat: RAG-01 청킹 + RAG-02 임베딩 생성·저장 (가짜 임베더 기본값)"
 git push -u origin feat/rag-chunking-embedding
 ```
 
-기대값 — 패치 1: 2파일 · 44 insertions · 2 deletions.
-패치 2: 13파일 · 1,869 insertions · 3 deletions.
+### 기대하는 `git status --short`
 
-두 패치 모두 `b449909` 기준으로 적용을 확인했고, 적용한 트리에서 검사 75개가 통과한다.
-`core.autocrlf=true` 라 whitespace 경고는 정상이다.
+패치 1 적용 후:
+
+```
+ M backend/app/extractors/structure.py
+ M backend/tests/test_structure.py
+```
+
+패치 2 적용 후:
+
+```
+ M backend/app/core/config.py
+ M backend/app/dependencies.py
+ M backend/app/models/chunk.py
+ M backend/app/worker.py
+?? backend/app/core/constants.py
+?? backend/app/embedding/
+?? backend/app/repositories/chunk_repository.py
+?? backend/app/services/chunking.py
+?? backend/app/services/chunking_service.py
+?? backend/tests/test_chunking.py
+```
+
+수정 4개 · 신규 9개(`embedding/` 안에 4개)다.
+
+### 패치 파일을 꼭 써야 한다면
+
+CRLF 를 되돌린 뒤 적용합니다.
+
+```powershell
+$src = "C:\dev\deliver\참고\Tasqra_RAG_청킹_전달\02-rag-chunking-embedding.patch"
+[IO.File]::WriteAllText("C:\dev\rag.patch", ([IO.File]::ReadAllText($src) -replace "`r`n", "`n"))
+cd C:\dev\Tesqra\Tasqra
+git apply C:\dev\rag.patch
+```
+
+`[IO.File]::WriteAllText` 는 BOM 없는 UTF-8 로 쓰므로 `Set-Content` 보다 안전합니다.
 
 ### 검증
 
