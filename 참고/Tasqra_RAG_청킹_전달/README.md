@@ -76,8 +76,7 @@ cd C:\dev\Tesqra\Tasqra
 git checkout main
 git pull
 git checkout -b fix/structure-false-positives
-robocopy "C:\dev\deliver\참고\Tasqra_RAG_청킹_전달\파일-01-structure\backend" ^
-         "C:\dev\Tesqra\Tasqra\backend" /E /NFL /NDL /NJH /NJS
+robocopy "C:\dev\deliver\참고\Tasqra_RAG_청킹_전달\파일-01-structure\backend" "C:\dev\Tesqra\Tasqra\backend" /E /NFL /NDL /NJH /NJS
 git status --short
 git add backend/app/extractors/structure.py backend/tests/test_structure.py
 git commit -m "fix: detect_heading 실측 오탐 수정 (수치 표현 · 끝 괄호)"
@@ -86,13 +85,13 @@ git push -u origin fix/structure-false-positives
 # 2) 청킹 + 임베딩
 git checkout main
 git checkout -b feat/rag-chunking-embedding
-robocopy "C:\dev\deliver\참고\Tasqra_RAG_청킹_전달\파일-02-rag\backend" ^
-         "C:\dev\Tesqra\Tasqra\backend" /E /NFL /NDL /NJH /NJS
+robocopy "C:\dev\deliver\참고\Tasqra_RAG_청킹_전달\파일-02-rag\backend" "C:\dev\Tesqra\Tasqra\backend" /E /NFL /NDL /NJH /NJS
 git status --short
 ```
 
 `robocopy` 의 `/E` 는 하위 폴더까지 포함하고, 나머지 옵션은 출력을 줄이는 것입니다.
-같은 이름의 파일은 덮어씁니다.
+같은 이름의 파일은 덮어씁니다. **명령은 한 줄입니다** — PowerShell 의 줄바꿈 문자는
+`^` 가 아니라 백틱(`` ` ``)이라, `^` 로 나누면 실패합니다.
 
 **커밋 전에 반드시 2단계 검증을 먼저 하세요** (아래 「검증」). 확인된 뒤에:
 
