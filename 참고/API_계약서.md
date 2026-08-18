@@ -298,3 +298,160 @@ class DocumentListResponse(BaseModel):
 - [ ] 파일 크기 상한 확정 (10MB?)
 - [ ] 분석을 **업로드와 분리**할지 합의 → 분리 권장 (실패 시 재시도 쉬움)
 - [ ] 프론트에서 쓸 타입 정의를 C가 이 문서 기준으로 작성
+
+
+---
+
+# 추가 — 의미 검색 (RAG-04)
+
+> **작성 2026-08-18 · 보현 초안 · 팀 검토 대기**
+>
+> 이 절은 위 1~2절(미니 프로젝트 시절 `/api/documents` 계열, 담당 A/B/C)과 경로
+> 규칙이 다르다. 현재 본 프로젝트는 프로젝트 범위 경로
+> `/api/projects/{project_id}/...` 를 쓴다 (`analysis_router.py` 등 기존 라우터와 동일).
+>
+> **재정님 · 세현님께**: 구현을 먼저 올렸습니다. 바꿔야 할 부분 있으면 말씀해 주세요.
+> 프론트(`SearchView`)가 아직 안 붙었으니 지금이 고치기 가장 쉬운 시점입니다.
+
+## 이 절에 나오는 기능 ID
+
+| ID | 작업명 |
+|---|---|
+| `RAG-04` | 의미 검색 — 글자가 겹치지 않는 질의로 관련 문서를 찾는다 |
+| `RAG-05` | 하이브리드 검색 (키워드 + 벡터) · P2 |
+| `RAG-08` | 근거 스니펫 연결 — 결과마다 출처와 원문 인용 |
+| `VIS-07` | 검색 화면의 의미 검색 표시 · P2 |
+
+## 엔드포인트
+
+| # | Method | Path | 설명 | 담당 |
+|---|---|---|---|---|
+| S1 | POST | `/api/projects/{project_id}/search` | 의미 검색 | 보현 |
+| S2 | POST | `/api/projects/{project_id}/search/explain` | 실행계획 (검증용 · 임시) | 보현 |
+
+기존 `GET /api/documents?q=` 와 **별도 엔드포인트로 둔 이유**
+
+| | |
+|---|---|
+| 반환 단위가 다르다 | 그쪽은 **문서 목록**, 이쪽은 **청크 + 원문 인용** |
+| 나중에 합친다 | `RAG-05` 하이브리드에서 이쪽에 키워드 점수를 더하는 방향이 맞다. 지금 억지로 한 엔드포인트에 넣으면 응답 스키마가 두 가지 모양을 가진다 |
+
+`GET` 이 아니라 `POST` 인 이유
+
+1. 질의가 문장이다. URL 에 넣으면 한글이 퍼센트 인코딩되어 길어진다
+2. 필터가 늘어난다 (문서 유형 · 기간 · 하이브리드 가중치)
+3. **검색 질의가 브라우저 이력과 접근 로그에 남지 않는다.** 조달 문서를 다루므로 "무엇을 찾고 있는지"가 사업 정보다
+
+## S1. POST /api/projects/{project_id}/search
+
+**권한**: 프로젝트 멤버 누구나 (`VIEWER` 포함). 읽기 전용이다.
+멤버가 아니면 `404 PROJECT_NOT_FOUND` — 프로젝트 존재 자체를 숨긴다.
+
+**Request**
+
+| 필드 | 타입 | 기본값 | 설명 |
+|---|---|---|---|
+| `query` | string | 필수 | 자연어 질의. 1~1000자 |
+| `limit` | int | 10 | 1~50 |
+| `document_id` | int \| null | null | 특정 문서 안에서만 찾을 때 |
+| `min_similarity` | float \| null | null | 이 값보다 낮은 결과는 버린다. −1.0~1.0 |
+
+```json
+{
+  "query": "대금은 언제 받을 수 있나요",
+  "limit": 10
+}
+```
+
+**Response `200 OK`**
+
+```json
+{
+  "query": "대금은 언제 받을 수 있나요",
+  "embedding_model": "fake-hash-v1",
+  "took_ms": 42,
+  "total": 2,
+  "results": [
+    {
+      "chunk_id": 128,
+      "document_id": 3,
+      "document_filename": "입찰공고.pdf",
+      "seq": 4,
+      "page_number": 2,
+      "similarity": 0.8312,
+      "snippet": "4. 대금 지급 준공 검사 완료 후 30일 이내에 지급한다. 선금은 계약 금액의 70퍼센트 범위에서…",
+      "char_count": 412,
+      "content_start": 279,
+      "content_end": 371
+    }
+  ]
+}
+```
+
+| 필드 | 설명 |
+|---|---|
+| `embedding_model` | 이 검색에 쓴 모델. **`fake-hash-v1` 이면 의미 없는 개발용 벡터다** |
+| `similarity` | 코사인 유사도. 1.0 이 가장 가깝다 (pgvector `<=>` 거리를 `1 - distance` 로 변환) |
+| `snippet` | 원문 인용 (`RAG-08`). 최대 220자. 청킹이 제목을 청크 맨 앞에 두므로 **앞부분이 곧 제목**이다 |
+| `char_count` | 청크 전체 길이. `snippet` 이 잘렸는지 프론트가 판단한다 |
+| `content_start` · `content_end` | `extracted_texts.content` 안의 구간. 원문 대조용. 모르면 `null` |
+
+**제목을 별도 필드로 주지 않는다.** `document_chunks` 에 `heading` 컬럼이 없다.
+청킹이 `Chunk.heading` 을 계산하지만 저장하지 않는다. 계층 표시
+("출처: 제2장 > 4. 대금 지급")를 하려면 컬럼 추가가 필요하고 그건 마이그레이션이라
+별도 안건으로 둔다. 지금은 `snippet` 앞부분이 제목 역할을 한다.
+
+**에러**
+
+| 코드 | 상황 |
+|---|---|
+| `401 UNAUTHORIZED` | 토큰 없음·만료 |
+| `404 PROJECT_NOT_FOUND` | 프로젝트 없음 또는 멤버 아님 |
+| `422` | `query` 빈 문자열, `limit` 범위 초과 등 (FastAPI 검증) |
+
+## S2. POST /api/projects/{project_id}/search/explain
+
+요청은 S1 과 같고 응답은 `{"plan": "<EXPLAIN ANALYZE 출력>"}` 이다.
+
+**운영 기능이 아니다.** 리비전 `0014` 에서 `document_chunks.project_id` 를
+역정규화한 근거가 "조건이 인덱스 스캔 단계로 내려간다"였는데, 청크가 0행이던
+동안 확인할 수 없었다. 검증이 끝나면 지우거나 관리자 전용으로 옮긴다.
+
+## 검색 조건 두 개 — 둘 다 필수다
+
+```sql
+WHERE project_id = :project_id
+  AND embedding_model = :model
+ORDER BY embedding <=> :query_vector
+LIMIT :limit
+```
+
+| 조건 | 없으면 |
+|---|---|
+| `project_id` | 다른 프로젝트 문서가 섞인다 (`RAG-04` 판정 기준 위반). 조인이 아니라 **같은 테이블 컬럼**이어야 `hnsw.iterative_scan` 이 스캔 단계에서 평가한다 — 리비전 `0014` 를 넣은 이유 |
+| `embedding_model` | **에러 없이 조용히 틀린다.** 모델을 바꾸거나 가짜 임베더 청크가 섞이면 서로 다른 벡터 공간의 거리를 비교한다. 숫자는 나오지만 의미가 없다 |
+
+세션 파라미터를 트랜잭션 범위로 설정한다.
+
+```sql
+SET LOCAL hnsw.iterative_scan = strict_order;
+SET LOCAL hnsw.ef_search = 100;
+```
+
+`ef_search` 기본값 40 은 조건이 걸린 상황에서 후보가 모자란다.
+`SEARCH_EF_SEARCH` 설정으로 조절한다.
+
+## 아직 검증하지 못한 것
+
+`RAG-04` 판정 기준은 "**글자가 하나도 겹치지 않는 질의**로 관련 문서가 나온다"다.
+**기본값인 가짜 임베더(`USE_FAKE_EMBEDDING=true`)로는 이것을 검증할 수 없다** —
+해시 벡터에는 의미가 없다.
+
+| 검증 가능 | 검증 불가 |
+|---|---|
+| 검색이 동작한다 | **의미적으로 맞는 결과가 나오는지** |
+| 다른 프로젝트 문서가 안 나온다 | |
+| 실행계획이 인덱스를 탄다 | |
+| 스니펫·출처가 붙는다 | |
+
+즉 현재 `RAG-04` 는 **구조 완성 · 품질 미검증** 상태다.
