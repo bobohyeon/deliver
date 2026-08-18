@@ -20,8 +20,9 @@
 //   서버 호출은 api/search.js(Gateway)로 분리했다.
 // =============================================================================
 
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import PageHeading from '../../components/common/PageHeading'
 import LoadingState from '../../components/common/LoadingState'
 import { FAKE_EMBEDDING_MODEL, searchDocuments } from '../../api/search'
@@ -30,46 +31,76 @@ import './SearchView.css'
 // 한 번에 가져올 결과 수. 서버 상한은 50 이다(schemas/search.py MAX_SEARCH_LIMIT).
 const RESULT_LIMIT = 20
 
+// 검색 결과를 캐시에 얼마나 신선하게 둘지. 기본값(30초)보다 길게 잡는다.
+// 문서를 열어 보고 뒤로 돌아오는 데 30초가 넘게 걸리는 일이 흔하고, 그때마다
+// 다시 임베딩하면 질의당 300ms 를 또 쓴다.
+const SEARCH_STALE_MS = 10 * 60 * 1000
+
 export default function SearchView({ projectId, projectName }) {
-  const [query, setQuery] = useState('')
-  const [scope, setScope] = useState('project')   // 'project' | 'all'
-  const [response, setResponse] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
-  // 마지막으로 실제 검색한 조건. 입력만 바꾸고 검색하지 않았을 때
-  // "결과 없음" 문구가 엉뚱하게 바뀌는 것을 막는다.
-  const [lastQuery, setLastQuery] = useState('')
+  // 검색 조건을 URL 에 둔다. 그래야 문서를 열었다가 뒤로 와도 그대로 복원되고,
+  // 새로고침·주소 공유도 된다. 컴포넌트 상태에만 두면 화면을 떠날 때 사라진다.
+  const [params, setParams] = useSearchParams()
+  const query = params.get('q') ?? ''
+  const scope = params.get('scope') === 'all' ? 'all' : 'project'
+
+  // 입력창은 로컬 상태다. 글자를 칠 때마다 URL 이 바뀌면 뒤로가기 이력이
+  // 한 글자마다 쌓인다.
+  const [draft, setDraft] = useState(query)
   const navigate = useNavigate()
 
-  async function runSearch(event) {
+  // 뒤로가기로 URL 이 바뀌면 입력창도 따라가게 한다.
+  useEffect(() => { setDraft(query) }, [query])
+
+  const search = useQuery({
+    queryKey: ['semantic-search', String(projectId), query, scope],
+    queryFn: () => searchDocuments({
+      query,
+      // 'all' 이면 범위를 보내지 않는다 -> 서버가 내 멤버십 전체로 푼다.
+      projectIds: scope === 'project' ? [Number(projectId)] : null,
+      limit: RESULT_LIMIT,
+    }),
+    // 질의가 없으면 요청하지 않는다.
+    enabled: query.trim().length > 0,
+    staleTime: SEARCH_STALE_MS,
+    retry: false,
+  })
+
+  function submit(event) {
     event?.preventDefault()
-    const trimmed = query.trim()
-    if (!trimmed || loading) return
+    const trimmed = draft.trim()
+    if (!trimmed) return
+    // 같은 조건이면 URL 을 건드리지 않는다 (이력이 쌓이지 않게).
+    if (trimmed === query) return
+    setParams({ q: trimmed, scope })
+  }
 
-    setLoading(true)
-    setError(null)
-    try {
-      const data = await searchDocuments({
-        query: trimmed,
-        // 'all' 이면 범위를 보내지 않는다 -> 서버가 내 멤버십 전체로 푼다.
-        projectIds: scope === 'project' ? [Number(projectId)] : null,
-        limit: RESULT_LIMIT,
-      })
-      setResponse(data)
-      setLastQuery(trimmed)
-    } catch (caught) {
-      setError(caught)
-      setResponse(null)
-    } finally {
-      setLoading(false)
+  function changeScope(next) {
+    if (next === scope) return
+    // 범위를 바꾸면 질의를 유지한 채 다시 검색한다.
+    setParams(query ? { q: query, scope: next } : { scope: next })
+  }
+
+  function openChunk(result) {
+    // 클릭한 조각이 원문에서 어디인지 넘긴다. DocumentContentTab 이 그 구간을
+    // 강조하고 그 자리로 스크롤한다. 구간을 모르는 조각(긴 줄을 강제로 쪼갠
+    // 경우)은 좌표가 null 이라 그냥 문서만 열린다.
+    const target = `/projects/${result.project_id}/documents/${result.document_id}`
+    if (result.content_start === null || result.content_end === null) {
+      navigate(target)
+      return
     }
+    const search = new URLSearchParams({
+      tab: 'content',
+      from: String(result.content_start),
+      to: String(result.content_end),
+    })
+    navigate(`${target}?${search.toString()}`)
   }
 
-  function openDocument(result) {
-    navigate(`/projects/${result.project_id}/documents/${result.document_id}`)
-  }
-
+  const response = search.data
   const isFake = response?.embedding_model === FAKE_EMBEDDING_MODEL
+  // 캐시된 결과를 다시 확인하는 중에는 결과를 그대로 두고 로딩을 띄우지 않는다.
+  const loading = search.isPending && query.trim().length > 0
 
   return <>
     <PageHeading
@@ -78,38 +109,38 @@ export default function SearchView({ projectId, projectName }) {
       description='글자가 정확히 겹치지 않아도 뜻이 비슷한 내용을 찾습니다. 결과마다 출처 문서와 원문 인용이 함께 나옵니다.'/>
 
     <section className='panel search-panel'>
-      <form className='search-form' onSubmit={runSearch}>
+      <form className='search-form' onSubmit={submit}>
         <input
           className='search-input'
           type='search'
-          value={query}
-          onChange={event => setQuery(event.target.value)}
+          value={draft}
+          onChange={event => setDraft(event.target.value)}
           placeholder='예: 대금은 언제 받을 수 있나요'
           maxLength={1000}
           aria-label='검색어'/>
-        <button className='primary' type='submit' disabled={loading || !query.trim()}>
+        <button className='primary' type='submit' disabled={loading || !draft.trim()}>
           {loading ? '검색 중...' : '검색'}
         </button>
       </form>
 
-      <ScopeToggle scope={scope} projectName={projectName} disabled={loading} onChange={setScope}/>
+      <ScopeToggle scope={scope} projectName={projectName} disabled={loading} onChange={changeScope}/>
     </section>
 
     {isFake && <FakeEmbeddingNotice/>}
 
     {loading && <LoadingState label='비슷한 내용을 찾는 중...'/>}
 
-    {error && !loading && <section className='panel search-error'>
+    {search.isError && !loading && <section className='panel search-error'>
       <p><strong>검색에 실패했습니다.</strong></p>
-      <p>{error.message}</p>
-      {error.code && <p className='search-error-code'>코드 {error.code}</p>}
+      <p>{search.error?.message}</p>
+      {search.error?.code && <p className='search-error-code'>코드 {search.error.code}</p>}
     </section>}
 
-    {response && !loading && !error && <SearchResults
+    {response && !loading && !search.isError && <SearchResults
       response={response}
-      lastQuery={lastQuery}
+      lastQuery={query}
       currentProjectId={Number(projectId)}
-      onOpen={openDocument}/>}
+      onOpen={openChunk}/>}
   </>
 }
 
