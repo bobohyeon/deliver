@@ -56,6 +56,20 @@ DEFAULT_MAX_SEQ = 1024
 
 _model = None
 _model_name = ""
+
+
+def model_dimension(model) -> int | None:
+    """출력 차원을 얻는다.
+
+    sentence-transformers 가 get_sentence_embedding_dimension 을
+    get_embedding_dimension 으로 이름을 바꿨다. 판에 따라 둘 중 하나만 있으므로
+    새 이름을 먼저 찾는다. 옛 이름만 쓰면 FutureWarning 이 뜬다.
+    """
+    for name in ("get_embedding_dimension", "get_sentence_embedding_dimension"):
+        fn = getattr(model, name, None)
+        if callable(fn):
+            return int(fn())
+    return None
 # CPU 에서 여러 요청이 동시에 encode 하면 서로 느려지고 메모리도 튄다.
 # 한 번에 하나만 처리한다 — 개발용이므로 그것으로 충분하다.
 _lock = threading.Lock()
@@ -111,7 +125,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, {
                 "status": "ok",
                 "model": _model_name,
-                "dimension": _model.get_sentence_embedding_dimension() if _model else None,
+                "dimension": model_dimension(_model) if _model else None,
                 "max_seq_length": _model.max_seq_length if _model else None,
                 "stats": dict(_stats),
             })
@@ -204,7 +218,7 @@ def main() -> None:
     print(f"  듣는 곳   http://{args.host}:{args.port}")
     print(f"  컨테이너  http://host.docker.internal:{args.port}/v1")
     print(f"  모델      {_model_name}")
-    print(f"  차원      {_model.get_sentence_embedding_dimension()}")
+    print(f"  차원      {model_dimension(_model)}")
     print(f"  max_seq   {_model.max_seq_length}")
     print("=" * 68)
     print()
