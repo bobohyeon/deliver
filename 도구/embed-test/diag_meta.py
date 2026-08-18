@@ -160,6 +160,104 @@ def scan_duplicates(path: pathlib.Path) -> None:
     print("  서로를 오답으로 학습한다. batch_sampler=NO_DUPLICATES 가 막는 대상이다.")
 
 
+def scan_truncation_damage(path: pathlib.Path, model_name: str, limit: int) -> None:
+    """절단이 정답 짝(본문↔요약)을 실제로 망가뜨렸는지 본다.
+
+    이게 핵심 검사다. 본문이 384 토큰에서 잘렸다는 사실만으로는 "그래서 학습이
+    나빠졌다"를 증명하지 못한다. 요약이 설명하는 내용이 **잘려 나간 뒷부분에만**
+    있었다면, 모델은 "이 앞부분 조각 = 이 요약"이라는 틀린 짝을 배운 것이다.
+
+    방법: 요약의 내용어를 뽑아 본문의 앞부분(limit 토큰까지)과 뒷부분(버려진 곳)
+    어디에 나타나는지 센다.
+      - 앞에만 있다  -> 절단이 이 사례를 망가뜨리지 않았다
+      - 뒤에만 있다  -> 절단이 근거를 없앴다. 틀린 짝을 학습했다
+      - 양쪽에 있다  -> 앞부분만으로도 학습 가능하다
+      - 어디에도 없다 -> 요약이 본문에서 유도되지 않는다 (데이터 자체 문제)
+    """
+    print("=" * 70)
+    print(f"5. 절단이 정답 짝을 망가뜨렸는가 ({limit} 토큰 기준)")
+    print("=" * 70)
+    if not path.is_file():
+        print("  파일이 없다:", path)
+        return
+
+    rows = [json.loads(l) for l in io.open(path, encoding="utf-8") if l.strip()]
+
+    from transformers import AutoTokenizer
+
+    tok = AutoTokenizer.from_pretrained(model_name)
+
+    only_head = only_tail = both = neither = 0
+    no_truncation = 0
+    tail_examples: list[tuple[str, str]] = []
+
+    for row in rows:
+        text = row.get("text", "") or ""
+        summary = row.get("summary", "") or ""
+        if not text or not summary:
+            continue
+
+        ids = tok.encode(text, add_special_tokens=False)
+        if len(ids) <= limit:
+            no_truncation += 1
+            continue
+
+        head = tok.decode(ids[:limit])
+        tail = tok.decode(ids[limit:])
+
+        # 요약의 내용어. 2글자 이상만 본다 — 조사·숫자 한 글자는 아무 데나 있다.
+        # 한글 조사가 붙는 것을 감안해 앞 2글자로 부분일치를 본다.
+        words = {w for w in re.split(r"[\s,·/()\[\]{}~\-]+", summary) if len(w) >= 2}
+        if not words:
+            continue
+
+        in_head = {w for w in words if w[:2] in head}
+        in_tail = {w for w in words if w[:2] in tail}
+
+        # 요약을 대표하는 단어의 다수가 어디 있는지로 판정한다.
+        h = len(in_head - in_tail)
+        t = len(in_tail - in_head)
+        b = len(in_head & in_tail)
+        if not in_head and not in_tail:
+            neither += 1
+        elif t > 0 and h == 0 and b == 0:
+            only_tail += 1
+            if len(tail_examples) < 5:
+                tail_examples.append((summary[:50], ", ".join(sorted(in_tail)[:4])))
+        elif b > 0 or (h > 0 and t > 0):
+            both += 1
+        elif h > 0:
+            only_head += 1
+        else:
+            neither += 1
+
+    judged = only_head + only_tail + both + neither
+    print(f"  절단되지 않은 사례: {no_truncation}건 (판정 대상에서 제외)")
+    print(f"  절단된 사례 판정:   {judged}건")
+    if not judged:
+        print("  판정할 사례가 없다.")
+        return
+    print()
+    print(f"    요약 근거가 앞부분에만  {only_head:>4}건 ({only_head / judged * 100:5.1f}%)  절단 무해")
+    print(f"    양쪽에 있음            {both:>4}건 ({both / judged * 100:5.1f}%)  절단 무해")
+    print(f"    뒷부분에만 (버려진 곳) {only_tail:>4}건 ({only_tail / judged * 100:5.1f}%)  <- 틀린 짝을 학습")
+    print(f"    어디에도 없음          {neither:>4}건 ({neither / judged * 100:5.1f}%)  요약이 본문에서 안 나온다")
+
+    if tail_examples:
+        print()
+        print("  요약 근거가 버려진 사례 예시")
+        for summary, hits in tail_examples:
+            print(f"    요약: {summary}")
+            print(f"      뒷부분에만 있던 말: {hits}")
+
+    print()
+    print("  읽는 방법")
+    print("  · '뒷부분에만' 비율이 높으면 절단이 정답 짝을 망가뜨린 것이다")
+    print("    -> 데이터를 바꿀 필요 없이 max_seq_length 만 올리면 된다 (설정 문제)")
+    print("  · '어디에도 없음' 비율이 높으면 요약이 본문에서 유도되지 않는다")
+    print("    -> 그건 데이터 문제이므로 자료를 손봐야 한다")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="파인튜닝 모델 설정과 학습 데이터를 검사한다 (모델 로딩 없음)")
@@ -181,6 +279,7 @@ def main() -> None:
         data = pathlib.Path(args.train_data)
         scan_train_data(data, args.tokenizer, limits)
         scan_duplicates(data)
+        scan_truncation_damage(data, args.tokenizer, limits[0])
 
     print()
     print("=" * 70)
