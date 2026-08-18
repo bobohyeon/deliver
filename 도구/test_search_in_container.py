@@ -254,13 +254,31 @@ def main() -> None:
         print("=" * 72)
         print("9. 실행계획 — 리비전 0014 검증")
         print("=" * 72)
-        print()
+        total_chunks = sum(counts.values())
+        if total_chunks < 1000:
+            print(f"  ⚠ 청크가 {total_chunks}개뿐이다. PostgreSQL 은 이 정도면 인덱스를 쓰지 않고")
+            print("    전체를 훑는 것이 빠르다고 판단한다 (맞는 판단이다). 그래서 아래 계획에")
+            print("    Seq Scan 이 나오면 그것은 정상이며, HNSW 계획을 본 것이 아니다.")
+            print()
+            print("    HNSW 계획을 보려면 합성 청크를 넣고 다시 돌린다:")
+            print("      docker compose cp C:\\dev\\deliver\\도구\\seed_bulk_chunks.sql db:/tmp/bulk.sql")
+            print("      docker compose exec db psql -U postgres -d tasqra -f /tmp/bulk.sql")
+            print("    끝나면 반드시 cleanup_bulk_chunks.sql 로 지운다 (난수 벡터가 남으면 오염된다).")
+            print()
+
         print(f"--- 단일 프로젝트 (= {one}) ---")
         print(service.explain(user_id, SearchRequest(query="대금", project_ids=[one], limit=5)))
         if len(member_ids) >= 2:
             print()
             print(f"--- 여러 프로젝트 (IN {member_ids}) ---")
             print(service.explain(user_id, SearchRequest(query="대금", project_ids=member_ids, limit=5)))
+
+        print()
+        print("  판단 기준")
+        print("    · 둘 다 Index Cond 에 project_id 가 있으면 -> IN 도 = 와 같게 처리된다")
+        print("    · IN 만 Filter: project_id = ANY (...) 로 빠지면")
+        print("      -> 전체 검색은 프로젝트별로 나눠 질의하고 병합해야 한다")
+        print("    · Index Scan using ix_chunk_vec 가 보이면 벡터 인덱스를 쓴 것이다")
 
         db.rollback()
 

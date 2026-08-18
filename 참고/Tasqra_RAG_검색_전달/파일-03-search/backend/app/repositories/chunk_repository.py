@@ -12,12 +12,65 @@
 
 from __future__ import annotations
 
+import re
 from typing import Sequence
 
 from sqlalchemy import delete, func, select, text
 from sqlalchemy.orm import Session
 
 from app.models.chunk import DocumentChunk
+
+# 실행계획 안의 벡터 리터럴. EXPLAIN 은 바인드 파라미터를 못 받아서 1024개 숫자가
+# 문장에 그대로 박히고, 계획 출력에도 그대로 찍혀 화면을 덮는다.
+_VECTOR_LITERAL = re.compile(r"'\[[-0-9eE.,\s]{60,}\]'::vector")
+
+# 실행계획에서 판단에 필요한 줄. 이것만 남기면 사람이 읽을 수 있다.
+#   Index Scan / Seq Scan  — 무엇으로 훑었나 (벡터 인덱스를 썼나)
+#   Index Cond             — 조건이 인덱스 안에서 걸렸나 (원하는 것)
+#   Filter / Rows Removed  — 꺼낸 뒤 버렸나 (ef_search 낭비)
+#   Order By               — 벡터 인덱스로 정렬했나
+#   Sort Method            — 메모리 정렬로 떨어졌나
+#   Join Filter            — 조인으로 걸렀나 (리비전 0014 가 피하려던 것)
+_PLAN_KEEP = (
+    "Index Scan",
+    "Seq Scan",
+    "Bitmap",
+    "Index Cond",
+    "Filter:",
+    "Rows Removed",
+    "Order By:",
+    "Sort Method",
+    "Sort Key",
+    "Limit",
+    "Join",
+    "Nested Loop",
+    "Hash",
+    "Planning Time",
+    "Execution Time",
+)
+
+
+def mask_vector_literals(plan: str) -> str:
+    """실행계획에서 벡터 리터럴을 짧게 바꾼다."""
+    return _VECTOR_LITERAL.sub("'[...1024차원 생략...]'::vector", plan)
+
+
+def summarize_plan(plan: str) -> str:
+    """실행계획에서 판단에 필요한 줄만 남긴다.
+
+    Output: 줄(VERBOSE 가 만드는 컬럼 목록)과 Buffers 줄을 빼면 화면에 들어온다.
+    전문이 필요하면 explain_search(summary_only=False) 를 쓴다.
+    """
+    kept: list[str] = []
+    for line in plan.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith("Output:") or stripped.startswith("Buffers:"):
+            continue
+        if any(token in stripped for token in _PLAN_KEEP):
+            kept.append(line)
+    return "\n".join(kept) if kept else plan
 
 
 class ChunkRepository:
@@ -170,12 +223,17 @@ class ChunkRepository:
         embedding_model: str,
         limit: int,
         ef_search: int = 100,
+        summary_only: bool = True,
     ) -> str:
         """위 검색의 실행계획을 문자열로 돌려준다.
 
         리비전 0014(project_id 역정규화)를 넣은 근거가 "조건이 인덱스 스캔
         단계로 내려간다"는 것인데, 청크가 0행이던 동안에는 확인할 수 없었다.
         운영 코드에서 쓰는 것이 아니라 검증용이다.
+
+        summary_only 가 True 면 판단에 필요한 줄만 남긴다. 계획 전문에는 질의
+        벡터 1024개가 그대로 찍혀 화면이 덮인다 — 실제로 한 번 겪었다.
+        어느 쪽이든 벡터 리터럴은 마스킹한다.
         """
         if not project_ids:
             return "검색 범위가 비어 있어 계획을 낼 수 없다."
@@ -193,11 +251,15 @@ class ChunkRepository:
             .order_by(distance)
             .limit(limit)
         )
+        # literal_binds 로 벡터를 문장에 박아 넣는다. EXPLAIN 은 바인드 파라미터를
+        # 그대로 받지 못하기 때문이다. 그래서 계획에도 벡터가 찍힌다 -> 아래에서 마스킹.
         compiled = stmt.compile(
             self._db.get_bind(), compile_kwargs={"literal_binds": True}
         )
-        rows = self._db.execute(text(f"EXPLAIN ANALYZE {compiled}")).all()
-        return "\n".join(str(r[0]) for r in rows)
+        rows = self._db.execute(text(f"EXPLAIN (ANALYZE, BUFFERS) {compiled}")).all()
+        plan = "\n".join(str(r[0]) for r in rows)
+        plan = mask_vector_literals(plan)
+        return summarize_plan(plan) if summary_only else plan
 
     # --- 쓰기 ---------------------------------------------------------------
 
