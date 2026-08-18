@@ -1,9 +1,15 @@
 -- 검수 확정 후 다시 임베딩하기(RAG-09) 가 실제로 돌았는지 확인한다.
 --
--- 사용법 (Tasqra 폴더에서):
---   docker compose exec -T db psql -U postgres -d tasqra < C:\dev\deliver\도구\verify_rag09.sql
--- 또는 붙여넣기로:
---   docker compose exec db psql -U postgres -d tasqra
+-- 사용법 (Tasqra 폴더에서) — 파일을 컨테이너에 넣고 psql 이 직접 읽게 한다:
+--   docker compose cp C:\dev\deliver\도구\verify_rag09.sql db:/tmp/v.sql
+--   docker compose exec db psql -U postgres -d tasqra -f /tmp/v.sql
+--
+-- ⚠ PowerShell 에서 파이프나 리다이렉션으로 넣으면 한글이 깨진다
+--   · `psql < 파일` → PowerShell 은 `<` 를 지원하지 않는다 (예약 연산자)
+--   · `Get-Content 파일 | psql` → 읽은 문자열이 파이프를 지나며 다시 인코딩되는데
+--     PowerShell 5.1 의 $OutputEncoding 기본값이 ASCII 라서 한글이 전부 ? 가 된다.
+--     그러면 psql 이 `syntax error at or near "???"` 를 낸다.
+--   docker compose cp 는 바이트를 그대로 옮기므로 이 문제가 없다.
 --
 -- 사용자는 postgres 다 (tasqra 는 DB 이름). docker-compose.yml 의
 -- POSTGRES_USER: ${POSTGRES_USER:-postgres} 가 근거다.
