@@ -172,3 +172,32 @@ RAG-09 를 붙이면 달라진다. 검수에서 요소를 **전부 제외**하�
 - 청크가 길어지면 검색 품질이 어떻게 변하는지 재측정하지 않았다. 문맥이 늘어 좋아질
   것으로 보지만, 한 조각에 여러 주제가 섞이면 나빠질 수도 있다. `RAG-04` 질의
   3개로는 판단할 수 없다.
+
+
+## 10. 도커에서 확인할 때 걸린 것 두 가지
+
+### 워커는 코드를 다시 읽지 않는다
+
+`docker-compose.yml` 의 두 서비스가 다르다.
+
+| 서비스 | command | 코드 변경 반영 |
+|---|---|---|
+| api | `uvicorn ... --reload` | **자동** |
+| worker | `celery -A app.worker.celery_app worker` | **안 됨 — 재시작 필요** |
+
+볼륨(`./backend/app:/app/app`)으로 파일은 컨테이너 안에 들어가지만, 이미 뜬
+celery 프로세스는 옛 코드를 메모리에 들고 있다. `docker compose up -d` 는 설정이
+안 바뀌면 컨테이너를 그대로 두므로(`Running`) 아무 일도 일어나지 않는다.
+
+    docker compose restart worker
+
+RAG-09 에서 특히 중요하다. 건너뛰기 판정과 `CHARS_PER_TOKEN` 은 **워커 쪽**에서
+돌고, 라우터 한 줄만 api 쪽이다. 워커를 재시작하지 않으면 라우터는 새 코드로
+큐에 넣는데 워커는 옛 규칙으로 청킹한다.
+
+### DB 사용자는 postgres 다
+
+`tasqra` 는 **DB 이름**이고 사용자는 `postgres` 다.
+`docker-compose.yml` 의 `POSTGRES_USER: ${POSTGRES_USER:-postgres}` 가 근거다.
+
+    docker compose exec db psql -U postgres -d tasqra

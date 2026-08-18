@@ -1,9 +1,12 @@
 -- 검수 확정 후 다시 임베딩하기(RAG-09) 가 실제로 돌았는지 확인한다.
 --
 -- 사용법 (Tasqra 폴더에서):
---   docker compose exec -T db psql -U tasqra -d tasqra -f - < ..\..\deliver\도구\verify_rag09.sql
--- 또는 내용을 붙여넣기:
---   docker compose exec db psql -U tasqra -d tasqra
+--   docker compose exec -T db psql -U postgres -d tasqra < C:\dev\deliver\도구\verify_rag09.sql
+-- 또는 붙여넣기로:
+--   docker compose exec db psql -U postgres -d tasqra
+--
+-- 사용자는 postgres 다 (tasqra 는 DB 이름). docker-compose.yml 의
+-- POSTGRES_USER: ${POSTGRES_USER:-postgres} 가 근거다.
 --
 -- 핵심 판정 근거: 청크의 text_version 이 extracted_texts.text_version 보다
 -- 작으면 본문이 수정됐는데 재청킹이 안 된 것이다.
