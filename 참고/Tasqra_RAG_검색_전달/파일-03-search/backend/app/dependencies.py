@@ -111,23 +111,6 @@ def get_chunking_service(
     )
 
 
-def get_search_service(
-    db: Session = Depends(get_db),
-    chunk_repository: ChunkRepository = Depends(get_chunk_repository),
-    project_repository: ProjectRepository = Depends(get_project_repository),
-) -> SearchService:
-    # 임베딩 클라이언트는 lru_cache 로 프로세스당 하나다. 질의 임베딩과 문서
-    # 임베딩이 같은 구현체를 써야 같은 벡터 공간이 된다 — 다르면 거리 계산이
-    # 에러 없이 무의미해진다.
-    # ProjectRepository 는 검색 범위(멤버십)를 확인하는 데 쓴다.
-    return SearchService(
-        db=db,
-        chunk_repository=chunk_repository,
-        project_repository=project_repository,
-        embedding_client=get_embedding_client(),
-    )
-
-
 @lru_cache
 def get_ocr_extractor() -> OcrExtractor:
     # PaddleOCR은 모델 로딩 비용이 크므로 업로드 추출 파이프라인에서
@@ -177,6 +160,28 @@ def get_user_repository(db: Session = Depends(get_db)) -> UserRepository:
 
 def get_project_repository(db: Session = Depends(get_db)) -> ProjectRepository:
     return ProjectRepository(db)
+
+
+# get_search_service 는 get_project_repository 아래에 두어야 한다.
+# Depends(get_project_repository) 는 기본값이라 **함수를 정의하는 순간** 평가된다.
+# 위에 두면 임포트할 때 NameError 가 나고 앱이 아예 뜨지 않는다.
+# 실제로 그렇게 해서 api 컨테이너가 죽었다 — 문법 오류가 아니라 이름 해석
+# 문제라서 py_compile 로는 잡히지 않았다.
+def get_search_service(
+    db: Session = Depends(get_db),
+    chunk_repository: ChunkRepository = Depends(get_chunk_repository),
+    project_repository: ProjectRepository = Depends(get_project_repository),
+) -> SearchService:
+    # 임베딩 클라이언트는 lru_cache 로 프로세스당 하나다. 질의 임베딩과 문서
+    # 임베딩이 같은 구현체를 써야 같은 벡터 공간이 된다 — 다르면 거리 계산이
+    # 에러 없이 무의미해진다.
+    # ProjectRepository 는 검색 범위(멤버십)를 확인하는 데 쓴다.
+    return SearchService(
+        db=db,
+        chunk_repository=chunk_repository,
+        project_repository=project_repository,
+        embedding_client=get_embedding_client(),
+    )
 
 
 def get_auth_service(db: Session = Depends(get_db), users: UserRepository = Depends(get_user_repository)) -> AuthService:
