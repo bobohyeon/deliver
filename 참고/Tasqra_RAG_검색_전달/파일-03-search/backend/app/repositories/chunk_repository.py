@@ -12,6 +12,8 @@
 
 from __future__ import annotations
 
+from typing import Sequence
+
 from sqlalchemy import delete, func, select, text
 from sqlalchemy.orm import Session
 
@@ -61,70 +63,109 @@ class ChunkRepository:
 
     # --- 벡터 검색 (RAG-04) --------------------------------------------------
 
+    def _scope_condition(self, project_ids: Sequence[int]):
+        """프로젝트 범위 조건을 만든다.
+
+        하나면 등호(=), 여럿이면 IN 으로 낸다. 굳이 나누는 이유는 등호 계획만
+        실행계획으로 확인했기 때문이다. 가장 흔한 경우(현재 프로젝트만 검색)가
+        검증된 계획을 그대로 쓰게 하려는 것이다. IN 목록도 같게 처리되는지는
+        도구/explain_rag_search.sql 로 확인한다.
+        """
+        if len(project_ids) == 1:
+            return DocumentChunk.project_id == project_ids[0]
+        return DocumentChunk.project_id.in_(list(project_ids))
+
+    def _apply_scan_settings(self, ef_search: int) -> None:
+        """벡터 검색용 세션 파라미터를 이 트랜잭션에만 설정한다.
+
+        SET LOCAL 은 현재 트랜잭션에서만 유효하다. 세션 전체나 다른 요청에
+        영향을 주지 않고, 커밋·롤백되면 원래 값으로 돌아간다.
+
+        iterative_scan: pgvector 0.8 부터 있다. 조건 때문에 후보가 모자라면
+          인덱스를 더 훑어 온다. strict_order 는 거리 순서를 보장한다
+          (relaxed_order 는 더 빠르지만 순서가 약간 어긋날 수 있다).
+        ef_search: 한 번에 꺼내 오는 후보 수. 기본 40 은 프로젝트 필터가
+          걸린 상황에서 너무 적다.
+
+        Spring 비교: JPA 에 대응물이 없어 EntityManager 로 세션 파라미터를
+          직접 실행하는 것에 해당한다.
+        """
+        self._db.execute(text("SET LOCAL hnsw.iterative_scan = strict_order"))
+        # ef_search 는 정수로 강제한 뒤 문장에 넣는다. SET 은 바인드 파라미터를
+        # 받지 않기 때문이고, int() 를 거치므로 주입 여지가 없다.
+        self._db.execute(text(f"SET LOCAL hnsw.ef_search = {int(ef_search)}"))
+
     def search_by_vector(
         self,
         *,
-        project_id: int,
+        project_ids: Sequence[int],
         vector: list[float],
         embedding_model: str,
         limit: int,
         document_id: int | None = None,
         ef_search: int = 100,
-    ) -> list[tuple[DocumentChunk, str, float]]:
-        """프로젝트 안에서 벡터가 가까운 청크를 찾는다.
+    ) -> list[tuple[DocumentChunk, str, int, str, float]]:
+        """지정한 프로젝트들 안에서 벡터가 가까운 청크를 찾는다.
 
-        (청크, 문서 파일명, 코사인 거리) 를 거리 오름차순으로 돌려준다.
-        거리는 0 에 가까울수록 비슷하다. 유사도로 바꾸는 것은 서비스가 한다.
+        (청크, 문서 파일명, 프로젝트 id, 프로젝트 이름, 코사인 거리) 를 거리
+        오름차순으로 돌려준다. 거리는 0 에 가까울수록 비슷하다. 유사도로 바꾸는
+        것은 서비스가 한다.
 
-        조건이 두 개인 것이 중요하다.
+        프로젝트 이름을 조인으로 함께 가져오는 것이 중요하다. 서비스에서
+        chunk.document.project.name 으로 접근하면 결과마다 두 단계 지연로딩이
+        일어나 N+1 이 된다.
 
-        1. project_id — "다른 프로젝트 문서는 나오지 않는다"(RAG-04 판정 기준)를
-           만족시킨다. 조인이 아니라 document_chunks 자신의 컬럼으로 거는 이유가
-           리비전 0014 다. HNSW 인덱스 스캔은 ef_search 개만 꺼내고 나서 조건을
-           검사하므로, 조인 조건이면 프로젝트가 작을 때 결과가 조용히 적게 나온다.
-           같은 테이블 조건이어야 iterative_scan 이 그 조건을 스캔 단계에서
-           평가하고, 부족하면 더 꺼내 온다.
+        조건이 두 개인 것도 중요하다.
+
+        1. project_id — "내가 멤버가 아닌 프로젝트는 나오지 않는다"(RAG-04
+           판정 기준)를 만족시킨다. 조인이 아니라 document_chunks 자신의 컬럼으로
+           거는 이유가 리비전 0014 다. HNSW 인덱스 스캔은 ef_search 개만 꺼내고
+           나서 조건을 검사하므로, 조인 조건이면 프로젝트가 작을 때 결과가 조용히
+           적게 나온다. 같은 테이블 조건이어야 iterative_scan 이 그 조건을 스캔
+           단계에서 평가하고, 부족하면 더 꺼내 온다.
 
         2. embedding_model — 이게 없으면 조용히 틀린다. 모델을 바꾸거나 가짜
            임베더로 만든 청크가 섞여 있으면 서로 다른 벡터 공간의 값을 비교하게
            된다. 거리 계산은 에러 없이 성공하고 숫자도 나오지만 그 숫자에 의미가
            없다. ix_chunk_model (embedding_model, document_id) 인덱스가 이 조회용
            으로 만들어져 있다.
-
-        Spring 비교: @Query 로 네이티브 SQL 을 쓰는 리포지토리 메서드다.
-          SET LOCAL 은 JPA 에 대응물이 없어 EntityManager 로 세션 파라미터를
-          직접 실행하는 것에 해당한다.
         """
-        # SET LOCAL 은 현재 트랜잭션에서만 유효하다. 세션 전체나 다른 요청에
-        # 영향을 주지 않는다. 커밋·롤백되면 원래 값으로 돌아간다.
-        #
-        # iterative_scan: pgvector 0.8 부터 있다. 조건 때문에 후보가 모자라면
-        #   인덱스를 더 훑어 온다. strict_order 는 거리 순서를 보장한다
-        #   (relaxed_order 는 더 빠르지만 순서가 약간 어긋날 수 있다).
-        # ef_search: 한 번에 꺼내 오는 후보 수. 기본 40 은 프로젝트 필터가
-        #   걸린 상황에서 너무 적다.
-        self._db.execute(text("SET LOCAL hnsw.iterative_scan = strict_order"))
-        self._db.execute(text(f"SET LOCAL hnsw.ef_search = {int(ef_search)}"))
+        if not project_ids:
+            # 멤버십이 없으면 검색할 범위가 없다. 쿼리를 내지 않는다.
+            return []
+
+        self._apply_scan_settings(ef_search)
 
         from app.models.document import Document
+        from app.models.project import Project
 
         distance = DocumentChunk.embedding.cosine_distance(vector).label("distance")
         stmt = (
-            select(DocumentChunk, Document.filename, distance)
+            select(
+                DocumentChunk,
+                Document.filename,
+                Project.id,
+                Project.name,
+                distance,
+            )
             .join(Document, Document.id == DocumentChunk.document_id)
-            .where(DocumentChunk.project_id == project_id)
+            .join(Project, Project.id == DocumentChunk.project_id)
+            .where(self._scope_condition(project_ids))
             .where(DocumentChunk.embedding_model == embedding_model)
         )
         if document_id is not None:
             stmt = stmt.where(DocumentChunk.document_id == document_id)
         stmt = stmt.order_by(distance).limit(limit)
 
-        return [(row[0], row[1], float(row[2])) for row in self._db.execute(stmt).all()]
+        return [
+            (row[0], row[1], int(row[2]), row[3], float(row[4]))
+            for row in self._db.execute(stmt).all()
+        ]
 
     def explain_search(
         self,
         *,
-        project_id: int,
+        project_ids: Sequence[int],
         vector: list[float],
         embedding_model: str,
         limit: int,
@@ -136,8 +177,10 @@ class ChunkRepository:
         단계로 내려간다"는 것인데, 청크가 0행이던 동안에는 확인할 수 없었다.
         운영 코드에서 쓰는 것이 아니라 검증용이다.
         """
-        self._db.execute(text("SET LOCAL hnsw.iterative_scan = strict_order"))
-        self._db.execute(text(f"SET LOCAL hnsw.ef_search = {int(ef_search)}"))
+        if not project_ids:
+            return "검색 범위가 비어 있어 계획을 낼 수 없다."
+
+        self._apply_scan_settings(ef_search)
 
         from app.models.document import Document
 
@@ -145,7 +188,7 @@ class ChunkRepository:
         stmt = (
             select(DocumentChunk.id, DocumentChunk.seq, Document.filename, distance)
             .join(Document, Document.id == DocumentChunk.document_id)
-            .where(DocumentChunk.project_id == project_id)
+            .where(self._scope_condition(project_ids))
             .where(DocumentChunk.embedding_model == embedding_model)
             .order_by(distance)
             .limit(limit)

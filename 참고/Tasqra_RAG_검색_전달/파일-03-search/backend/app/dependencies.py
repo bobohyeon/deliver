@@ -114,13 +114,16 @@ def get_chunking_service(
 def get_search_service(
     db: Session = Depends(get_db),
     chunk_repository: ChunkRepository = Depends(get_chunk_repository),
+    project_repository: ProjectRepository = Depends(get_project_repository),
 ) -> SearchService:
     # 임베딩 클라이언트는 lru_cache 로 프로세스당 하나다. 질의 임베딩과 문서
     # 임베딩이 같은 구현체를 써야 같은 벡터 공간이 된다 — 다르면 거리 계산이
     # 에러 없이 무의미해진다.
+    # ProjectRepository 는 검색 범위(멤버십)를 확인하는 데 쓴다.
     return SearchService(
         db=db,
         chunk_repository=chunk_repository,
+        project_repository=project_repository,
         embedding_client=get_embedding_client(),
     )
 
