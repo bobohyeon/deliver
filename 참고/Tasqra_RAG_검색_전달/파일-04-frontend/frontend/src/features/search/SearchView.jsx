@@ -153,8 +153,43 @@ function FakeEmbeddingNotice() {
   </section>
 }
 
+// 문서 하나에서 펼쳐 보여줄 조각 수. 나머지는 접어 둔다.
+// 긴 문서 하나가 목록을 독점하는 것을 막는 것이 목적이다 — 45,000자 문서면
+// 상위 20개가 그 문서 조각으로만 채워질 수 있다.
+const CHUNKS_SHOWN_PER_DOCUMENT = 2
+
+/**
+ * 결과를 문서별로 묶는다. 순서는 "그 문서의 가장 좋은 조각이 나온 순서"다.
+ *
+ * 서버가 문서가 아니라 조각을 돌려주는 것은 맞다 — 프롬프트 컨텍스트 조립
+ * (RAG-07)은 같은 문서에서 여러 조각을 골라 넣어야 하고, 근거 인용(RAG-08)도
+ * 조각 단위여야 의미가 있다. 묶는 것은 화면의 일이다.
+ */
+function groupByDocument(results) {
+  const order = []
+  const groups = new Map()
+  for (const item of results) {
+    let group = groups.get(item.document_id)
+    if (!group) {
+      group = {
+        document_id: item.document_id,
+        filename: item.document_filename,
+        project_id: item.project_id,
+        project_name: item.project_name,
+        items: [],
+      }
+      groups.set(item.document_id, group)
+      order.push(item.document_id)
+    }
+    group.items.push(item)
+  }
+  return order.map(id => groups.get(id))
+}
+
 function SearchResults({ response, lastQuery, currentProjectId, onOpen }) {
   const { results, total, took_ms, searched_project_ids } = response
+  // 어느 문서를 펼쳤는지. document_id 를 담는다.
+  const [expanded, setExpanded] = useState(() => new Set())
   // 범위가 여러 프로젝트면 결과마다 프로젝트 이름을 보여야 한다. 한 곳이면
   // 모든 줄에 같은 이름이 반복되어 시선만 방해한다.
   const showProject = searched_project_ids.length > 1
@@ -170,13 +205,25 @@ function SearchResults({ response, lastQuery, currentProjectId, onOpen }) {
     </section>
   }
 
+  const groups = groupByDocument(results)
+
+  function toggle(documentId) {
+    setExpanded(previous => {
+      const next = new Set(previous)
+      if (next.has(documentId)) next.delete(documentId)
+      else next.add(documentId)
+      return next
+    })
+  }
+
   return <section className='panel search-results'>
     <div className='panel-head'>
       <div>
         <h2>검색 결과</h2>
         <p>"{lastQuery}" 와 뜻이 가까운 순서입니다.</p>
       </div>
-      <span>{total}건</span>
+      {/* 조각 수만 세면 "문서 4개" 로 오해한다. 둘을 나눠 보여준다. */}
+      <span>문서 {groups.length}개 · 조각 {total}건</span>
     </div>
 
     <p className='search-meta'>
@@ -184,18 +231,56 @@ function SearchResults({ response, lastQuery, currentProjectId, onOpen }) {
       {response.embedding_model && <> · 모델 <code>{response.embedding_model}</code></>}
     </p>
 
-    <ol className='search-result-list'>
-      {results.map(result => <ResultRow
-        key={result.chunk_id}
-        result={result}
+    <ul className='search-doc-list'>
+      {groups.map(group => <DocumentGroup
+        key={group.document_id}
+        group={group}
         showProject={showProject}
-        isOtherProject={result.project_id !== currentProjectId}
+        isOtherProject={group.project_id !== currentProjectId}
+        open={expanded.has(group.document_id)}
+        onToggle={() => toggle(group.document_id)}
         onOpen={onOpen}/>)}
-    </ol>
+    </ul>
   </section>
 }
 
-function ResultRow({ result, showProject, isOtherProject, onOpen }) {
+function DocumentGroup({ group, showProject, isOtherProject, open, onToggle, onOpen }) {
+  const shown = open ? group.items : group.items.slice(0, CHUNKS_SHOWN_PER_DOCUMENT)
+  const hidden = group.items.length - shown.length
+  // 문서의 대표 유사도는 가장 좋은 조각 것이다. 서버가 거리 오름차순으로 주므로
+  // 첫 조각이 가장 가깝다.
+  const best = Math.round(group.items[0].similarity * 100)
+
+  return <li className='search-doc'>
+    <div className='search-doc-head'>
+      <button
+        type='button'
+        className='search-doc-title'
+        onClick={() => onOpen(group.items[0])}
+        title='문서 상세로 이동'>
+        {group.filename}
+      </button>
+      {showProject && <span className={'search-result-project' + (isOtherProject ? ' is-other' : '')}>
+        {group.project_name}
+      </span>}
+      <span className='search-doc-count'>조각 {group.items.length}개 · 최고 {best}%</span>
+    </div>
+
+    <ol className='search-result-list'>
+      {shown.map(item => <ResultRow key={item.chunk_id} result={item} onOpen={onOpen}/>)}
+    </ol>
+
+    {hidden > 0 && <button type='button' className='search-doc-more' onClick={onToggle}>
+      이 문서에서 {hidden}건 더 보기
+    </button>}
+    {open && group.items.length > CHUNKS_SHOWN_PER_DOCUMENT && <button
+      type='button' className='search-doc-more' onClick={onToggle}>
+      접기
+    </button>}
+  </li>
+}
+
+function ResultRow({ result, onOpen }) {
   // 유사도는 0~1 이 정상 범위다. 백분율로 보여 주면 읽기 쉽다.
   const percent = Math.round(result.similarity * 100)
   // snippet 이 잘렸는지는 char_count 와 비교해 안다 (서버가 220자로 자른다).
@@ -203,13 +288,6 @@ function ResultRow({ result, showProject, isOtherProject, onOpen }) {
 
   return <li className='search-result'>
     <button type='button' className='search-result-body' onClick={() => onOpen(result)}>
-      <div className='search-result-head'>
-        <span className='search-result-file'>{result.document_filename}</span>
-        {showProject && <span className={'search-result-project' + (isOtherProject ? ' is-other' : '')}>
-          {result.project_name}
-        </span>}
-      </div>
-
       <p className='search-result-snippet'>
         {result.snippet}{truncated && <span className='search-result-more'> …</span>}
       </p>
