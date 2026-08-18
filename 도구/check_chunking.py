@@ -94,19 +94,27 @@ def run(backend: Path, corpus: Path) -> int:
     print(f"CHARS_PER_TOKEN = {chunking.CHARS_PER_TOKEN} (chunking.py 현재 값)")
     print("=" * 78)
 
-    max_tokens, min_tokens, overlap = 480, 48, 48
+    max_tokens, overlap = 480, 48
+    # 비교 기준. 실측 전 설정이다. 비율은 틀렸지만 조각 경계는 이것이 옳았고,
+    # 그 경계에서 RAG-04 품질(정답 1위 53% / 39% / 55%)을 확인했다.
+    LEGACY = (1.2, 48)
+    CURRENT = (chunking.CHARS_PER_TOKEN, chunking.MIN_TOKENS)
     all_problems: list[str] = []
     checked = 0
+
+    print(f"기준 비교 — 옛 설정 {LEGACY}  vs  지금 {CURRENT}")
+    print(f"  흡수 기준: {round(LEGACY[0] * LEGACY[1])}자 미만"
+          f"  vs  {round(CURRENT[0] * CURRENT[1])}자 미만")
 
     for path in files:
         content = path.read_text(encoding="utf-8")
         units = chunking.units_from_plain_text(content)
 
         print(f"\n{path.name}  ({len(content):,}자 · 줄 {len(units)}개)")
-        print(f"  {'비율':>6}  {'조각':>4}  {'최대글자':>8}  {'최대추정토큰':>12}  {'실토큰(1.89기준)':>16}")
+        print(f"  {'비율':>6} {'min':>4}  {'조각':>4}  {'최대글자':>8}  {'최대추정토큰':>12}  {'실토큰(1.89)':>13}")
 
-        rows = []
-        for ratio in (1.2, chunking.CHARS_PER_TOKEN):
+        boundaries = {}
+        for ratio, min_tokens in (LEGACY, CURRENT):
             counter = chunking.CharRatioTokenCounter(ratio)
             chunks = chunking.chunk_units(
                 units,
@@ -116,7 +124,9 @@ def run(backend: Path, corpus: Path) -> int:
                 overlap_tokens=overlap,
             )
             checked += 1
-            all_problems += check_invariants(chunks, content, max_tokens, f"{path.name}@{ratio}")
+            label = f"{path.name}@{ratio}/{min_tokens}"
+            all_problems += check_invariants(chunks, content, max_tokens, label)
+            boundaries[(ratio, min_tokens)] = [c.content_start for c in chunks]
 
             if chunks:
                 widest = max(c.char_count for c in chunks)
@@ -125,15 +135,21 @@ def run(backend: Path, corpus: Path) -> int:
                 real = round(widest / 1.89)
             else:
                 widest = tokens = real = 0
-            rows.append((ratio, len(chunks), widest, tokens, real))
-            print(f"  {ratio:>6}  {len(chunks):>4}  {widest:>8,}  {tokens:>12}  {real:>16,}")
+            print(f"  {ratio:>6} {min_tokens:>4}  {len(chunks):>4}  {widest:>8,}"
+                  f"  {tokens:>12}  {real:>13,}")
 
-        # 값을 키우면 청크가 줄거나 같아야 한다 (같은 글자를 더 큰 조각에 담으므로).
-        before, after = rows[0], rows[-1]
-        if after[0] > before[0] and after[1] > before[1]:
+        # 핵심 불변식: 조각 경계가 옛 설정과 같아야 한다.
+        #
+        # 왜 이걸 보는가. min_tokens 는 CHARS_PER_TOKEN 과 곱해져 "몇 자 미만을
+        # 흡수하는가"로 동작한다. 그래서 비율만 고치면 흡수 정책이 조용히 넓어져
+        # 짧은 절이 옆 절에 삼켜진다. 실제로 2026-08-18 에 그 회귀가 났다 —
+        # "돈은 언제 받나요" 의 정답("4. 대금 지급")이 1위에서 2위로 밀렸다.
+        # 조각 시작 위치가 같으면 그 회귀가 없다는 뜻이다.
+        old, new = boundaries[LEGACY], boundaries[CURRENT]
+        if old != new:
             all_problems.append(
-                f"{path.name}: 비율을 {before[0]} -> {after[0]} 로 키웠는데 조각이"
-                f" {before[1]} -> {after[1]} 로 늘었다 (줄거나 같아야 한다)"
+                f"{path.name}: 조각 경계가 옛 설정과 다르다 — "
+                f"옛 {len(old)}개 {old} vs 지금 {len(new)}개 {new}"
             )
 
     print("\n" + "=" * 78)
