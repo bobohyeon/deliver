@@ -1,0 +1,53 @@
+# =============================================================================
+# 이 파일의 책임: 실제 임베딩 모델을 붙여 볼 때만 쓰는 개인 설정이다.
+#   docker-compose.yml 을 고치지 않고 값만 덮어쓴다.
+#
+#   Docker Compose 는 docker-compose.override.yml 이 있으면 자동으로 읽어
+#   docker-compose.yml 과 병합한다. 별도 옵션이 필요 없다.
+#   environment 가 map 형식(KEY: value)이므로 같은 키는 덮어쓰고 새 키는 더한다.
+#
+# 왜 이 방식인가
+#   · docker-compose.yml 은 팀 공유 파일이다. 고치면 실수로 커밋할 위험이 있고,
+#     손으로 되돌리다 빠뜨릴 수도 있다.
+#   · 이 파일은 tracked 가 아니라 untracked(??)로만 남는다. 커밋 명령에서 파일을
+#     명시하고 있으므로 섞여 들어갈 일이 없다.
+#   · 실험이 끝나면 파일 하나만 지우면 원래대로다.
+#
+# 사용법
+#   copy C:\dev\deliver\도구\docker-compose.override.yml C:\dev\Tesqra\Tasqra\
+#   cd C:\dev\Tesqra\Tasqra
+#   docker compose up -d api worker
+#
+#   끝나면:
+#   del docker-compose.override.yml
+#   docker compose up -d api worker
+#
+# ⚠ restart 가 아니라 up -d 다
+#   docker compose restart 는 환경변수를 다시 읽지 않는다. 컨테이너를 다시
+#   만들어야 하므로 up -d 를 쓴다.
+#
+# ⚠ 이 파일을 두고 임베딩 서버를 안 띄우면 청킹·검색이 실패한다
+#   USE_FAKE_EMBEDDING=false 인데 8900 포트에 아무것도 없으면 연결 거부가 난다.
+#   서버를 안 띄울 때는 이 파일을 지운다.
+# =============================================================================
+
+services:
+  api:
+    environment:
+      # 문자열로 감싼다. YAML 의 false 는 불리언이 되어 경고가 날 수 있다.
+      USE_FAKE_EMBEDDING: "false"
+      # 컨테이너에서 호스트를 보는 이름. 호스트에 띄운 embed_server.py 를 가리킨다.
+      EMBEDDING_BASE_URL: "http://host.docker.internal:8900/v1"
+      # document_chunks.embedding_model 에 이 이름이 기록된다. 검색이
+      # WHERE embedding_model = 이 값 으로 걸리므로, 바꾸면 청킹을 다시 돌려야 한다.
+      EMBEDDING_MODEL: "dragonkue/BGE-m3-ko"
+
+  worker:
+    environment:
+      USE_FAKE_EMBEDDING: "false"
+      EMBEDDING_BASE_URL: "http://host.docker.internal:8900/v1"
+      EMBEDDING_MODEL: "dragonkue/BGE-m3-ko"
+    # Windows·Mac 의 Docker Desktop 은 host.docker.internal 을 기본 제공하므로
+    # 아래 줄이 없어도 된다. Linux 에서만 필요하다 (api 에는 이미 있다).
+    # extra_hosts:
+    #   - "host.docker.internal:host-gateway"
