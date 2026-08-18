@@ -274,11 +274,18 @@ def main() -> None:
             print(service.explain(user_id, SearchRequest(query="대금", project_ids=member_ids, limit=5)))
 
         print()
-        print("  판단 기준")
-        print("    · 둘 다 Index Cond 에 project_id 가 있으면 -> IN 도 = 와 같게 처리된다")
-        print("    · IN 만 Filter: project_id = ANY (...) 로 빠지면")
-        print("      -> 전체 검색은 프로젝트별로 나눠 질의하고 병합해야 한다")
-        print("    · Index Scan using ix_chunk_vec 가 보이면 벡터 인덱스를 쓴 것이다")
+        print("  판단 기준 (2026-08-18 실측으로 정정됨)")
+        print("    project_id 가 Index Cond 로 나오기를 기대하면 안 된다. HNSW 인덱스에는")
+        print("    벡터 컬럼만 들어 있어 구조적으로 불가능하다. 근사 인덱스는 후보를 먼저")
+        print("    만들고 그 다음 WHERE 를 적용하므로 project_id 는 항상 Filter 다.")
+        print()
+        print("    보아야 할 것은 그 Filter 가 어느 노드에 붙는가다.")
+        print("      · Index Scan using ix_chunk_vec 의 Filter  -> 좋다.")
+        print("        부족하면 iterative_scan 이 인덱스를 더 훑는다")
+        print("      · 위 노드의 Join Filter                     -> 나쁘다.")
+        print("        HNSW 는 부족한 줄 모르고 결과가 조용히 적어진다")
+        print("      · Rows Removed by Filter 가 선택도에 비례하면 iterative_scan 이 일한 것")
+        print("      · Sort Method 가 보이면 인덱스를 못 쓰고 메모리 정렬로 떨어진 것")
 
         db.rollback()
 

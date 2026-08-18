@@ -18,11 +18,20 @@
 --   그래서 여기서는 enable_seqscan 을 끄고 "인덱스를 쓴다면 어떤 모양인지"를 본다.
 --   실제 성능 수치는 도구/seed_bulk_chunks.sql 로 합성 청크를 넣은 뒤 봐야 한다.
 --
--- 읽는 방법 — Index Scan 노드에서
---   "Order By: (embedding <=> ...)"        <- 벡터 인덱스로 정렬한다
---   "Index Cond: (project_id = 1)"         <- 조건이 인덱스 안에서 걸러진다 (좋다)
---   "Filter: (project_id = 1)"             <- 인덱스로 꺼낸 뒤 걸러낸다
---   + "Rows Removed by Filter: N"          <- N 이 크면 ef_search 를 낭비하고 있다
+-- 읽는 방법 (2026-08-18 실측으로 정정)
+--   project_id 가 "Index Cond" 로 나오기를 기대하면 안 된다. HNSW 인덱스에는 벡터
+--   컬럼만 들어 있어 구조적으로 불가능하다. pgvector 문서대로 근사 인덱스는
+--   ef_search 개의 후보를 먼저 만들고 그 다음 WHERE 를 적용하므로,
+--   project_id 는 항상 "Filter" 로 나온다. 그것이 정상이다.
+--
+--   보아야 할 것은 그 Filter 가 어느 노드에 붙는가다.
+--     "Index Scan using ix_chunk_vec" 노드의 Filter  -> 좋다. 살아남은 행이 부족하면
+--                                                      iterative_scan 이 더 훑는다
+--     그 위 노드의 "Join Filter"                     -> 나쁘다. HNSW 는 부족한 줄
+--                                                      모르고 결과가 조용히 적어진다
+--     "Order By: (embedding <=> ...)"                 -> 벡터 인덱스로 정렬했다
+--     "Rows Removed by Filter: N"                     -> 선택도에 비례하면 정상 동작
+--     "Sort Method: top-N heapsort"                   -> 인덱스를 못 쓰고 메모리 정렬
 --
 -- 실행 방법 (PowerShell)
 --   docker compose cp C:\dev\deliver\도구\explain_rag_search.sql db:/tmp/explain.sql
@@ -147,12 +156,10 @@ SELECT c.project_id AS prj, count(*) AS 청크 FROM document_chunks c GROUP BY 1
 \echo '======================================================================'
 \echo '읽는 방법'
 \echo '======================================================================'
-\echo '  1번과 2번의 Index Scan 노드를 비교한다.'
-\echo '    · 둘 다 "Index Cond" 에 project_id 가 있으면 -> IN 도 = 와 같게 처리된다'
-\echo '    · 2번만 "Filter: project_id = ANY (...)" 로 빠지면'
-\echo '      -> 전체 검색은 별도 대책이 필요하다 (프로젝트별로 나눠 질의 후 병합 등)'
-\echo '  3번(조인)에서는 조건이 document_chunks 스캔 단계에 없을 것이다.'
-\echo '    그것이 리비전 0014 를 넣은 이유다.'
+\echo '  1번과 2번은 실측에서 계획이 같았다 (둘 다 ix_chunk_vec 스캔 + Filter).'
+\echo '  3번(조인)에서는 조건이 document_chunks 스캔 노드 밖에 붙는다.'
+\echo '    Rows Removed by Join Filter 로 나타난다. 그것이 0014 를 넣은 이유다.'
+\echo '  project_id 가 Index Cond 로 나오는 일은 없다 - HNSW 에는 벡터만 색인된다.'
 \echo ''
 \echo '  행이 적어 계획이 무의미해 보이면 도구/seed_bulk_chunks.sql 로'
 \echo '  합성 청크를 넣고 다시 돌린다.'

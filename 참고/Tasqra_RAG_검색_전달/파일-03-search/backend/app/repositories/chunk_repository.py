@@ -25,12 +25,25 @@ from app.models.chunk import DocumentChunk
 _VECTOR_LITERAL = re.compile(r"'\[[-0-9eE.,\s]{60,}\]'::vector")
 
 # 실행계획에서 판단에 필요한 줄. 이것만 남기면 사람이 읽을 수 있다.
-#   Index Scan / Seq Scan  — 무엇으로 훑었나 (벡터 인덱스를 썼나)
-#   Index Cond             — 조건이 인덱스 안에서 걸렸나 (원하는 것)
-#   Filter / Rows Removed  — 꺼낸 뒤 버렸나 (ef_search 낭비)
+#
+# ⚠ 읽는 법을 착각하기 쉽다. project_id 가 "Index Cond" 로 나오기를 기대하면 안 된다.
+#   HNSW 인덱스에는 벡터 컬럼만 들어 있으므로 project_id 는 구조적으로 Index Cond
+#   가 될 수 없다. 근사 인덱스는 ef_search 개의 후보를 먼저 만들고 그 다음에
+#   WHERE 를 적용한다 (pgvector 문서: "filtering is applied after the index is
+#   scanned"). 그래서 project_id 는 항상 "Filter" 로 나온다. 그것이 정상이다.
+#
+#   중요한 것은 그 Filter 가 **어느 노드에 붙는가** 다.
+#     · Index Scan using ix_chunk_vec 노드의 Filter  -> iterative_scan 이 부족분을
+#       감지해 인덱스를 더 훑는다. 우리가 원하는 상태다.
+#     · 그 위 노드(Nested Loop · Hash Join)의 Join Filter -> HNSW 스캔은 자기가
+#       걸러졌다는 것을 모르므로 더 꺼내오지 않는다. 결과가 조용히 적어진다.
+#       리비전 0014 가 피하려던 것이 정확히 이것이다.
+#
+#   Index Scan / Seq Scan  — 무엇으로 훑었나 (ix_chunk_vec 이면 벡터 인덱스)
 #   Order By               — 벡터 인덱스로 정렬했나
-#   Sort Method            — 메모리 정렬로 떨어졌나
-#   Join Filter            — 조인으로 걸렀나 (리비전 0014 가 피하려던 것)
+#   Filter / Rows Removed  — 어느 노드에서 걸렀나, 얼마나 버렸나
+#   Sort Method            — 인덱스를 못 쓰고 메모리 정렬로 떨어졌나
+#   Join Filter            — 조인 밖에서 걸렀나 (0014 가 피하려던 것)
 _PLAN_KEEP = (
     "Index Scan",
     "Seq Scan",
@@ -119,10 +132,19 @@ class ChunkRepository:
     def _scope_condition(self, project_ids: Sequence[int]):
         """프로젝트 범위 조건을 만든다.
 
-        하나면 등호(=), 여럿이면 IN 으로 낸다. 굳이 나누는 이유는 등호 계획만
-        실행계획으로 확인했기 때문이다. 가장 흔한 경우(현재 프로젝트만 검색)가
-        검증된 계획을 그대로 쓰게 하려는 것이다. IN 목록도 같게 처리되는지는
-        도구/explain_rag_search.sql 로 확인한다.
+        하나면 등호(=), 여럿이면 IN 으로 낸다.
+
+        원래는 "등호 계획만 검증했으니 흔한 경우가 검증된 계획을 쓰게 한다"는
+        이유였다. 그런데 실측(2026-08-18, 청크 6,016개)에서 **둘의 계획이 같았다** —
+        양쪽 다 ix_chunk_vec 인덱스 스캔에 Filter 가 붙는다.
+
+            =  : Filter: ((project_id = 1) AND (embedding_model = ...))
+            IN : Filter: ((project_id = ANY ('{1,2}')) AND (embedding_model = ...))
+
+        그래서 지금은 나눌 필요가 없다. 그래도 남겨 두는 이유는 두 가지다.
+          · 등호가 계획에서 읽기 쉽다 (디버깅할 때 눈에 바로 들어온다)
+          · PostgreSQL 이나 pgvector 판이 올라가 둘이 갈리면 흔한 경우가
+            영향을 덜 받는다
         """
         if len(project_ids) == 1:
             return DocumentChunk.project_id == project_ids[0]
@@ -172,10 +194,20 @@ class ChunkRepository:
 
         1. project_id — "내가 멤버가 아닌 프로젝트는 나오지 않는다"(RAG-04
            판정 기준)를 만족시킨다. 조인이 아니라 document_chunks 자신의 컬럼으로
-           거는 이유가 리비전 0014 다. HNSW 인덱스 스캔은 ef_search 개만 꺼내고
-           나서 조건을 검사하므로, 조인 조건이면 프로젝트가 작을 때 결과가 조용히
-           적게 나온다. 같은 테이블 조건이어야 iterative_scan 이 그 조건을 스캔
-           단계에서 평가하고, 부족하면 더 꺼내 온다.
+           거는 이유가 리비전 0014 다.
+
+           HNSW 는 근사 인덱스라서 ef_search 개의 후보를 먼저 만들고 그 다음에
+           WHERE 를 적용한다. 그래서 조건이 어느 노드에 붙는지가 갈린다.
+             · document_chunks 자신의 컬럼이면 -> HNSW 스캔 노드의 Filter 가 되고,
+               살아남은 행이 LIMIT 에 못 미치면 iterative_scan 이 인덱스를 더 훑는다.
+             · 조인 조건이면 -> 그 위 노드에서 걸러지므로 HNSW 스캔은 부족한 줄을
+               모르고 더 꺼내오지 않는다. 프로젝트가 작을 때 결과가 조용히 적어진다.
+
+           실측(2026-08-18, 청크 6,016개)으로 확인했다.
+             = (프로젝트 1, 약 1/3): ix_chunk_vec · Filter · Rows Removed 12 · 3.5ms
+             IN (1+2, 약 2/3)     : ix_chunk_vec · Filter · Rows Removed 3  · 4.6ms
+             조인 대조군          : Rows Removed by Join Filter 16 (청크 스캔 밖)
+           버린 행 수가 선택도에 비례한다 — iterative_scan 이 일하고 있다는 뜻이다.
 
         2. embedding_model — 이게 없으면 조용히 틀린다. 모델을 바꾸거나 가짜
            임베더로 만든 청크가 섞여 있으면 서로 다른 벡터 공간의 값을 비교하게
