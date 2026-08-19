@@ -199,35 +199,75 @@ WHERE a.analyzer_type = 'amount';
 SELECT name FROM projects WHERE name LIKE '[TEST] 선례%' ORDER BY name;
 
 \echo ''
-\echo '=== 특급기술자 선례가 될 항목 (APPROVED · EDITED · 단가 있음) ==='
+\echo '=== 화면에 나올 선례 (조회 조건 네 개를 모두 적용) ==='
+--
+-- 조건 네 개를 서비스와 똑같이 적용한다. 처음에는 멤버십 조건을 빼고 썼는데,
+-- 그러면 내가 멤버가 아닌 '[TEST] 남의 프로젝트' 의 99,000,000 이 목록에 나온다.
+-- 그것을 보고 "격리가 깨졌다" 고 읽게 되는데 **사실이 아니다** — 격리는
+-- amount_items 가 아니라 services/amount_precedent_service._resolve_scope() 가
+-- project_members 를 보고 하는 일이다.
+--
+-- 확인 쿼리가 검증하지 못하는 것을 검증한다고 말하면 안 된다. 그래서 여기서
+-- 멤버십과 현재 프로젝트 제외까지 그대로 흉내낸다.
 SELECT p.name AS 프로젝트, ai.unit_price AS 단가, ai.quantity AS 수량,
        ai.unit AS 단위, ai.decision AS 상태
 FROM amount_items ai
 JOIN documents d ON d.id = ai.document_id
 JOIN projects p ON p.id = d.project_id
+-- (1) 내가 멤버인 프로젝트만
+JOIN project_members pm ON pm.project_id = p.id
+ AND pm.user_id = (SELECT id FROM users WHERE login_id <> 'test_other'
+                   ORDER BY id LIMIT 1)
 WHERE ai.item_name = '특급기술자'
+  -- (2) 현재 프로젝트는 뺀다 (선례는 '다른' 사업에서 찾는다)
+  AND p.name NOT LIKE '[TEST] 기초과학%'
+  -- (3) 승인된 것만
   AND ai.decision IN ('APPROVED', 'EDITED')
+  -- (4) 단가가 있는 것만
   AND ai.unit_price IS NOT NULL
-  AND p.name LIKE '[TEST]%'
 ORDER BY ai.unit_price DESC;
 
 \echo ''
 \echo '=== 기대: 4건 · 최저 6,900,000 · 최고 9,200,000 · 중앙값 8,150,000 ==='
-\echo '    (중앙값은 목록에 없는 값이다. 화면이 계산했는지 확인하는 값이다)'
-\echo '    위 목록에 12,000,000(PENDING) 이나 11,000,000(REJECTED) 이 있으면'
-\echo '    승인 필터가 깨진 것이다. 99,000,000 이 있으면 격리가 깨진 것이다.'
+\echo '    중앙값은 (7,500,000 + 8,800,000) / 2 이고 목록에 없는 값이다.'
+\echo '    화면에 8,150,000 이 뜨면 값을 고른 것이 아니라 계산한 것이다.'
 \echo ''
-\echo '=== 결과에 나오지 않아야 하는 항목 (확인용) ==='
+\echo '    이 쿼리는 서비스의 조회 조건을 흉내낸 것이다. 실제 격리는 코드가'
+\echo '    하므로, 위 목록이 맞아도 화면을 열어 확인해야 한다.'
+\echo ''
+\echo '=== 나오지 않아야 하는 항목과 그 이유 ==='
+-- 위 쿼리에서 빠진 것들을 이유와 함께 모아 본다. 멤버가 아닌 프로젝트까지
+-- 포함해서, 무엇이 왜 제외되는지 한 곳에서 보이게 한다.
 SELECT p.name AS 프로젝트, ai.item_name AS 항목, ai.unit_price AS 단가,
        ai.decision AS 상태,
-       CASE WHEN ai.unit_price IS NULL THEN '단가 없음'
-            WHEN ai.decision NOT IN ('APPROVED','EDITED') THEN '승인 안 됨'
-            ELSE '?' END AS 제외이유
+       CASE
+         WHEN NOT EXISTS (
+           SELECT 1 FROM project_members pm
+           WHERE pm.project_id = p.id
+             AND pm.user_id = (SELECT id FROM users WHERE login_id <> 'test_other'
+                               ORDER BY id LIMIT 1)
+         ) THEN '내가 멤버가 아님'
+         WHEN p.name LIKE '[TEST] 기초과학%' THEN '현재 프로젝트'
+         WHEN ai.unit_price IS NULL THEN '단가 없음 (비율 산정 항목)'
+         WHEN ai.decision NOT IN ('APPROVED','EDITED') THEN '승인 안 됨'
+         ELSE '?'
+       END AS 제외이유
 FROM amount_items ai
 JOIN documents d ON d.id = ai.document_id
 JOIN projects p ON p.id = d.project_id
-WHERE p.name LIKE '[TEST] 선례%'
-  AND (ai.unit_price IS NULL OR ai.decision NOT IN ('APPROVED','EDITED'))
-ORDER BY p.name;
+WHERE p.name LIKE '[TEST]%'
+  AND (
+    ai.unit_price IS NULL
+    OR ai.decision NOT IN ('APPROVED','EDITED')
+    OR p.name LIKE '[TEST] 기초과학%'
+    OR NOT EXISTS (
+      SELECT 1 FROM project_members pm
+      WHERE pm.project_id = p.id
+        AND pm.user_id = (SELECT id FROM users WHERE login_id <> 'test_other'
+                          ORDER BY id LIMIT 1)
+    )
+  )
+  AND ai.item_name = '특급기술자'
+ORDER BY 제외이유, p.name;
 
 COMMIT;
