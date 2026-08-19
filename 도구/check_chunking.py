@@ -84,6 +84,95 @@ def check_invariants(chunks, content: str, max_tokens: int, label: str) -> list[
     return problems
 
 
+def check_preprocessing(ck) -> list[str]:
+    """전처리(유니코드 정규화 · 반복 노이즈 제거)를 검사한다.
+
+    2026-08-18 에 넣은 두 기능이다. 둘 다 눈으로는 안 보이는 방식으로 깨진다.
+      · 정규화가 없으면 NFD 로 온 한글에서 제목 판정이 전부 실패한다.
+      · 노이즈 제거 기본값이 느슨하면 본문까지 지운다(실제로 겪었다).
+    """
+    import unicodedata
+
+    problems: list[str] = []
+
+    def want(label: str, cond: bool, detail: str = "") -> None:
+        if not cond:
+            problems.append(label + (f" — {detail}" if detail else ""))
+
+    # ── 1. 유니코드 정규화 ──────────────────────────────────────────────────
+    doc = ("제 1 장 총칙\n\n이 계약은 조달청이 발주하는 사업에 적용한다.\n\n"
+           "제 2 장 계약 및 대금\n\n4. 대금 지급\n\n준공 검사 완료 후 지급한다.")
+    nfd = unicodedata.normalize("NFD", doc)
+    want("NFD 본문이 NFC 보다 길어야 한다(시험 자체가 성립하는지)", len(nfd) > len(doc))
+
+    nfc_units = ck.units_from_plain_text(doc)
+    nfd_units = ck.units_from_plain_text(nfd)
+    nfc_heads = [u.text for u in nfc_units if u.element_type == "HEADING"]
+    nfd_heads = [u.text for u in nfd_units if u.element_type == "HEADING"]
+    want("NFC 문서에서 제목을 찾아야 한다", len(nfc_heads) >= 3, f"{len(nfc_heads)}개")
+    # 이것이 핵심이다. 정규화가 없으면 여기서 0 개가 된다.
+    want("NFD 문서에서도 제목이 같아야 한다", nfd_heads == nfc_heads,
+         f"NFC {nfc_heads} vs NFD {nfd_heads}")
+    want("정규화한 텍스트는 NFC 여야 한다",
+         all(u.text == unicodedata.normalize("NFC", u.text) for u in nfd_units))
+
+    # 좌표는 정규화 **전** 문자열 기준이어야 한다. 아니면 원문 강조가 어긋난다.
+    for unit in nfd_units:
+        sliced = nfd[unit.content_start:unit.content_end]
+        want(f"NFD 좌표가 원본 기준이어야 한다 (조각 {unit.content_start})",
+             unicodedata.normalize("NFC", sliced) == unit.text,
+             f"좌표본문 {sliced[:20]!r} vs 텍스트 {unit.text[:20]!r}")
+
+    # ── 2. 반복 노이즈 제거 ────────────────────────────────────────────────
+    boiler = "조달청 전자입찰 특별유의서에 따른다"
+    docs = [f"- {n} -\n{boiler}\n제 {n} 장 개요\n\n본문 {n} 입니다. 사업 기간은 십이 개월이다."
+            for n in (1, 2, 3, 4)]
+    groups = [ck.units_from_plain_text(d) for d in docs]
+
+    marked = ck.mark_repeated_as_noise(groups)
+    noise = [u.text for g in marked for u in g if u.element_type == "HEADER_FOOTER"]
+    want("반복 상용구를 노이즈로 잡아야 한다", boiler in noise, f"잡힌 것 {noise}")
+    # 실제로 겪은 회귀다. 숫자만 다른 본문·제목이 묶여 문서가 통째로 지워졌다.
+    want("본문을 노이즈로 잡으면 안 된다",
+         not any("사업 기간은 십이 개월" in t for t in noise), f"잡힌 것 {noise}")
+    want("제목을 노이즈로 잡으면 안 된다",
+         not any("장 개요" in t for t in noise), f"잡힌 것 {noise}")
+
+    # 문서마다 같은 제목이 나오는 경우. 조달공고는 서식이 같아서 흔하다.
+    # 제목이 지워지면 청크가 어느 절에 속했는지 알 수 없게 된다.
+    same_head = [f"제 1 장 총칙\n{boiler}\n본문 {w} 에 관한 내용이다." for w in ("가", "나", "다")]
+    same_groups = [ck.units_from_plain_text(d) for d in same_head]
+    same_noise = [u.text for g in ck.mark_repeated_as_noise(same_groups)
+                  for u in g if u.element_type == "HEADER_FOOTER"]
+    want("문서마다 반복되는 제목도 지우면 안 된다",
+         not any("제 1 장 총칙" in t for t in same_noise), f"잡힌 것 {same_noise}")
+    want("그 경우에도 상용구는 지워야 한다", boiler in same_noise, f"잡힌 것 {same_noise}")
+    first = ck.chunk_units(ck.mark_repeated_as_noise(same_groups)[0],
+                           counter=ck.CharRatioTokenCounter(), max_tokens=480,
+                           min_tokens=ck.MIN_TOKENS, overlap_tokens=48)
+    want("제목이 청크 맨 앞에 남아야 한다",
+         bool(first) and first[0].text.startswith("제 1 장 총칙"),
+         f"{first[0].text[:30]!r}" if first else "조각 없음")
+
+    chunks = ck.chunk_units(marked[0], counter=ck.CharRatioTokenCounter(),
+                            max_tokens=480, min_tokens=ck.MIN_TOKENS, overlap_tokens=48)
+    joined = " ".join(c.text for c in chunks)
+    want("노이즈를 뺀 뒤에도 청크가 남아야 한다", len(chunks) > 0)
+    want("상용구가 청크에서 빠져야 한다", boiler not in joined)
+    want("본문이 청크에 남아야 한다", "사업 기간은 십이 개월" in joined)
+
+    # 기본값이 보수적인지. 누가 되돌리면 여기서 걸린다.
+    want("mark_repeated_as_noise 기본값이 보수적이어야 한다",
+         ck.NOISE_MIN_RATIO >= 0.8 and ck.NOISE_MAX_CHARS is not None,
+         f"min_ratio={ck.NOISE_MIN_RATIO} max_chars={ck.NOISE_MAX_CHARS}")
+
+    # 보고 함수가 지울 목록을 실제로 주는지.
+    report = ck.repeated_noise_report(groups)
+    want("repeated_noise_report 가 목록을 줘야 한다",
+         any(boiler in sample for _k, _c, sample in report), f"{report}")
+    return problems
+
+
 def run(backend: Path, corpus: Path) -> int:
     chunking = load_chunking(backend)
     files = sorted(corpus.glob("*.md"))
@@ -151,6 +240,12 @@ def run(backend: Path, corpus: Path) -> int:
                 f"{path.name}: 조각 경계가 옛 설정과 다르다 — "
                 f"옛 {len(old)}개 {old} vs 지금 {len(new)}개 {new}"
             )
+
+    pre = check_preprocessing(chunking)
+    checked += 1
+    all_problems += pre
+    print(f"\n전처리 검사 — 유니코드 정규화 · 반복 노이즈 제거"
+          f"  {'통과' if not pre else f'실패 {len(pre)}건'}")
 
     print("\n" + "=" * 78)
     print("  임베딩 모델 max_seq_length = 1024 (embed_server.py DEFAULT_MAX_SEQ)")
