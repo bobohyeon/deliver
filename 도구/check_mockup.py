@@ -207,11 +207,26 @@ def main() -> int:
     check("모든 var() 가 정의돼 있다", not undefined, f"정의 없음: {undefined}")
 
     # (5) 채움 강조는 하나만
-    filled = len(re.findall(r'class="urgent"', body))
+    #
+    # is-filled 표식으로 센다. 특정 클래스 이름(urgent·needs 등)으로 세면 이름을
+    # 바꿀 때 검사가 조용히 무력해진다 — 실제로 카드를 개편하면서 urgent 가
+    # 사라졌는데 검사는 "0개" 를 세고도 통과할 뻔했다.
+    filled = len(re.findall(r'class="[^"]*\bis-filled\b', body))
     check(
         "채움 강조가 하나다",
         filled == 1,
-        f"{filled}개다 — 강조가 둘이면 무엇이 급한지 알 수 없다",
+        f"{filled}개다 — 강조가 없으면 무엇이 급한지 알 수 없고, 둘이면 우선순위가 사라진다",
+    )
+
+    # (6) 사이드바 기본은 펼침
+    #
+    # 접힘을 기본으로 두면 처음 들어온 사람이 아이콘만 보고 무엇인지 모른다.
+    # 사용자가 접으면 그 선택은 기억한다(localStorage).
+    body_tag = re.search(r"<body[^>]*>", body)
+    check(
+        "사이드바 기본은 펼침이다",
+        body_tag is not None and "mini" not in body_tag.group(0),
+        "<body> 에 mini 가 있으면 접힌 상태로 열린다",
     )
 
     print("=" * 66)

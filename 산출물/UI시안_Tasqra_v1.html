@@ -221,7 +221,6 @@ body.mini .rail__toggle svg { transform: rotate(180deg); }
 .page__head h1 { margin: 0; color: var(--c-text-strong); font-size: 23px; letter-spacing: -.2px; }
 .page__head p { margin: 4px 0 0; color: var(--c-text-muted); font-size: 13px; }
 .stack { display: grid; gap: 16px; }
-.split { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
 
 .card { border: 1px solid var(--c-border); border-radius: var(--c-radius); background: var(--c-bg); box-shadow: var(--c-shadow-sm); }
 .card__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--c-border); }
@@ -245,53 +244,66 @@ body.mini .rail__toggle svg { transform: rotate(180deg); }
 .tile.is-empty strong { color: var(--c-border-strong); }
 .tile.is-danger strong { color: var(--c-danger); }
 
-/* ═══ 지금 해야 할 일 — 두 칸 ═══════════════════════════════════════
-   v1 은 금액 승인 대기 하나가 본문 폭을 다 먹어서 넓어 보였다. 두 칸으로
-   나누고, 왼쪽을 OCR 검수로 두었다.
+/* ═══ 확인이 필요한 일 — 한 영역, 종류별 줄 ═══════════════════════════
+   왜 금액을 따로 빼지 않았나
+     OCR 검수와 금액 승인 대기는 성격이 같다 — 둘 다 "사람이 확인해야 하는
+     대기 큐" 다. 그리고 그건 우연이 아니라 스키마에 박혀 있다:
+     SuggestionDecision(PENDING·APPROVED·EDITED·REJECTED)을 amount_items ·
+     decisions · schedule_items 셋이 공유한다. 승인 대기는 한 종류가 아니라
+     여러 종류를 가진 한 가족이다. 기능명세서의 DSH-002 도 "승인 대기 제안" 을
+     하나의 개념으로 묶는다.
 
-   OCR 검수를 주 강조로 올린 근거 — 검수가 밀리면 본문이 확정되지 않고,
-   그러면 청킹·검색·금액 추출이 모두 낡은 본문 기준으로 돌아간다. 즉 다른
-   일이 다 이것에 막힌다. 금액 승인은 그다음이다.
+   왜 동일 크기 카드 세 개로 늘어놓지 않았나
+     동일 크기는 "무엇이 급한지" 를 화면이 말하지 않는다는 뜻이다. 게다가 지금
+     액션 태스크는 ORM 모델이 없어 항상 비어 있다. 빈 카드가 나머지와 같은
+     무게를 갖게 된다.
 
-   채움 강조는 하나만 쓴다(문서에서 쓰는 규칙과 같다). 금액 쪽은 흰 카드에
-   왼쪽 띠로만 표시해서 두 번째 순위임이 보이게 했다. */
-.todo { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 14px; align-items: stretch; }
+   그래서 한 영역에 종류별 줄로 둔다. 모델이 없는 종류는 큰 빈 카드가 아니라
+   흐린 한 줄만 차지한다 — 자리는 잡아 두고 화면은 먹지 않는다. 모델이 생기면
+   그 줄이 살아나기만 하면 된다.
 
-.urgent {
-  position: relative; overflow: hidden; display: flex; flex-direction: column;
-  padding: 17px 19px; border-radius: var(--c-radius); color: #fff;
+   v1 에서 "너무 넓다" 고 한 원인은 폭 자체가 아니라 큰 숫자 하나가 빈 공간을
+   만든 것이었다. 목록은 폭을 써도 자연스럽다. */
+/* is-filled — 이 화면의 "채움 강조" 표식. 하나만 있어야 한다.
+   도구/check_mockup.py 가 이 표식으로 센다. 클래스 이름(needs·urgent 등)에
+   의존하면 이름을 바꿀 때 검사가 조용히 무력해진다. */
+.is-filled { }
+
+.needs {
+  position: relative; overflow: hidden; padding: 17px 20px 8px;
+  border-radius: var(--c-radius); color: #fff;
   background: linear-gradient(120deg, var(--hero-from), var(--hero-to));
 }
-.urgent::after {
-  content: ''; position: absolute; right: -70px; top: -80px; width: 220px; height: 220px;
+.needs::after {
+  content: ''; position: absolute; right: -80px; top: -90px; width: 250px; height: 250px;
   border-radius: 50%; background: radial-gradient(circle, var(--hero-glow), transparent 68%);
 }
-.urgent__top { position: relative; display: flex; align-items: baseline; gap: 10px; }
-.urgent__label { color: rgba(255,255,255,.74); font-size: 12px; font-weight: 700; letter-spacing: .3px; }
-.urgent__value { font-size: 30px; font-weight: 750; line-height: 1; font-variant-numeric: tabular-nums; }
-.urgent__note { position: relative; margin: 7px 0 12px; color: rgba(255,255,255,.66); font-size: 11.5px; }
-.urgent__list { position: relative; margin: 0; padding: 0; list-style: none; }
-.urgent__list li { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid rgba(255,255,255,.13); }
-.urgent__list li:first-child { border-top: 0; }
-.urgent__doc { min-width: 0; flex: 1; }
-.urgent__doc strong { display: block; overflow: hidden; font-size: 12.5px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
-.urgent__doc p { margin: 2px 0 0; color: rgba(255,255,255,.6); font-size: 11px; }
-.urgent__btn { flex: 0 0 auto; padding: 6px 12px; border: 1px solid rgba(255,255,255,.28); border-radius: 8px; background: rgba(255,255,255,.12); color: #fff; font-size: 12px; font-weight: 650; white-space: nowrap; }
-.urgent__btn:hover { background: rgba(255,255,255,.22); }
-.urgent__all { position: relative; margin-top: auto; padding-top: 11px; color: rgba(255,255,255,.62); font-size: 11.5px; }
-
-/* 두 번째 순위 — 흰 카드 + 왼쪽 띠 */
-.second {
-  display: flex; flex-direction: column; padding: 17px 19px;
-  border: 1px solid var(--c-border); border-left: 3px solid var(--c-warning-line);
-  border-radius: var(--c-radius); background: var(--c-bg); box-shadow: var(--c-shadow-sm);
+.needs__head { position: relative; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 4px; }
+.needs__head h2 { margin: 0; font-size: 15px; font-weight: 700; }
+.needs__head p { margin: 4px 0 0; color: rgba(255,255,255,.62); font-size: 11.5px; }
+.needs__total { flex: 0 0 auto; color: rgba(255,255,255,.72); font-size: 12px; font-weight: 700; }
+.needs__list { position: relative; margin: 0; padding: 0; list-style: none; }
+.needs__row {
+  display: grid; grid-template-columns: 74px 58px minmax(0, 1fr) auto;
+  align-items: center; gap: 14px; padding: 12px 0;
+  border-top: 1px solid rgba(255,255,255,.13);
 }
-.second__label { color: var(--c-text-muted); font-size: 12px; font-weight: 700; }
-.second__value { display: block; margin: 7px 0 0; color: var(--c-text-strong); font-size: 30px; font-weight: 750; line-height: 1; font-variant-numeric: tabular-nums; }
-.second__note { margin: 7px 0 0; color: var(--c-text-muted); font-size: 11.5px; }
-.second__btn { align-self: flex-start; margin-top: auto; padding: 8px 13px; border: 1px solid var(--c-border-strong); border-radius: var(--c-radius-sm); background: var(--c-bg); color: var(--c-text-strong); font-size: 12.5px; font-weight: 650; }
-.second__btn:hover { border-color: var(--c-accent-ring); background: var(--c-accent-soft); color: var(--c-accent-strong); }
-.second__mt { margin-top: 12px; }
+/* 아직 셀 수 없는 종류. 흐리게 둬서 "0 건" 과 구별한다 */
+.needs__row.is-soon { opacity: .5; }
+.needs__kind { padding: 2px 8px; border-radius: 99px; background: rgba(255,255,255,.14); font-size: 10.5px; font-weight: 700; text-align: center; white-space: nowrap; }
+.needs__count { font-size: 23px; font-weight: 750; line-height: 1; text-align: right; font-variant-numeric: tabular-nums; }
+.needs__what { min-width: 0; }
+.needs__what strong { display: block; font-size: 13px; font-weight: 650; }
+.needs__what p { margin: 2px 0 0; color: rgba(255,255,255,.6); font-size: 11.5px; }
+.needs__go { flex: 0 0 auto; padding: 6px 12px; border: 1px solid rgba(255,255,255,.28); border-radius: 8px; background: rgba(255,255,255,.12); color: #fff; font-size: 12px; font-weight: 650; white-space: nowrap; }
+.needs__go:hover { background: rgba(255,255,255,.22); }
+.needs__none { color: rgba(255,255,255,.55); font-size: 11.5px; white-space: nowrap; }
+
+/* 2단 — 유형 분포와 처리 상태를 나란히. 오른쪽 보조 열을 없앤 이유는
+   지금 거기에 넣을 실제 내용이 없어서다. 참고 시안들의 오른쪽 열에는 일정·팀
+   활동 같은 내용이 있었지만 우리는 아직 없다. 억지로 두면 빈 카드가 생긴다.
+   활동 이력(DSH-002)이 생기면 그때 다시 넣는다. */
+.duo { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 
 /* ── 분포 막대 ───────────────────────────────────────────────────── */
 .dist { display: grid; gap: 9px; }
@@ -329,8 +341,11 @@ body.mini .rail__toggle svg { transform: rotate(180deg); }
 .ask li { margin-bottom: 7px; }
 .ask b { color: var(--c-text-strong); }
 
-@media (max-width: 1180px) { .split { grid-template-columns: 1fr; } .tiles { grid-template-columns: repeat(3, minmax(0,1fr)); } }
-@media (max-width: 820px) { .todo { grid-template-columns: 1fr; } }
+@media (max-width: 1180px) { .tiles { grid-template-columns: repeat(3, minmax(0,1fr)); } }
+@media (max-width: 900px) { .duo { grid-template-columns: 1fr; } }
+/* 좁아지면 종류별 줄의 4칸 배치가 무너진다. 건수와 설명만 남기고 버튼은 아래로 */
+@media (max-width: 700px) { .needs__row { grid-template-columns: 56px 44px minmax(0,1fr); row-gap: 8px; }
+  .needs__go, .needs__none { grid-column: 2 / -1; justify-self: start; } }
 @media (max-width: 720px) {
   .rail { width: var(--rail-w-mini); padding-inline: 10px; }
   .canvas { margin-left: var(--rail-w-mini); }
@@ -473,92 +488,87 @@ body.mini .rail__toggle svg { transform: rotate(180deg); }
         <div class="tile is-static is-empty"><span>열린 태스크</span><strong>—</strong><small>아직 집계 전</small></div>
       </section>
 
-      <!-- ═══ 지금 해야 할 일 — 두 칸 ═══ -->
-      <section class="todo" aria-label="지금 해야 할 일">
-
-        <!-- 주 강조: OCR 검수. 건수만 아니라 실제 문서까지 보여준다 -->
-        <div class="urgent">
-          <div class="urgent__top">
-            <span class="urgent__value">2</span>
-            <span class="urgent__label">OCR 검수 필요</span>
+      <!-- ═══ 확인이 필요한 일 — 한 영역, 종류별 줄 ═══ -->
+      <section class="needs is-filled" aria-label="확인이 필요한 일">
+        <div class="needs__head">
+          <div>
+            <h2>확인이 필요한 일</h2>
+            <p>사람이 확인해야 넘어가는 항목입니다. 종류별로 모아 뒀습니다.</p>
           </div>
-          <p class="urgent__note">검수를 마쳐야 본문이 확정됩니다. 그전에는 검색·금액 추출이 이전 본문을 기준으로 동작합니다.</p>
-          <ul class="urgent__list">
-            <li>
-              <span class="urgent__doc"><strong>[TEST] 과업지시서.pdf</strong><p>OCR 인식 내용 확인 대기 · 12쪽</p></span>
-              <button class="urgent__btn">검수하기</button>
-            </li>
-            <li>
-              <span class="urgent__doc"><strong>[TEST] 입찰공고문_스캔.pdf</strong><p>검수 진행 중 · 4 / 9쪽</p></span>
-              <button class="urgent__btn">이어서</button>
-            </li>
-          </ul>
-          <p class="urgent__all">전체 문서에서 검수 상태 보기 →</p>
+          <span class="needs__total">총 8건</span>
         </div>
-
-        <!-- 두 번째 순위: 금액 승인 대기 -->
-        <div class="second">
-          <span class="second__label">금액 승인 대기</span>
-          <strong class="second__value">6</strong>
-          <p class="second__note">문서에서 뽑은 금액 항목입니다. 승인 전에는 어디에도 반영되지 않습니다.</p>
-          <button class="second__btn second__mt">금액 검토 →</button>
-        </div>
+        <ul class="needs__list">
+          <!-- OCR 이 먼저다. 검수를 마쳐야 본문이 확정되고, 그전에는 청킹·검색·
+               금액 추출이 모두 이전 본문 기준으로 돌아간다 -->
+          <li class="needs__row">
+            <span class="needs__kind">문서</span>
+            <span class="needs__count">2</span>
+            <span class="needs__what"><strong>OCR 검수</strong><p>검수를 마쳐야 본문이 확정됩니다</p></span>
+            <button class="needs__go">검수하기 →</button>
+          </li>
+          <li class="needs__row">
+            <span class="needs__kind">금액</span>
+            <span class="needs__count">6</span>
+            <span class="needs__what"><strong>금액 승인 대기</strong><p>승인 전에는 어디에도 반영되지 않습니다</p></span>
+            <button class="needs__go">검토하기 →</button>
+          </li>
+          <!-- 아래 둘은 테이블은 있지만 ORM 모델이 없어 아직 셀 수 없다.
+               0 이 아니라 — 다. 큰 빈 카드 대신 흐린 한 줄로 자리만 잡아 둔다 -->
+          <li class="needs__row is-soon">
+            <span class="needs__kind">결정·일정</span>
+            <span class="needs__count">—</span>
+            <span class="needs__what"><strong>결정·일정 승인 대기</strong><p>금액과 같은 승인 구조입니다</p></span>
+            <span class="needs__none">아직 집계 전</span>
+          </li>
+          <li class="needs__row is-soon">
+            <span class="needs__kind">태스크</span>
+            <span class="needs__count">—</span>
+            <span class="needs__what"><strong>액션 태스크</strong><p>보드에서 처리할 작업입니다</p></span>
+            <span class="needs__none">아직 집계 전</span>
+          </li>
+        </ul>
       </section>
 
-      <div class="split">
-        <div class="stack">
+      <!-- 2단: 유형 분포 + 처리 상태 -->
+      <div class="duo">
+        <section class="card">
+          <div class="card__head">
+            <div><h2>문서 유형 분포</h2><p>이 프로젝트에 쌓인 문서를 유형별로 셉니다.</p></div>
+            <span class="count">3종</span>
+          </div>
+          <div class="card__body dist">
+            <div class="dist__row"><span class="dist__name">산출내역서·견적서</span><span class="dist__bar"><i style="width:100%"></i></span><span class="dist__num">2건 · 50%</span></div>
+            <div class="dist__row"><span class="dist__name">제안요청서·입찰공고</span><span class="dist__bar"><i style="width:50%"></i></span><span class="dist__num">1건 · 25%</span></div>
+            <!-- 미분류는 건수가 많아도 맨 끝 -->
+            <div class="dist__row is-none"><span class="dist__name">미분류</span><span class="dist__bar"><i style="width:50%"></i></span><span class="dist__num">1건 · 25%</span></div>
+          </div>
+        </section>
 
-          <section class="card">
-            <div class="card__head">
-              <div><h2>문서 유형 분포</h2><p>이 프로젝트에 쌓인 문서를 유형별로 셉니다.</p></div>
-              <span class="count">3종</span>
-            </div>
-            <div class="card__body dist">
-              <div class="dist__row"><span class="dist__name">산출내역서·견적서</span><span class="dist__bar"><i style="width:100%"></i></span><span class="dist__num">2건 · 50%</span></div>
-              <div class="dist__row"><span class="dist__name">제안요청서·입찰공고</span><span class="dist__bar"><i style="width:50%"></i></span><span class="dist__num">1건 · 25%</span></div>
-              <!-- 미분류는 건수가 많아도 맨 끝 -->
-              <div class="dist__row is-none"><span class="dist__name">미분류</span><span class="dist__bar"><i style="width:50%"></i></span><span class="dist__num">1건 · 25%</span></div>
-            </div>
-          </section>
-
-          <section class="card">
-            <div class="card__head">
-              <div><h2>최근 문서</h2><p>최근에 올라온 문서의 현재 상태입니다.</p></div>
-              <span class="count">4건</span>
-            </div>
-            <div class="card__body">
-              <ul class="list">
-                <li><span class="list__doc"><strong>[TEST] 산출내역서.pdf</strong><p>PDF · 산출내역서·견적서 · 08-19 11:20</p></span><span class="chip chip--ok">처리 완료</span><button class="link-btn">상세</button></li>
-                <li><span class="list__doc"><strong>[TEST] 과업지시서.pdf</strong><p>PDF · 미분류 · 08-19 10:04</p></span><span class="chip chip--warn">검수 필요</span><button class="link-btn">검수</button></li>
-                <li><span class="list__doc"><strong>[TEST] 입찰공고문_스캔.pdf</strong><p>PDF · 제안요청서·입찰공고 · 08-18 17:41</p></span><span class="chip chip--warn">검수 중</span><button class="link-btn">검수</button></li>
-                <li><span class="list__doc"><strong>[TEST] 회의록_0818.docx</strong><p>DOCX · 산출내역서·견적서 · 08-18 09:12</p></span><span class="chip chip--run">분석 중</span><button class="link-btn">상세</button></li>
-              </ul>
-            </div>
-          </section>
-        </div>
-
-        <!-- 오른쪽 보조 열 -->
-        <div class="stack">
-          <section class="card">
-            <div class="card__head"><div><h2>처리 상태</h2><p>문서 4건의 단계별 내역입니다.</p></div></div>
-            <div class="card__body dist">
-              <div class="dist__row"><span class="dist__name">처리 완료</span><span class="dist__bar"><i style="width:100%"></i></span><span class="dist__num">3건</span></div>
-              <div class="dist__row"><span class="dist__name">분석 중</span><span class="dist__bar"><i style="width:33%"></i></span><span class="dist__num">1건</span></div>
-              <div class="dist__row is-none"><span class="dist__name">처리 실패</span><span class="dist__bar"><i style="width:0"></i></span><span class="dist__num">0건</span></div>
-            </div>
-          </section>
-
-          <section class="card">
-            <div class="card__head"><div><h2>액션 태스크</h2><p>보드에서 우선 처리할 작업입니다.</p></div></div>
-            <div class="card__body">
-              <div class="empty">
-                <strong>아직 집계할 수 없습니다.</strong>
-                <p>태스크 테이블은 있지만 코드가 아직 연결되지 않았습니다. 연결되면 이 자리에 표시됩니다.</p>
-              </div>
-            </div>
-          </section>
-        </div>
+        <section class="card">
+          <div class="card__head"><div><h2>처리 상태</h2><p>문서 4건의 단계별 내역입니다.</p></div></div>
+          <div class="card__body dist">
+            <div class="dist__row"><span class="dist__name">처리 완료</span><span class="dist__bar"><i style="width:100%"></i></span><span class="dist__num">3건</span></div>
+            <div class="dist__row"><span class="dist__name">분석 중</span><span class="dist__bar"><i style="width:33%"></i></span><span class="dist__num">1건</span></div>
+            <div class="dist__row is-none"><span class="dist__name">처리 실패</span><span class="dist__bar"><i style="width:0"></i></span><span class="dist__num">0건</span></div>
+          </div>
+        </section>
       </div>
+
+      <!-- 최근 문서 -->
+      <section class="card">
+        <div class="card__head">
+          <div><h2>최근 문서</h2><p>최근에 올라온 문서의 현재 상태입니다.</p></div>
+          <span class="count">4건</span>
+        </div>
+        <div class="card__body">
+          <ul class="list">
+            <li><span class="list__doc"><strong>[TEST] 산출내역서.pdf</strong><p>PDF · 산출내역서·견적서 · 08-19 11:20</p></span><span class="chip chip--ok">처리 완료</span><button class="link-btn">상세</button></li>
+            <li><span class="list__doc"><strong>[TEST] 과업지시서.pdf</strong><p>PDF · 미분류 · 08-19 10:04</p></span><span class="chip chip--warn">검수 필요</span><button class="link-btn">검수</button></li>
+            <li><span class="list__doc"><strong>[TEST] 입찰공고문_스캔.pdf</strong><p>PDF · 제안요청서·입찰공고 · 08-18 17:41</p></span><span class="chip chip--warn">검수 중</span><button class="link-btn">검수</button></li>
+            <li><span class="list__doc"><strong>[TEST] 회의록_0818.docx</strong><p>DOCX · 산출내역서·견적서 · 08-18 09:12</p></span><span class="chip chip--run">분석 중</span><button class="link-btn">상세</button></li>
+          </ul>
+        </div>
+      </section>
 
       <!-- ══ 팀원에게 물어볼 것 ══ -->
       <section class="ask">
