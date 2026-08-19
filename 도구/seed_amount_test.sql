@@ -141,7 +141,11 @@ INSERT INTO amount_items (
 )
 SELECT a.document_id, a.id, v.item_name, v.category, v.quantity, v.unit,
        v.unit_price, v.amount, 'KRW', v.source_quote, 0.92, v.reason,
-       'PENDING', 1
+       -- 과거 사업은 이미 끝난 사업이라 사람이 검토를 마친 상태로 둔다.
+       -- 단가 선례(SRH-002-3)는 승인된 것만 쓴다 — AMT-001-2 의
+       -- "승인 전에는 어디에도 반영되지 않고" 를 지키려는 것이다.
+       -- 현재 사업(위 블록)은 PENDING 이라 선례에 나오지 않아야 한다.
+       'APPROVED', 1
 FROM analyses a
 JOIN documents d ON d.id = a.document_id
 CROSS JOIN (VALUES
@@ -159,6 +163,34 @@ CROSS JOIN (VALUES
    '부가가치세			23,410,800', '항목 합계에서 제외해야 하는 항목')
 ) AS v(item_name, category, quantity, unit, unit_price, amount, source_quote, reason)
 WHERE a.analyzer_type = 'amount' AND d.filename = '[TEST] 과거_산출내역서.pdf';
+
+-- ── 금액 항목 — 남의 프로젝트 (격리 검증용) ─────────────────────────────────
+-- 내가 멤버가 아닌 프로젝트다. 단가 선례(SRH-002-3)에 **절대 나오면 안 된다.**
+-- 항목명을 같게 두고 단가를 터무니없는 값(99,000,000)으로 넣어, 격리가 깨지면
+-- 결과에서 즉시 눈에 띄게 한다. seed_rag_test.sql 이 "대금 지급" 내용을 남의
+-- 프로젝트에도 넣어 둔 것과 같은 방식이다.
+--
+-- decision 을 APPROVED 로 두는 것이 중요하다. PENDING 이면 승인 필터에서
+-- 걸려서 격리를 검증하지 못한다 -- 격리 때문에 빠진 것인지 승인 때문에 빠진
+-- 것인지 구별할 수 없기 때문이다.
+INSERT INTO analyses (document_id, analyzer_type, result_json, provider, model_name,
+                      prompt_version, source_text_revision)
+SELECT d.id, 'amount',
+       '{"seeded": true, "note": "격리 검증용 - 결과에 나오면 안 된다"}'::jsonb,
+       'seed', 'seed', 'seed-v1', 1
+FROM documents d WHERE d.filename = '[TEST] 남의공고.pdf';
+
+INSERT INTO amount_items (
+  document_id, analysis_id, item_name, category, quantity, unit, unit_price,
+  amount, currency, source_quote, confidence, reason, decision, source_text_revision
+)
+SELECT a.document_id, a.id, '특급기술자', 'DIRECT_LABOR', 1, '인월',
+       99000000, 99000000, 'KRW', '격리가 깨지면 이 값이 보인다', 0.99,
+       '남의 프로젝트 자료. 단가 선례에 나오면 격리가 깨진 것이다.',
+       'APPROVED', 1
+FROM analyses a
+JOIN documents d ON d.id = a.document_id
+WHERE a.analyzer_type = 'amount' AND d.filename = '[TEST] 남의공고.pdf';
 
 COMMIT;
 
