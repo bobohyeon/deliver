@@ -24,6 +24,14 @@ Spring 비교
     python xlsx_read.py <파일.xlsx> --sheet 1 --to md  --out ../관리/표.md
     python xlsx_read.py <파일.xlsx> --sheet 1 --to tsv --max-col 8
 
+.xlsm(매크로 포함)도 된다
+    `.xlsm` 은 `.xlsx` 와 **같은 OOXML 컨테이너**다. 다른 것은 매크로 바이너리
+    (`xl/vbaProject.bin`)가 들어 있고 `[Content_Types].xml` 의 타입이
+    `macroEnabled` 로 바뀐 것뿐이다. **시트 XML 구조는 동일하다.**
+    2026-08-20 에 실제 `.xlsm` 을 만들어 돌려 보고, 추출 결과가 `.xlsx` 와
+    **바이트까지 같은 것**을 확인했다. `.xlsb`(바이너리 판)는 **안 된다** — 그건
+    XML 이 아니라 독자 바이너리 형식이라 구조가 다르다.
+
 주의
     숫자 서식(백분율·통화·날짜)은 **원시값**으로 나온다. `0.907` 이 엑셀 화면에
     `90.7%` 로 보이더라도 여기서는 `0.907` 이다. 표시값이 필요하면 스프레드시트

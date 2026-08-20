@@ -48,8 +48,29 @@ from xlsx_read import read_sheet  # noqa: E402  같은 폴더의 도구를 재�
 
 ID_RE = re.compile(r"[A-Z]{3,4}-\d{3}(?:-\d)?")
 HERE = Path(__file__).resolve().parent.parent          # 레포 루트
-DEFAULT_XLSX = HERE / "산출물" / "기능명세서_v5_세분화.xlsx"
 DEFAULT_MD = HERE / "관리" / "기능명세서.md"
+
+# .xlsm(매크로 포함)도 그대로 읽힌다 — 컨테이너가 같은 OOXML 이고, 다른 것은
+# vbaProject.bin 과 [Content_Types].xml 뿐이라 시트 XML 구조가 동일하다.
+# 2026-08-20 에 실제 .xlsm 을 만들어 검증했다. 추출 결과가 바이트까지 같았다.
+SPEC_CANDIDATES = (
+    HERE / "산출물" / "기능명세서_v5_세분화.xlsx",
+    HERE / "산출물" / "기능명세서_v5_세분화.xlsm",
+    HERE / "산출물" / "기능명세서.xlsx",
+    HERE / "산출물" / "기능명세서.xlsm",
+)
+
+
+def find_spec() -> Path:
+    """확장자를 가리지 않고 먼저 있는 것을 쓴다."""
+    for p in SPEC_CANDIDATES:
+        if p.exists():
+            return p
+    raise SystemExit(
+        "기능명세서 파일을 못 찾았다. 찾아본 곳:\n  "
+        + "\n  ".join(str(p.relative_to(HERE)) for p in SPEC_CANDIDATES)
+        + "\n--xlsx 로 직접 지정할 수 있다."
+    )
 
 # md 의 상태 칸에 쓰이는 표기를 xlsx 표기로 맞춘다. **굵게** 가 섞여 있다.
 STATUS = ("구현됨", "부분 구현", "미구현", "검토중", "미결")
@@ -110,11 +131,15 @@ def from_md(path: Path) -> dict[str, dict[str, str]]:
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(description="기능명세서 xlsx 와 md 의 어긋남 검사")
-    p.add_argument("--xlsx", type=Path, default=DEFAULT_XLSX)
+    p = argparse.ArgumentParser(description="기능명세서 xlsx·xlsm 과 md 의 어긋남 검사")
+    p.add_argument("--xlsx", type=Path, help="생략하면 산출물/ 에서 자동으로 찾는다")
     p.add_argument("--md", type=Path, default=DEFAULT_MD)
     p.add_argument("--quiet", action="store_true", help="어긋난 것만 찍는다")
     a = p.parse_args()
+
+    if a.xlsx is None:
+        a.xlsx = find_spec()
+        print(f"원본: {a.xlsx.relative_to(HERE)}\n")
 
     for f in (a.xlsx, a.md):
         if not f.exists():
