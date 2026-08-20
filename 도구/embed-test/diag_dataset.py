@@ -250,6 +250,123 @@ def report_source_format(rows):
     return set(srcs)
 
 
+def _tokens(t):
+    """단어 집합으로 쪼갠다. 조사·공백 차이를 무시하려고 문자종류로만 자른다."""
+    return set(re.findall(r"[0-9A-Za-z가-힣]+", str(t)))
+
+
+# 조달 문서에서 청크를 갈라 주는 값들 — 금액(32,000,000), 연도, 날짜, 공고번호.
+# 이 값이 여러 청크에 함께 나오면 질의만으로는 어느 쪽인지 정할 수 없다.
+DISTINCT_NUM = re.compile(r"\d[\d,]{3,}|\d{4}\s*년|\d{1,2}\s*월\s*\d{1,2}\s*일")
+
+
+def report_ceiling(rows, pool_rows, jaccard_at=0.85):
+    """R@1 의 이론 상한을 잰다. 정답 청크에 쌍둥이가 있으면 모델로 못 넘는다.
+
+    학습을 돌리기 전에 이것부터 봐야 한다. 상한이 70% 면 90% 목표는
+    데이터를 고치지 않는 한 도달할 수 없다. 모델을 바꿔도 안 된다.
+    """
+    print("=" * 74)
+    print("R@1 천장 검사 — 정답이 유일한가")
+    print("=" * 74)
+
+    qkey = next((k for k in QUERY_KEYS
+                 if any(str(r.get(k, "")).strip() for r in rows)), None)
+    field = next((k for k in TEXT_KEYS if k in rows[0]), "text")
+    if not qkey:
+        print("  질의 필드가 없어 검사할 수 없다.")
+        return
+    qrows = [r for r in rows if str(r.get(qkey, "")).strip()]
+    print(f"  질의 {len(qrows)}개 · 후보 청크 {len(pool_rows)}개"
+          f" (질의 필드 '{qkey}', 본문 필드 '{field}')")
+
+    def norm(t):
+        return re.sub(r"\s+", " ", str(t)).strip()
+
+    # 후보 풀을 미리 정규화해 둔다. 질의마다 다시 만들면 느려진다.
+    pool = [(str(r.get("source", "")), norm(r.get(field, "")),
+             _tokens(r.get(field, "")),
+             frozenset(m.group().replace(" ", "") for m in DISTINCT_NUM.finditer(str(r.get(field, "")))))
+            for r in pool_rows]
+    by_norm = collections.Counter(p[1] for p in pool)
+
+    exact_hit, near_hit, num_hit = 0, 0, 0
+    inv_sum = 0.0          # 완전 중복은 1/묶음크기 가 기대값이다
+    worst = []
+
+    for r in qrows:
+        src = str(r.get("source", ""))
+        g_norm = norm(r.get(field, ""))
+        g_tok = _tokens(r.get(field, ""))
+        g_num = frozenset(m.group().replace(" ", "")
+                          for m in DISTINCT_NUM.finditer(str(r.get(field, ""))))
+
+        group = by_norm.get(g_norm, 0)          # 자기 자신 포함
+        if group > 1:
+            exact_hit += 1
+        inv_sum += 1.0 / group if group else 1.0
+
+        near, numt = 0, 0
+        for p_src, p_norm, p_tok, p_num in pool:
+            if p_src == src:
+                continue
+            if p_norm == g_norm:
+                continue                        # 완전 중복은 위에서 셌다
+            # 길이가 많이 다르면 근사 중복일 수 없다. 비교를 줄인다.
+            if not g_tok or not p_tok:
+                continue
+            if abs(len(p_tok) - len(g_tok)) > max(len(g_tok), len(p_tok)) * 0.35:
+                continue
+            inter = len(g_tok & p_tok)
+            if inter and inter / len(g_tok | p_tok) >= jaccard_at:
+                near += 1
+            if g_num and g_num <= p_num:
+                numt += 1
+        if near:
+            near_hit += 1
+        if numt:
+            num_hit += 1
+        if group > 1 or near:
+            worst.append((group - 1 + near, src, str(r.get(qkey, ""))[:44]))
+
+    n = len(qrows)
+    ceiling = inv_sum / n if n else 0
+    print()
+    print(f"  완전히 같은 본문의 쌍둥이가 있는 질의   {exact_hit:5d}/{n}"
+          f" ({exact_hit / n * 100:5.1f}%)")
+    print(f"  거의 같은 본문(Jaccard>={jaccard_at})이 있는 질의 {near_hit:5d}/{n}"
+          f" ({near_hit / n * 100:5.1f}%)")
+    print(f"  정답의 숫자값이 다른 청크에도 다 있는 질의 {num_hit:5d}/{n}"
+          f" ({num_hit / n * 100:5.1f}%)")
+    print()
+    print(f"  [완전 중복만 반영한 R@1 이론 상한] {ceiling * 100:.1f}%")
+    print("    완전히 같은 청크끼리는 어떤 모델도 구분할 수 없다."
+          " 기대값 1/묶음크기로 계산했다.")
+    if near_hit:
+        soft = (n - near_hit) / n * 100
+        print(f"  [참고] 근사 중복이 있는 질의를 전부 틀린다고 가정하면 {soft:.1f}%")
+        print("    이 숫자는 최악값이고 하한이 아니다. 낱말 몇 개만 다른 변형본은")
+        print("    모델이 구분해 내는 경우가 많다. 완전 중복 쪽 숫자를 먼저 본다.")
+
+    if worst:
+        print(f"\n  경쟁 청크가 많은 질의 (상위 5개)")
+        for cnt, src, q in sorted(worst, reverse=True)[:5]:
+            print(f"    경쟁 {cnt:3d}개  {q}")
+            print(f"              정답 {src[-46:]}")
+
+    print()
+    if ceiling < 0.9:
+        print(f"  [!] R@1 90% 목표는 이 평가셋으로 도달할 수 없다."
+              f" 천장이 {ceiling * 100:.1f}% 다.")
+        print("      학습을 늘리는 것으로 해결되지 않는다. 할 일은 둘 중 하나다 —")
+        print("      (1) 중복 청크를 코퍼스에서 한 벌로 합친다")
+        print("      (2) 정답을 여러 개 허용하고 R@1 대신 MRR·R@5 로 목표를 잡는다")
+    else:
+        print(f"  R@1 90% 목표에 구조적 장애물은 없다. 천장이 {ceiling * 100:.1f}% 다.")
+        print("      남은 격차는 모델·학습 데이터로 메우는 몫이다.")
+    print()
+
+
 def diagnose(path):
     print("=" * 74)
     print(f"파일: {path}")
@@ -360,10 +477,14 @@ def main(argv=None):
     ap.add_argument("files", nargs="*", help="진단할 .jsonl 경로")
     ap.add_argument("--compare", nargs=2, metavar=("A", "B"),
                     help="두 파일의 source 집합을 비교한다 (무엇이 걸러졌는지)")
+    ap.add_argument("--ceiling", metavar="EVAL",
+                    help="R@1 이론 상한을 잰다. 질의(summary 등)가 있는 파일을 준다")
+    ap.add_argument("--pool", metavar="CORPUS",
+                    help="--ceiling 의 후보 청크 풀. 생략하면 EVAL 자신을 쓴다")
     args = ap.parse_args(argv)
 
-    if not args.files and not args.compare:
-        ap.error("진단할 파일이나 --compare 중 하나는 있어야 한다")
+    if not args.files and not args.compare and not args.ceiling:
+        ap.error("진단할 파일이나 --compare / --ceiling 중 하나는 있어야 한다")
 
     missing = [f for f in args.files if not pathlib.Path(f).exists()]
     if missing:
@@ -378,6 +499,18 @@ def main(argv=None):
                 print(f"없는 파일: {p}", file=sys.stderr)
                 return 2
         compare(args.compare[0], args.compare[1])
+
+    if args.ceiling:
+        for p in [args.ceiling] + ([args.pool] if args.pool else []):
+            if not pathlib.Path(p).exists():
+                print(f"없는 파일: {p}", file=sys.stderr)
+                return 2
+        ev, _ = load(args.ceiling)
+        pool = load(args.pool)[0] if args.pool else ev
+        if not ev:
+            print("읽은 행이 0이다.", file=sys.stderr)
+            return 2
+        report_ceiling(ev, pool)
 
     print("=" * 74)
     print("읽는 법 — [!] 표시만 보면 된다. 없으면 그 항목은 정상이다.")
