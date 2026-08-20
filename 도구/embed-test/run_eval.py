@@ -47,11 +47,20 @@ MODELS = [
         "passage_prefix": "",
         "note": "기준선. 다국어. 한국어 특화가 이걸 못 이기면 의미 없다",
     },
+    # ── 5차 측정에서 기본 모델로 확정된 것. 목록에 없어서 --only 로 못 돌렸다 ──
+    # RAG_임베딩모델_비교분석표.md 1절: "기본 모델 dragonkue/BGE-m3-ko (1024)".
+    # bge-m3 기반이므로 접두어가 없다(인수인계 9-B 에서 확인). e5 계열과 다르다.
+    {
+        "name": "dragonkue/BGE-m3-ko",
+        "query_prefix": "",
+        "passage_prefix": "",
+        "note": "채택 모델(5차 확정). 한국어 튜닝. bge-m3 기반이라 접두어 없음",
+    },
     {
         "name": "nlpai-lab/KURE-v1",
         "query_prefix": "",
         "passage_prefix": "",
-        "note": "고려대. 한국어 검색 특화. bge-m3 기반이라 접두어 없음",
+        "note": "대안. 고려대. 한국어 검색 특화. bge-m3 기반이라 접두어 없음",
     },
     {
         "name": "dragonkue/multilingual-e5-small-ko-v2",
