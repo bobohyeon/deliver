@@ -480,6 +480,17 @@ def print_table(rows: list[dict]) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="임베딩 모델 비교")
+    # 입출력 경로를 바꿀 수 있게 한다. 기본값은 지금까지와 같다.
+    # 이것이 없으면 남의 평가셋을 돌릴 때 우리 기준선 queries.csv 를 덮어야 하고,
+    # 그러면 73건 기준선이 사라진다. 평가셋마다 폴더를 따로 두게 하려는 인자다.
+    parser.add_argument("--chunks", default=None,
+                        help="chunks.csv 경로 (기본: 이 스크립트 옆)")
+    parser.add_argument("--queries", default=None,
+                        help="queries.csv 경로 (기본: 이 스크립트 옆)")
+    parser.add_argument("--result", default=None,
+                        help="요약 결과 csv 출력 경로")
+    parser.add_argument("--detail", default=None,
+                        help="질의별 상세 csv 출력 경로")
     parser.add_argument("--limit-chunks", type=int, default=0,
                         help="청크를 앞에서 N개만 쓴다 (CPU 에서 빠른 반복용)")
     parser.add_argument("--batch-size", type=int, default=8,
@@ -513,6 +524,23 @@ def main() -> None:
                         help="Voyage 카드 미등록 한도를 그대로 적용한다 "
                              "(--rpm 3 --tpm 10000 과 같다)")
     args = parser.parse_args()
+
+    # 경로 전역을 덮어쓴다. 함수들이 호출 시점에 전역을 읽으므로 이걸로 충분하다.
+    global CHUNKS, QUERIES, RESULT, DETAIL
+    if args.chunks:
+        CHUNKS = pathlib.Path(args.chunks)
+    if args.queries:
+        QUERIES = pathlib.Path(args.queries)
+    if args.result:
+        RESULT = pathlib.Path(args.result)
+    if args.detail:
+        DETAIL = pathlib.Path(args.detail)
+    # 결과 경로를 따로 주지 않았는데 평가셋을 바꿔 돌리면 기준선 결과를 덮는다.
+    # 조용히 덮지 않고 입력 옆에 쓴다.
+    if args.queries and not args.result:
+        RESULT = QUERIES.parent / "results.csv"
+    if args.queries and not args.detail:
+        DETAIL = QUERIES.parent / "results_detail.csv"
 
     if args.voyage_free:
         args.rpm, args.tpm = args.rpm or 3, args.tpm or 10000
