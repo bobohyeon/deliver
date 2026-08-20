@@ -147,7 +147,7 @@ index 90e52b8..000964f 100644
  class SearchResponse(BaseModel):
      query: str
 diff --git a/backend/app/services/search_service.py b/backend/app/services/search_service.py
-index 341fa80..17e5fd1 100644
+index 341fa80..e9ddce4 100644
 --- a/backend/app/services/search_service.py
 +++ b/backend/app/services/search_service.py
 @@ -49,6 +49,7 @@ from app.embedding.protocol import EmbeddingClientProtocol
@@ -258,7 +258,7 @@ index 341fa80..17e5fd1 100644
      def explain(self, user_id: int, request: SearchRequest) -> str:
          """검색 실행계획을 돌려준다. 리비전 0014 검증용이다."""
          scope = self._resolve_scope(user_id, request.project_ids)
-@@ -292,6 +386,129 @@ class SearchService:
+@@ -292,6 +386,138 @@ class SearchService:
              results=[],
          )
  
@@ -362,6 +362,15 @@ index 341fa80..17e5fd1 100644
 +                    match_kind=kind,
 +                    match_count=match_count,
 +                    match_offset=offset,
++                    # 8자리에서 끊는다. JSON 에 0.016393442622950818 같은 긴 수를
++                    # 담지 않으려는 것이다.
++                    #
++                    # 8자리로 충분한 근거 — 인접 순위의 점수 차가 훨씬 크다.
++                    #   1/(60+1) - 1/(60+2) = 2.6e-4   (해상도 1e-8 의 26,000배)
++                    # 순위가 뒤바뀔 수 있는 크기가 아니다.
++                    #
++                    # ⚠ **정렬은 위에서 반올림하지 않은 e["fused"] 로 한다.**
++                    # 여기서 끊는 것은 표시용이므로 순서에 영향이 없다.
 +                    fused_score=round(e["fused"], 8),
 +                    vector_rank=e["vector_rank"],
 +                    keyword_rank=e["keyword_rank"],
@@ -390,10 +399,10 @@ index 341fa80..17e5fd1 100644
      ) -> SearchResponse:
 diff --git a/backend/tests/test_search_hybrid.py b/backend/tests/test_search_hybrid.py
 new file mode 100644
-index 0000000..0244db8
+index 0000000..9c0fbde
 --- /dev/null
 +++ b/backend/tests/test_search_hybrid.py
-@@ -0,0 +1,274 @@
+@@ -0,0 +1,319 @@
 +# =============================================================================
 +# 이 파일의 책임: 하이브리드 검색(SRH-004)의 RRF 결합을 DB 없이 검증한다.
 +#   검사하는 것 —
@@ -425,6 +434,14 @@ index 0000000..0244db8
 +from app.services.search_service import SearchService
 +
 +K = settings.SEARCH_HYBRID_RRF_K
++
++# fused_score 는 응답에 8자리로 끊어 담긴다(_fuse). 그래서 비교 허용오차가
++# 반올림 오차(최대 5e-9)보다 커야 한다. 1e-9 로 두면 코드가 맞아도 실패한다 —
++# 실제로 한 번 그렇게 틀렸다.
++#
++# 8자리가 충분한 근거는 아래 test_eight_decimals_distinguish_adjacent_ranks 가
++# 검사한다. 인접 순위의 점수 차가 2.6e-4 라 해상도의 26,000배다.
++RRF_TOL = 1e-8
 +
 +
 +def _chunk(chunk_id, *, text="계약금액은 1억원이다", seq=None, document_id=22):
@@ -476,7 +493,7 @@ index 0000000..0244db8
 +    service, _, _ = _service(vector_rows=[_row(_chunk(1), 0.2)])
 +    item = _ask(service).results[0]
 +    assert item.vector_rank == 1
-+    assert item.fused_score == pytest.approx(1 / (K + 1), abs=1e-9)
++    assert item.fused_score == pytest.approx(1 / (K + 1), abs=RRF_TOL)
 +
 +
 +def test_rrf_score_decreases_with_rank():
@@ -485,7 +502,7 @@ index 0000000..0244db8
 +    )
 +    scores = [r.fused_score for r in _ask(service).results]
 +    assert scores == sorted(scores, reverse=True)
-+    assert scores[1] == pytest.approx(1 / (K + 2), abs=1e-9)
++    assert scores[1] == pytest.approx(1 / (K + 2), abs=RRF_TOL)
 +
 +
 +def test_rrf_sums_both_legs():
@@ -493,7 +510,44 @@ index 0000000..0244db8
 +    c = _chunk(1)
 +    service, _, _ = _service(vector_rows=[_row(c, 0.2)], keyword_rows=[_row(c, 0.9)])
 +    item = _ask(service).results[0]
-+    assert item.fused_score == pytest.approx(1 / (K + 1) + 1 / (K + 1), abs=1e-9)
++    assert item.fused_score == pytest.approx(1 / (K + 1) + 1 / (K + 1), abs=RRF_TOL)
++
++
++def test_eight_decimals_distinguish_adjacent_ranks():
++    """응답의 8자리 반올림이 순위를 뭉개지 않는지 검사한다.
++
++    fused_score 를 끊어 담는 것은 표시용이고 정렬은 원본으로 한다. 그래도 화면이
++    이 값으로 순서를 다시 매길 수 있으므로, **끊은 뒤에도 인접 순위가 구별되어야**
++    한다. 1/(k+1) - 1/(k+2) = 2.6e-4 로 해상도 1e-8 의 26,000배다.
++    """
++    service, _, _ = _service(
++        vector_rows=[_row(_chunk(i), 0.01 * i) for i in range(1, 11)]
++    )
++    scores = [r.fused_score for r in _ask(service).results]
++    # 끊은 값끼리도 전부 서로 다르고 내림차순이어야 한다.
++    assert len(set(scores)) == len(scores), f"끊어서 같아진 값이 있다: {scores}"
++    assert scores == sorted(scores, reverse=True)
++    # 가장 가까운 두 값의 차이가 해상도보다 훨씬 크다는 것을 수치로 남긴다.
++    gaps = [a - b for a, b in zip(scores, scores[1:])]
++    assert min(gaps) > 1e-6, f"인접 간격이 너무 좁다: {min(gaps)}"
++
++
++def test_ordering_uses_unrounded_score():
++    """정렬이 반올림된 값이 아니라 원본으로 되는지 확인한다.
++
++    양쪽에 걸린 것(2/(k+1))과 한쪽 1등(1/(k+1))은 차이가 크지만, 순서가 점수로
++    정해진다는 것 자체를 고정해 둔다. 정렬 키를 fused_score(끊은 값)로 바꾸면
++    이 테스트는 통과하겠지만, 위 테스트가 간격을 지키므로 함께 보면 안전하다.
++    """
++    both, single = _chunk(1, seq=9), _chunk(2, seq=1)
++    service, _, _ = _service(
++        vector_rows=[_row(single, 0.1), _row(both, 0.2)],
++        keyword_rows=[_row(both, 0.9)],
++    )
++    results = _ask(service).results
++    # seq 가 큰 both 가 앞에 온다 -> tie-break 가 아니라 점수로 정렬됐다는 뜻이다.
++    assert [r.chunk_id for r in results] == [both.id, single.id]
++    assert results[0].fused_score > results[1].fused_score
 +
 +
 +# --- ② 양쪽에 걸린 것이 위로 온다 -------------------------------------------
