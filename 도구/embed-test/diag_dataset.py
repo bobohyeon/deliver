@@ -122,7 +122,18 @@ def report_query_fields(rows, keys_present):
         vals = [str(r.get(k, "")).strip() for r in rows]
         vals = [v for v in vals if v]
         uniq = len(set(vals))
-        print(f"  질의 후보 '{k}': 값 있는 행 {len(vals)} · 서로 다른 값 {uniq}")
+        cov = len(vals) / len(rows) if rows else 0
+        print(f"  질의 후보 '{k}': 값 있는 행 {len(vals)}/{len(rows)}"
+              f" ({cov * 100:.1f}%) · 서로 다른 값 {uniq}")
+        # 필드가 있느냐보다 몇 행에 채워졌느냐가 중요하다. 학습에 쓸 수 있는
+        # 쌍의 수가 곧 이 숫자다. 나머지 행은 코퍼스이거나 배치 내 오답이다.
+        # 필드 존재만 보고 넘어가면 쌍이 27% 뿐인 것을 놓친다. 실제로 놓쳤다.
+        if cov < 0.9:
+            print(f"    [!] 학습·평가에 쓸 수 있는 쌍은 {len(vals)}개뿐이다."
+                  f" 나머지 {len(rows) - len(vals)}행에는 질의가 없다.")
+            if len(vals) < 1000:
+                print(f"        쌍 {len(vals)}개는 파인튜닝에 적은 편이다."
+                      " 명시적 오답(hard negative)까지 없으면 신호가 더 약해진다.")
 
         # 단위 판정 — 서로 다른 질의 수를 서로 다른 doc 수 / source 수와 견준다.
         if "doc" in keys_present:
@@ -290,7 +301,7 @@ def compare(path_a, path_b):
         # 고정 임계값으로 판정하면 두 분포가 걸치는 구간에서 결론이 안 나온다.
         # 걸러진 길이를 남은 길이와 직접 견주는 것이 맞다.
         if kept:
-            if lens[-1] <= kept[0]:
+            if lens[-1] < kept[0]:
                 print(f"    -> 걸러진 것이 모두 남은 것보다 짧다"
                       f" (경계 {lens[-1]}자 / {kept[0]}자)."
                       " 길이 하한으로 자른 규칙이다. 합리적이다.")
@@ -300,6 +311,33 @@ def compare(path_a, path_b):
             else:
                 print("    -> 길이 기준이 아니다. 다른 규칙이다."
                       " 정답 청크가 지워졌는지 확인이 필요하다.")
+        # 길이가 아니면 무엇인가. 가장 흔한 후보는 중복 제거다.
+        # 조달 문서의 청렴서약·담합금지·공동수급 조항은 문서마다 글자까지 같다.
+        # 걸러진 본문이 남은 쪽에 그대로 있으면 중복 제거로 설명된다.
+        def norm(t):
+            return re.sub(r"\s+", " ", str(t)).strip()
+
+        kept_norm = collections.Counter(norm(r.get(field, "")) for r in rows_b)
+        redundant = sum(1 for s in only_a if kept_norm.get(norm(by_src[s].get(field, ""))))
+        if redundant:
+            print(f"\n    걸러진 {len(only_a)}개 중 {redundant}개는 남은 쪽에"
+                  " 같은 본문이 그대로 있다 -> 중복 제거로 설명된다.")
+            if redundant == len(only_a):
+                print("      전부 그렇다. 정답 청크가 사라진 것이 아니라"
+                      " 같은 내용이 한 벌로 합쳐졌다. 해롭지 않다.")
+        else:
+            print(f"\n    걸러진 {len(only_a)}개는 남은 쪽에 같은 본문이 없다"
+                  " -> 중복 제거가 아니다. 내용이 실제로 빠졌다.")
+
+        # 몇 개 문서에서 빠졌는지 본다. 한 문서에 몰리면 그 문서만 손상된 것이다.
+        drop_docs = collections.Counter(str(by_src[s].get("doc", "?")) for s in only_a)
+        print(f"    걸러진 것이 속한 문서 {len(drop_docs)}개"
+              f" (전체 {len(set(str(r.get('doc','?')) for r in rows_a))}개 중)")
+        if len(drop_docs) <= 3:
+            print("      [!] 소수 문서에 몰려 있다. 그 문서만 다르게 처리됐다.")
+            for d, c in drop_docs.most_common():
+                print(f"        {c:3d}개  {d[:56]}")
+
         print(f"\n    걸러진 source 예시 (최대 5개)")
         for s in sorted(only_a)[:5]:
             body = str(by_src[s].get(field, "")).replace("\n", "\\n")[:60]
@@ -342,11 +380,14 @@ def main(argv=None):
         compare(args.compare[0], args.compare[1])
 
     print("=" * 74)
-    print("읽는 법")
-    print("  [!] 표시만 보면 된다. 없으면 그 항목은 정상이다.")
-    print("  가장 중요한 것은 '질의 후보 필드가 하나도 없다' 와")
-    print("  \"'summary' 는 문서 단위로 보인다\" 두 줄이다.")
-    print("  둘 중 하나라도 나오면 모델·설정을 만져도 점수는 오르지 않는다.")
+    print("읽는 법 — [!] 표시만 보면 된다. 없으면 그 항목은 정상이다.")
+    print("  1. '쓸 수 있는 쌍은 N개뿐이다' -> 학습·평가 규모가 이 N 이다.")
+    print("     필드가 있는지가 아니라 몇 행에 채워졌는지가 실제 규모다.")
+    print("  2. \"문서 단위로 보인다\" -> 정답이 모호해 모델을 바꿔도 안 오른다.")
+    print("  3. '512토큰 초과' -> 잘린 자리에 정답이 있으면 절대 못 맞힌다.")
+    print("  4. '길이 기준이 아니다' -> 무엇을 걸렀는지 확인해야 한다.")
+    print("  점수를 다른 사람과 견줄 때는 반드시 같은 평가셋·같은 지표 정의로")
+    print("  맞춘 뒤에 비교한다. 평가셋이 다르면 숫자는 비교 대상이 아니다.")
     return 0
 
 
