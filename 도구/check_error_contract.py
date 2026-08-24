@@ -118,8 +118,6 @@ def check_single_error_path(backend: Path) -> None:
         if not source:
             continue
         rel = path.relative_to(backend).as_posix()
-        if "HTTPException" in source:
-            offenders.append(rel)
         for node in ast.walk(ast.parse(source)):
             if not isinstance(node, ast.Raise) or node.exc is None:
                 continue
@@ -127,8 +125,13 @@ def check_single_error_path(backend: Path) -> None:
             target = call.func if isinstance(call, ast.Call) else call
             name = getattr(target, "id", None) or getattr(target, "attr", None) or "?"
             raise_types[name] += 1
+            # **던지는 것만** 본다. import 하거나 타입으로 적는 것은 문제가 아니다 —
+            # 라우터가 던진 HTTPException 을 잡는 핸들러가 그 이름을 쓴다.
+            # 문자열로 찾다가 그 핸들러 때문에 검사가 실패했다(2026-08-24).
+            if "HTTPException" in name:
+                offenders.append(f"{rel}:{node.lineno}")
 
-    check("HTTPException 을 쓰지 않는다", not offenders, f"{offenders[:5]}")
+    check("HTTPException 을 던지지 않는다", not offenders, f"{offenders[:5]}")
 
     # 라우터에서 던지는 것은 BusinessError 여야 한다. 서비스·리포지토리는
     # 표준 예외(ValueError 등)를 쓸 수 있으므로 라우터만 좁혀 본다.
@@ -170,6 +173,9 @@ def check_registration(backend: Path) -> None:
     for exc_type, handler in (
         ("BusinessError", "business_error_handler"),
         ("RequestValidationError", "validation_error_handler"),
+        # 라우터가 내는 404·405 를 우리 형식으로 바꾸는 핸들러. 우리가
+        # HTTPException 을 던지지 않아도 **라우터가 던진다.**
+        ("StarletteHTTPException", "http_exception_handler"),
         ("Exception", "unhandled_exception_handler"),
     ):
         pattern = f"add_exception_handler({exc_type},{handler})"
@@ -198,7 +204,10 @@ def check_error_response(backend: Path) -> None:
         if isinstance(node, ast.AsyncFunctionDef) and node.name.endswith("_handler")
     ]
     print(f"    핸들러 {len(handlers)}개 — {', '.join(h.name for h in handlers)}")
-    check("핸들러가 3개다", len(handlers) == 3, f"{len(handlers)}개다")
+    # 넷이다 — 비즈니스 오류 · 요청 검증 · **라우터 HTTP 오류** · 미처리 예외.
+    # 라우터 HTTP 오류(404·405)를 빼면 FastAPI 기본 형식({"detail": ...})이 나가
+    # code·request_id 가 빠진다. 실제로 그 구멍을 겪어서 항목을 늘렸다.
+    check("핸들러가 4개다", len(handlers) == 4, f"{len(handlers)}개다")
 
     missing_header = []
     for handler in handlers:

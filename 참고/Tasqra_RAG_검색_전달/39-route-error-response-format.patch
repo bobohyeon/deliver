@@ -1,0 +1,239 @@
+diff --git a/backend/app/core/error_codes.py b/backend/app/core/error_codes.py
+index c3e33cc..5509f35 100644
+--- a/backend/app/core/error_codes.py
++++ b/backend/app/core/error_codes.py
+@@ -111,6 +111,13 @@ class ErrorCode(Enum):
+     # 메시지에 글자 수를 적지 않는다. 설정을 바꾸면 메시지가 거짓이 되기 때문이다.
+     KEYWORD_TOO_SHORT = ("KEYWORD_TOO_SHORT", "검색어가 너무 짧습니다. 더 길게 입력해 주세요.", 400)
+ 
++    # ── 프레임워크가 내는 오류 (SYS-003-1) ──
++    # 없는 경로·허용되지 않은 메서드는 **우리 코드가 아니라 라우터**가 낸다.
++    # 핸들러를 두지 않으면 FastAPI 기본 형식({"detail": "Not Found"})으로 나가서
++    # code·request_id 가 빠진다. 응답 형식이 하나여야 화면이 한 가지만 처리한다.
++    ROUTE_NOT_FOUND = ("ROUTE_NOT_FOUND", "요청한 경로를 찾을 수 없습니다.", 404)
++    METHOD_NOT_ALLOWED = ("METHOD_NOT_ALLOWED", "이 경로에서 허용되지 않은 방식입니다.", 405)
++
+     INTERNAL_ERROR = ("INTERNAL_ERROR", "서버 내부 오류가 발생했습니다.", 500)
+ 
+     def __init__(self, code: str, message: str, status_code: int):
+diff --git a/backend/app/core/exceptions.py b/backend/app/core/exceptions.py
+index d43968a..c420f42 100644
+--- a/backend/app/core/exceptions.py
++++ b/backend/app/core/exceptions.py
+@@ -15,6 +15,7 @@ from logging import getLogger
+ from fastapi import Request
+ from fastapi.exceptions import RequestValidationError
+ from fastapi.responses import JSONResponse
++from starlette.exceptions import HTTPException as StarletteHTTPException
+ 
+ from app.core.error_codes import ErrorCode
+ from app.core.middleware import REQUEST_ID_HEADER
+@@ -118,3 +119,58 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
+         content=body.model_dump(),
+         headers={REQUEST_ID_HEADER: request_id},
+         )
++
++
++
++# 라우터가 내는 HTTP 오류(없는 경로 404 · 허용되지 않은 메서드 405) 전용 핸들러
++#
++# ⚠ 왜 필요한가 — 실제로 겪었다
++#   산출물 다운로드 주소를 잘못 만들어 호출했더니 이렇게 왔다.
++#       {"detail":"Not Found"}
++#   우리 형식이 아니다. `code` 도 `request_id` 도 없어서 **로그와 이어붙일 수 없다.**
++#   우리가 HTTPException 을 직접 던지지 않아도 **라우터가 던진다.** 그래서 우리
++#   코드만 검사해서는 이 구멍이 보이지 않는다.
++#
++#   완료 판정이 "주요 오류가 **동일한 응답 형식**과 서버 로그에 남고" 이므로
++#   프레임워크가 내는 오류도 같은 형식이어야 한다.
++#
++# ⚠ 상태코드를 우리가 정하지 않는다
++#   라우터가 정한 exc.status_code 를 그대로 쓴다. 405 를 404 로 바꾸면 클라이언트가
++#   경로가 없는 것과 방식이 틀린 것을 구별할 수 없다.
++#
++# ⚠ 405 의 Allow 헤더를 지운다면 규약을 깨는 것이다
++#   Starlette 이 405 에 Allow 헤더를 붙여 준다. 우리가 응답을 새로 만들면 그것이
++#   사라지므로 exc.headers 를 옮겨 담는다.
++_ROUTE_ERROR_CODES = {
++    404: ErrorCode.ROUTE_NOT_FOUND,
++    405: ErrorCode.METHOD_NOT_ALLOWED,
++}
++
++
++async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
++    request_id = _request_id(request)
++    error = _ROUTE_ERROR_CODES.get(exc.status_code)
++
++    # 아는 상태코드는 우리 메시지를 쓴다. 모르는 것은 detail 을 그대로 옮긴다 —
++    # 지어내면 원인을 가린다. detail 이 비어 있으면 상태코드만 알린다.
++    if error is not None:
++        code, message = error.code, error.message
++    else:
++        code = "HTTP_ERROR"
++        message = str(exc.detail) if exc.detail else f"요청을 처리할 수 없습니다 ({exc.status_code})."
++
++    logger.warning(
++        "HTTP error: method=%s path=%s status=%s code=%s",
++        request.method,
++        request.url.path,
++        exc.status_code,
++        code,
++    )
++    headers = {REQUEST_ID_HEADER: request_id}
++    if exc.headers:
++        # 우리 헤더가 이기지 않게 먼저 깔고 덮는다.
++        headers = {**exc.headers, REQUEST_ID_HEADER: request_id}
++    body = ErrorResponse(code=code, message=message, request_id=request_id)
++    return JSONResponse(
++        status_code=exc.status_code, content=body.model_dump(), headers=headers
++    )
+diff --git a/backend/app/main.py b/backend/app/main.py
+index adcd1cf..3bc86ae 100644
+--- a/backend/app/main.py
++++ b/backend/app/main.py
+@@ -7,7 +7,9 @@ from starlette.middleware.cors import CORSMiddleware
+ import app.models  # noqa: F401
+ from app.api.routes import amount_router, analysis_router, auth_router, dashboard_router, deliverable_router, document_router, invitation_router, project_router, search_router, task_router, upload_router
+ from app.core.config import settings
+-from app.core.exceptions import BusinessError, business_error_handler, unhandled_exception_handler, validation_error_handler
++from starlette.exceptions import HTTPException as StarletteHTTPException
++
++from app.core.exceptions import BusinessError, business_error_handler, http_exception_handler, unhandled_exception_handler, validation_error_handler
+ from app.core.logging_config import setup_logging
+ from app.core.middleware import RequestIdMiddleware
+ 
+@@ -22,6 +24,9 @@ app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins_list, all
+ app.add_middleware(RequestIdMiddleware)
+ app.add_exception_handler(BusinessError, business_error_handler)
+ app.add_exception_handler(RequestValidationError, validation_error_handler)
++# 없는 경로(404)·허용되지 않은 메서드(405)는 라우터가 낸다. 이 핸들러가 없으면
++# FastAPI 기본 형식({"detail": ...})으로 나가 code·request_id 가 빠진다.
++app.add_exception_handler(StarletteHTTPException, http_exception_handler)
+ app.add_exception_handler(Exception, unhandled_exception_handler)
+ 
+ @app.get("/health")
+diff --git a/backend/tests/test_error_response_format.py b/backend/tests/test_error_response_format.py
+new file mode 100644
+index 0000000..21b94de
+--- /dev/null
++++ b/backend/tests/test_error_response_format.py
+@@ -0,0 +1,119 @@
++# =============================================================================
++# 이 파일의 책임: 오류 응답 형식(SYS-003-1)이 **한 가지**인지 검증한다.
++#   특히 프레임워크가 내는 오류(없는 경로 404 · 허용되지 않은 메서드 405)가
++#   우리 형식으로 나오는지 본다.
++#
++#   왜 이 검사가 필요한가 — 실제로 놓쳤다
++#     산출물 다운로드 주소를 잘못 만들어 호출했더니 `{"detail":"Not Found"}` 가
++#     왔다. `code` 도 `request_id` 도 없어서 로그와 이어붙일 수 없었다.
++#     우리가 HTTPException 을 던지지 않아도 **라우터가 던진다.**
++#
++# 다른 파일과의 관계: core/exceptions.py · core/error_codes.py · main.py
++#
++# ⚠ 서버를 띄우지 않는다
++#   핸들러는 async 함수라서 asyncio.run 으로 직접 부른다. TestClient 를 쓰면 DB
++#   연결과 설정이 필요해 이 검사의 범위를 넘는다.
++#
++# Spring 비교: @RestControllerAdvice 가 NoHandlerFoundException 까지 잡는지
++#   확인하는 것과 같다. Spring 도 그것을 따로 켜야 잡힌다.
++# =============================================================================
++
++import asyncio
++import json
++from types import SimpleNamespace
++
++from starlette.exceptions import HTTPException as StarletteHTTPException
++
++from app.core.exceptions import (
++    business_error_handler,
++    http_exception_handler,
++    unhandled_exception_handler,
++)
++from app.core.error_codes import ErrorCode
++from app.core.exceptions import BusinessError
++from app.core.middleware import REQUEST_ID_HEADER
++
++
++def _request(request_id="req-1234abcd", method="GET", path="/api/projects/1/nope"):
++    """핸들러가 실제로 읽는 것만 담은 최소 요청."""
++    return SimpleNamespace(
++        state=SimpleNamespace(request_id=request_id),
++        method=method,
++        url=SimpleNamespace(path=path),
++    )
++
++
++def _body(response):
++    return json.loads(bytes(response.body).decode("utf-8"))
++
++
++# --- 없는 경로 · 허용되지 않은 메서드 ----------------------------------------
++
++
++def test_unknown_path_uses_our_format():
++    """FastAPI 기본 형식({"detail": ...})이 나가면 안 된다."""
++    response = asyncio.run(
++        http_exception_handler(_request(), StarletteHTTPException(status_code=404))
++    )
++    body = _body(response)
++
++    assert response.status_code == 404
++    assert body["code"] == ErrorCode.ROUTE_NOT_FOUND.code
++    assert body["request_id"] == "req-1234abcd"
++    assert "detail" not in body
++    assert response.headers[REQUEST_ID_HEADER] == "req-1234abcd"
++
++
++def test_method_not_allowed_keeps_status_and_allow_header():
++    """405 를 404 로 바꾸면 경로가 없는 것과 방식이 틀린 것을 구별할 수 없다."""
++    exception = StarletteHTTPException(status_code=405, headers={"Allow": "GET, POST"})
++    response = asyncio.run(http_exception_handler(_request(method="DELETE"), exception))
++
++    assert response.status_code == 405
++    assert _body(response)["code"] == ErrorCode.METHOD_NOT_ALLOWED.code
++    # Starlette 이 붙여 주는 Allow 를 우리가 지우면 규약을 깨는 것이다.
++    assert response.headers["allow"] == "GET, POST"
++    assert response.headers[REQUEST_ID_HEADER] == "req-1234abcd"
++
++
++def test_unknown_status_passes_detail_through():
++    """모르는 상태코드는 메시지를 지어내지 않고 detail 을 옮긴다."""
++    exception = StarletteHTTPException(status_code=418, detail="주전자입니다")
++    response = asyncio.run(http_exception_handler(_request(), exception))
++    body = _body(response)
++
++    assert response.status_code == 418
++    assert body["code"] == "HTTP_ERROR"
++    assert body["message"] == "주전자입니다"
++
++
++# --- 형식이 하나인지 -----------------------------------------------------------
++
++
++def test_every_handler_returns_the_same_keys():
++    """화면이 한 가지 형식만 처리하면 되도록 열쇠가 같아야 한다."""
++    responses = [
++        asyncio.run(
++            business_error_handler(_request(), BusinessError(ErrorCode.PROJECT_NOT_FOUND))
++        ),
++        asyncio.run(
++            http_exception_handler(_request(), StarletteHTTPException(status_code=404))
++        ),
++        asyncio.run(unhandled_exception_handler(_request(), RuntimeError("boom"))),
++    ]
++    for response in responses:
++        body = _body(response)
++        assert set(body) == {"code", "message", "request_id"}, body
++        assert body["request_id"] == "req-1234abcd"
++        assert response.headers[REQUEST_ID_HEADER] == "req-1234abcd"
++
++
++def test_request_id_falls_back_when_middleware_did_not_run():
++    """미들웨어 이전에 예외가 나도 핸들러가 터지지 않아야 한다."""
++    request = SimpleNamespace(
++        state=SimpleNamespace(), method="GET", url=SimpleNamespace(path="/x")
++    )
++    response = asyncio.run(
++        http_exception_handler(request, StarletteHTTPException(status_code=404))
++    )
++    assert _body(response)["request_id"] == "-"
