@@ -36,15 +36,28 @@ services:
     environment:
       # 문자열로 감싼다. YAML 의 false 는 불리언이 되어 경고가 날 수 있다.
       USE_FAKE_EMBEDDING: "false"
+      # ⚠ 이 줄이 없으면 이 파일 전체가 무의미하다 (2026-08-24 추가)
+      #   세현님 어댑터 머지(PR #49)로 기본값이 EMBEDDING_PROVIDER=local-model 이
+      #   됐다. 그러면 아래 EMBEDDING_BASE_URL 을 **무시하고** 컨테이너 안에서
+      #   모델을 직접 올린다(api·worker 각 2.2GB). 서버를 띄워 둬도 쓰지 않는다.
+      #   에러가 나지 않아 알아채기 어렵다 — 메모리만 조용히 먹는다.
+      EMBEDDING_PROVIDER: "local-http"
       # 컨테이너에서 호스트를 보는 이름. 호스트에 띄운 embed_server.py 를 가리킨다.
       EMBEDDING_BASE_URL: "http://host.docker.internal:8900/v1"
       # document_chunks.embedding_model 에 이 이름이 기록된다. 검색이
       # WHERE embedding_model = 이 값 으로 걸리므로, 바꾸면 청킹을 다시 돌려야 한다.
+      #
+      # ⚠ 두 경로가 **다른 이름을 남긴다** (2026-08-24 확인)
+      #   local-http  -> 여기 적은 값 그대로            "dragonkue/BGE-m3-ko"
+      #   local-model -> 베이스 + 어댑터 이름을 붙인다  "dragonkue/BGE-m3-ko+embedding-hn-v1"
+      #   그래서 한 경로로 청킹한 뒤 다른 경로로 검색하면 **조용히 0건**이다.
+      #   경로를 바꾸면 그 모델로 만든 청크를 지우고 다시 색인해야 한다.
       EMBEDDING_MODEL: "dragonkue/BGE-m3-ko"
 
   worker:
     environment:
       USE_FAKE_EMBEDDING: "false"
+      EMBEDDING_PROVIDER: "local-http"
       EMBEDDING_BASE_URL: "http://host.docker.internal:8900/v1"
       EMBEDDING_MODEL: "dragonkue/BGE-m3-ko"
     # Windows·Mac 의 Docker Desktop 은 host.docker.internal 을 기본 제공하므로
