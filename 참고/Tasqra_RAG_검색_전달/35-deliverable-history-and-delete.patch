@@ -1,0 +1,288 @@
+diff --git a/backend/app/api/routes/deliverable_router.py b/backend/app/api/routes/deliverable_router.py
+index 252a593..9ac06f5 100644
+--- a/backend/app/api/routes/deliverable_router.py
++++ b/backend/app/api/routes/deliverable_router.py
+@@ -191,3 +191,45 @@ def download_deliverable(
+         filename=f"{row.title}.{extension}",
+         media_type="text/markdown; charset=utf-8",
+     )
++
++
++
++@router.get("/deliverables", response_model=list[DeliverableResponse])
++def list_deliverables(
++    access: ProjectAccess = Depends(get_project_access),
++    service: DeliverableService = Depends(get_deliverable_service),
++) -> list[DeliverableResponse]:
++    """만든 산출물 이력 (DLV-003-3). 계약서 44행.
++
++    최근에 만든 것이 먼저 온다. 페이지를 나누지 않는다 — 산출물은 프로젝트당
++    수십 건 규모이고 화면이 한 번에 보여준다.
++
++    조회는 `VIEWER` 에게도 열어 둔다. 만드는 것과 보는 것은 다른 권한이다.
++
++    ⚠️ 파일이 남아 있는지는 확인하지 않는다. 목록에서 건마다 디스크를 보면 파일
++    수만큼 접근이 생긴다. 없어진 파일은 받으려 할 때 `410` 으로 알린다.
++    """
++    return [
++        _to_response(access.project.id, row)
++        for row in service.list_history(access.project.id)
++    ]
++
++
++@router.delete("/deliverables/{deliverable_id}", status_code=204)
++def delete_deliverable(
++    deliverable_id: int,
++    access: ProjectAccess = Depends(get_project_editor_access),
++    service: DeliverableService = Depends(get_deliverable_service),
++) -> None:
++    """산출물을 이력에서 지우고 파일도 지운다. 계약서 46행.
++
++    편집 권한이 필요하다. 만들 수 없는 사람이 지울 수 있으면 안 된다.
++
++    이력을 먼저 지우고 파일을 나중에 지운다 — 거꾸로 하면 실패했을 때 "목록에
++    있는데 받을 수 없는" 행이 남는다. 자세한 이유는 서비스 주석에 있다.
++
++    오류
++      `404 DELIVERABLE_NOT_FOUND`  이 프로젝트에 그 산출물이 없다
++      `403 PROJECT_FORBIDDEN`      VIEWER 다
++    """
++    service.delete(access.project.id, deliverable_id)
+diff --git a/backend/app/repositories/deliverable_repository.py b/backend/app/repositories/deliverable_repository.py
+index 9b9f22f..0129f18 100644
+--- a/backend/app/repositories/deliverable_repository.py
++++ b/backend/app/repositories/deliverable_repository.py
+@@ -341,3 +341,32 @@ class DeliverableRepository:
+             Deliverable.id == deliverable_id, Deliverable.project_id == project_id
+         )
+         return self._db.execute(stmt).scalar_one_or_none()
++
++
++    def list_by_project(self, project_id: int, *, limit: int = 100) -> list[Deliverable]:
++        """만든 순서의 역순으로 이력을 돌려준다 (DLV-003-3).
++
++        정렬 기준이 `generated_at` 내림차순인 이유는 리비전 0007 의 인덱스
++        `ix_deliverable_recent(project_id, generated_at)` 가 그 순서를 받쳐 주기
++        때문이다. 같은 시각이면 id 로 고정한다 — 순서가 흔들리면 목록이 새로고침
++        때마다 달라 보인다.
++
++        페이지를 나누지 않는다. 산출물은 프로젝트당 수십 건 규모이고 화면이
++        목록으로 한 번에 보여준다. 늘어나면 그때 문서 목록처럼 페이징을 붙인다 —
++        지금 넣으면 쓰지 않는 파라미터가 계약에 남는다.
++        """
++        stmt = (
++            select(Deliverable)
++            .where(Deliverable.project_id == project_id)
++            .order_by(Deliverable.generated_at.desc(), Deliverable.id.desc())
++            .limit(limit)
++        )
++        return list(self._db.execute(stmt).scalars())
++
++    def remove(self, deliverable: Deliverable) -> None:
++        """이력 한 건을 지운다. 커밋은 서비스가 한다.
++
++        파일은 여기서 지우지 않는다 — 리포지토리는 DB 만 다룬다. 파일과 DB 를
++        지우는 순서는 서비스가 정해야 한다(deliverable_service.delete 주석 참고).
++        """
++        self._db.delete(deliverable)
+diff --git a/backend/app/services/deliverable_service.py b/backend/app/services/deliverable_service.py
+index e4e2038..3ce73d9 100644
+--- a/backend/app/services/deliverable_service.py
++++ b/backend/app/services/deliverable_service.py
+@@ -68,6 +68,9 @@ logger = logging.getLogger(__name__)
+ # 못한다. 잘렸다는 사실은 source_counts 와 표의 행 수 차이로 드러난다.
+ MATERIAL_ROW_LIMIT = 200
+ 
++# 이력 목록에 돌려줄 건수 상한. 페이징을 붙이지 않은 이유는 리포지토리 주석 참고.
++HISTORY_LIMIT = 100
++
+ # 갱신 판정(DLV-003-4)에 쓸 스냅샷 키. **미리보기의 건수와 같은 이름**이어야
+ # 나중에 다시 세어 비교할 수 있다. 승인 대기는 넣지 않는다 — 담기는 재료가
+ # 아니라 처리해야 할 일이고, 승인 여부로 값이 오가면 "재료가 늘었다" 가 흐려진다.
+@@ -238,6 +241,37 @@ class DeliverableService:
+         )
+         return row
+ 
++    def list_history(self, project_id: int) -> list[Deliverable]:
++        """만든 산출물 이력 (DLV-003-3).
++
++        파일이 남아 있는지는 여기서 보지 않는다. 목록은 자주 불리는데 건마다
++        디스크를 확인하면 파일 수만큼 접근이 생긴다. 없어진 파일은 받으려 할 때
++        `DELIVERABLE_FILE_MISSING` 으로 알린다.
++        """
++        return self._repo.list_by_project(project_id, limit=HISTORY_LIMIT)
++
++    def delete(self, project_id: int, deliverable_id: int) -> None:
++        """이력과 파일을 지운다 (DLV-003-3).
++
++        ⚠️ 순서가 중요하다 — **이력을 먼저 지우고 파일을 나중에 지운다.**
++        거꾸로 하면 파일을 지운 뒤 커밋이 실패했을 때 "목록에 있는데 받을 수 없는"
++        행이 남는다. 이 순서라면 실패해도 남는 것은 아무도 가리키지 않는 파일이고,
++        그것은 사용자에게 보이지 않는다.
++
++        파일 삭제가 실패해도 예외를 올리지 않는다. 사용자가 요청한 것은 "이력에서
++        지우기" 이고 그것은 이미 됐다.
++        """
++        row = self._repo.get(project_id, deliverable_id)
++        if row is None:
++            raise BusinessError(ErrorCode.DELIVERABLE_NOT_FOUND)
++
++        path = row.file_path
++        with transactional(self._db) as db:  # type: ignore[arg-type]
++            self._repo.remove(row)
++            db.flush()
++        self._remove_quietly(path)
++        logger.info("산출물 삭제 project_id=%s id=%s", project_id, deliverable_id)
++
+     def open_file(self, project_id: int, deliverable_id: int) -> Deliverable:
+         """다운로드할 산출물을 찾는다 (DLV-003-3).
+ 
+diff --git a/backend/tests/test_deliverable_history.py b/backend/tests/test_deliverable_history.py
+new file mode 100644
+index 0000000..30bb3ce
+--- /dev/null
++++ b/backend/tests/test_deliverable_history.py
+@@ -0,0 +1,143 @@
++# =============================================================================
++# 이 파일의 책임: 산출물 이력 조회와 삭제(DLV-003-3)를 DB 없이 검증한다.
++#
++#   검사하는 것
++#     ① 최근에 만든 것이 먼저 오는가 (정렬을 리포지토리에 맡기는가)
++#     ② 목록이 디스크를 보지 않는가 (파일 수만큼 접근이 생기면 안 된다)
++#     ③ 삭제가 **이력 먼저, 파일 나중** 인가 (순서가 뒤집히면 못 받는 행이 남는다)
++#     ④ 파일 삭제 실패가 요청을 실패시키지 않는가
++#     ⑤ 없는 산출물을 지울 때 404 인가
++#
++# 다른 파일과의 관계: services/deliverable_service.py. 리포지토리는 MagicMock 이다.
++#
++# Spring 비교: Mockito 로 Repository 를 스텁하고 Service 만 단위 검증.
++# =============================================================================
++
++import os
++from datetime import date, datetime, timezone
++from types import SimpleNamespace
++from unittest.mock import MagicMock
++
++import pytest
++
++from app.core.error_codes import ErrorCode
++from app.core.exceptions import BusinessError
++from app.services.deliverable_service import HISTORY_LIMIT, DeliverableService
++
++
++def _row(deliverable_id=9, path="/tmp/없어도-된다.md", title="주간 보고서"):
++    return SimpleNamespace(
++        id=deliverable_id,
++        kind="WEEKLY_REPORT",
++        format="MD",
++        title=title,
++        period_from=date(2026, 8, 14),
++        period_to=date(2026, 8, 20),
++        file_path=path,
++        file_size=1234,
++        source_counts_json={"documents": 3},
++        generated_at=datetime(2026, 8, 24, 6, 0, tzinfo=timezone.utc),
++    )
++
++
++def _service(rows=None):
++    repo = MagicMock()
++    repo.list_by_project.return_value = rows if rows is not None else []
++    return DeliverableService(repo, MagicMock()), repo
++
++
++# --- ① ② 목록 ---------------------------------------------------------------
++
++
++def test_history_asks_repository_with_limit():
++    """정렬과 상한을 서비스가 다시 구현하지 않는다 — 인덱스가 받쳐 주는 쪽에 맡긴다."""
++    service, repo = _service([_row(1), _row(2)])
++    result = service.list_history(7)
++    assert len(result) == 2
++    repo.list_by_project.assert_called_once_with(7, limit=HISTORY_LIMIT)
++
++
++def test_history_does_not_touch_disk():
++    """건마다 파일 존재를 확인하면 파일 수만큼 디스크 접근이 생긴다."""
++    service, _ = _service([_row(1, path="/없는/경로1.md"), _row(2, path="/없는/경로2.md")])
++    # 파일이 하나도 없어도 목록은 그대로 나온다.
++    assert len(service.list_history(7)) == 2
++
++
++def test_empty_history_is_empty_list_not_error():
++    service, _ = _service([])
++    assert service.list_history(7) == []
++
++
++# --- ③ ④ ⑤ 삭제 -------------------------------------------------------------
++
++
++def test_delete_removes_history_then_file(tmp_path):
++    """순서가 중요하다 — 이력을 먼저 지우고 파일을 나중에 지운다."""
++    target = tmp_path / "산출물.md"
++    target.write_text("내용", encoding="utf-8")
++
++    service, repo = _service()
++    repo.get.return_value = _row(path=str(target))
++
++    service.delete(7, 9)
++
++    repo.get.assert_called_once_with(7, 9)
++    repo.remove.assert_called_once()
++    assert not target.exists(), "파일이 지워지지 않았다"
++
++
++def test_delete_keeps_file_when_history_removal_fails(tmp_path):
++    """이력 삭제가 실패하면 파일은 그대로 둔다. 받을 수 있는 상태가 유지된다."""
++    target = tmp_path / "산출물.md"
++    target.write_text("내용", encoding="utf-8")
++
++    service, repo = _service()
++    repo.get.return_value = _row(path=str(target))
++    repo.remove.side_effect = RuntimeError("이력 삭제 실패")
++
++    with pytest.raises(RuntimeError):
++        service.delete(7, 9)
++
++    assert target.exists(), "이력이 남았는데 파일을 지웠다"
++
++
++def test_delete_succeeds_even_if_file_already_gone():
++    """사용자가 요청한 것은 이력에서 지우기다. 파일이 이미 없어도 성공이다."""
++    service, repo = _service()
++    repo.get.return_value = _row(path="/없는/경로.md")
++
++    service.delete(7, 9)  # 예외가 나지 않아야 한다
++
++    repo.remove.assert_called_once()
++
++
++def test_delete_missing_deliverable_is_not_found():
++    service, repo = _service()
++    repo.get.return_value = None
++    with pytest.raises(BusinessError) as err:
++        service.delete(7, 9)
++    assert err.value.error_code is ErrorCode.DELIVERABLE_NOT_FOUND
++    repo.remove.assert_not_called()
++
++
++def test_delete_scopes_by_project():
++    """id 만으로 찾으면 남의 프로젝트 산출물을 지울 수 있다."""
++    service, repo = _service()
++    repo.get.return_value = _row()
++    service.delete(7, 9)
++    assert repo.get.call_args.args == (7, 9)
++
++
++# --- 다운로드는 목록과 달리 파일을 확인한다 ---------------------------------
++
++
++def test_open_file_checks_disk(tmp_path):
++    target = tmp_path / "산출물.md"
++    target.write_text("내용", encoding="utf-8")
++
++    service, repo = _service()
++    repo.get.return_value = _row(path=str(target))
++
++    row = service.open_file(7, 9)
++    assert os.path.exists(row.file_path)
