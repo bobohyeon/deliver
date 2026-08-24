@@ -398,7 +398,7 @@ index 36fbc1c..7d02354 100644
  // can_generate 를 화면이 계산하지 않는 이유
  //   건수를 보고 화면이 스스로 판단하면 같은 규칙이 서버와 화면 두 곳에 생긴다.
 diff --git a/frontend/src/features/deliverables/DeliverablesView.css b/frontend/src/features/deliverables/DeliverablesView.css
-index 5784489..55ce1a3 100644
+index 9b8a5b0..44de83b 100644
 --- a/frontend/src/features/deliverables/DeliverablesView.css
 +++ b/frontend/src/features/deliverables/DeliverablesView.css
 @@ -45,7 +45,9 @@
@@ -413,11 +413,11 @@ index 5784489..55ce1a3 100644
  .deliverable-group-heading { grid-column: 1 / -1; margin: 0; color: #65748a; font-size: 13px; font-weight: 750; }
  
 diff --git a/frontend/src/features/deliverables/DeliverablesView.jsx b/frontend/src/features/deliverables/DeliverablesView.jsx
-index 11a2ba4..9b2fdb1 100644
+index b808027..09a4a86 100644
 --- a/frontend/src/features/deliverables/DeliverablesView.jsx
 +++ b/frontend/src/features/deliverables/DeliverablesView.jsx
-@@ -58,9 +58,16 @@ const FORMATS = [
-   ['MD', 'Markdown', '텍스트 기반 기록과 공유'],
+@@ -61,9 +61,16 @@ const FORMATS = [
+   ['PDF', 'PDF', '그대로 인쇄하고 공유'],
  ]
  
 -// 산출물에 실제로 담기는 재료.
@@ -434,7 +434,7 @@ index 11a2ba4..9b2fdb1 100644
    ['decisions', '결정사항'],
    ['schedule_items', '일정'],
    ['amount_items', '금액 항목'],
-@@ -70,7 +77,6 @@ const CONTENT_COUNTS = [
+@@ -73,7 +80,6 @@ const CONTENT_COUNTS = [
  // 적지 않으면 "4건이 있는데 왜 못 만드나" 가 된다.
  const ASIDE_COUNTS = [
    ['pending_suggestions', '승인 대기', '승인하면 담깁니다'],
@@ -442,7 +442,7 @@ index 11a2ba4..9b2fdb1 100644
  ]
  
  /** Date 를 'YYYY-MM-DD' 로. toISOString() 을 쓰지 않는다 — 그것은 UTC 라서
-@@ -201,7 +207,7 @@ export default function DeliverablesView({ projectId, notify }) {
+@@ -204,7 +210,7 @@ export default function DeliverablesView({ projectId, notify }) {
  
  // 값이 null·undefined 면 '—' 를 보여준다. 0 과 구별하기 위한 것이다.
  //   0    — 실제로 0건이다
