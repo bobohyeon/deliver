@@ -1,0 +1,1290 @@
+diff --git a/backend/app/api/routes/deliverable_router.py b/backend/app/api/routes/deliverable_router.py
+index a5bf8c6..252a593 100644
+--- a/backend/app/api/routes/deliverable_router.py
++++ b/backend/app/api/routes/deliverable_router.py
+@@ -1,6 +1,6 @@
+ # =============================================================================
+-# 이 파일의 책임: 산출물 API 의 HTTP 경계를 정의한다. 지금은 생성 대상
+-#   미리보기(DLV-001-2)만 있다.
++# 이 파일의 책임: 산출물 API 의 HTTP 경계를 정의한다. 생성 대상 미리보기
++#   (DLV-001-2) · 만들기(DLV-002-x) · 다운로드(DLV-003-3) 셋이다.
+ #
+ # 다른 파일과의 관계: services/deliverable_service.py 가 판단하고
+ #   schemas/deliverable.py 가 계약이다. main.py 에서 include_router 로 등록한다.
+@@ -17,27 +17,57 @@
+ #   검색을 POST 로 둔 이유(한글 문장 질의 · 검색어가 로그에 남지 않아야 함)가
+ #   여기에는 없다.
+ #
+-# ⚠ 만들기(POST)는 이 PR 에 없다
+-#   미리보기만 먼저 낸다. 완료 판정이 "**LLM 호출 전에** 건수가 보이고 대상이
+-#   없으면 생성이 방지된다" 이므로, 미리보기가 먼저 있어야 만들기가 그것을 전제로
+-#   설계된다. 만들기는 DLV-002-1 이고 별도 작업이다.
++# 만들기가 미리보기를 그대로 부른다
++#   완료 판정이 "**LLM 호출 전에** 건수가 보이고 대상이 없으면 생성이 방지된다"
++#   이므로 미리보기가 먼저 있었고, 만들기는 그것을 전제로 설계했다. 만들기는
++#   자기만의 집계를 갖지 않는다 — 그러면 "미리보기는 12건, 보고서는 9건" 이 생긴다.
++#
++# ⚠ 지금 만들 수 있는 형식은 Markdown 하나다
++#   DB 는 XLSX·HTML·MD·PDF 를 허용하지만(리비전 0021) 만드는 코드는 MD 만 있다.
++#   나머지는 501 로 분명히 알린다. 형식을 늘리는 것은 별도 작업이고, XLSX·PDF 는
++#   새 라이브러리가 필요해 팀 이미지 크기에 영향을 준다.
+ # =============================================================================
+ 
+ from datetime import date
+ 
+ from fastapi import APIRouter, Depends, Query
++from fastapi.responses import FileResponse
+ 
+ from app.dependencies import (
+     ProjectAccess,
+     get_deliverable_service,
+     get_project_access,
++    get_project_editor_access,
++)
++from app.schemas.deliverable import (
++    DeliverableCreateRequest,
++    DeliverablePreviewResponse,
++    DeliverableResponse,
+ )
+-from app.schemas.deliverable import DeliverablePreviewResponse
+ from app.services.deliverable_service import DeliverableService
+ 
+ router = APIRouter(prefix="/api/projects/{project_id}", tags=["deliverables"])
+ 
+ 
++def _to_response(project_id: int, row) -> DeliverableResponse:
++    """이력 한 건을 응답으로. 다운로드 경로를 **서버가** 만든다.
++
++    화면이 경로를 조립하면 경로를 바꿀 때 양쪽을 고쳐야 한다.
++    """
++    return DeliverableResponse(
++        id=row.id,
++        kind=row.kind,
++        format=row.format,
++        title=row.title,
++        period_from=row.period_from,
++        period_to=row.period_to,
++        file_size=row.file_size,
++        source_counts=row.source_counts_json,
++        generated_at=row.generated_at,
++        download_url=f"/api/projects/{project_id}/deliverables/{row.id}/file",
++    )
++
++
+ @router.get("/deliverables/preview", response_model=DeliverablePreviewResponse)
+ def preview_deliverable(
+     kind: str = Query(
+@@ -85,3 +115,79 @@ def preview_deliverable(
+         period_from=period_from,
+         period_to=period_to,
+     )
++
++
++
++@router.post("/deliverables", response_model=DeliverableResponse, status_code=201)
++def create_deliverable(
++    request: DeliverableCreateRequest,
++    access: ProjectAccess = Depends(get_project_editor_access),
++    service: DeliverableService = Depends(get_deliverable_service),
++) -> DeliverableResponse:
++    """산출물을 만든다 (DLV-002-x).
++
++    경로는 팀 계약서 43행에 이미 정해져 있다 — `POST /api/projects/{pid}/deliverables`.
++
++    **미리보기와 같은 규칙으로 센다.** 만들기가 자기만의 집계를 갖지 않으므로
++    "미리보기는 12건이라 했는데 보고서는 9건" 이 생기지 않는다.
++
++    ⚠️ 지금 만들 수 있는 형식은 **Markdown 하나**다. `XLSX`·`HTML`·`PDF` 는 DB 가
++    허용하는 값이지만 만드는 코드가 아직 없어 `501` 을 낸다. 값이 틀린 것(400)과
++    서버가 아직 못 하는 것(501)은 다른 상황이라 구분한다.
++
++    ⚠️ 개요 문장은 아직 비어 있다. `DLV-002-1` 완료 판정의 "LLM 호출은 개요 1회"
++    가 붙지 않았다. 표는 모두 실제 자료이고, 개요 자리에 비었다고 적는다 —
++    없는 문장을 지어내지 않는다.
++
++    편집 권한이 필요하다(`VIEWER` 는 만들 수 없다). 읽기 전용 참여자가 프로젝트에
++    파일과 이력을 남기는 것은 역할의 뜻과 맞지 않는다.
++
++    오류
++      `400 INVALID_DOCUMENT_TYPE`         kind 나 format 이 허용값이 아니다
++      `422 DELIVERABLE_EMPTY`             담을 내용이 없다. 이유가 detail 에 있다
++      `422 PERIOD_REQUIRED`               주간 보고서인데 기간이 없다
++      `422 INVALID_PROJECT_DATES`         시작일이 종료일보다 늦다
++      `501 DELIVERABLE_FORMAT_NOT_READY`  아직 못 만드는 형식이다
++      `403 PROJECT_FORBIDDEN`             VIEWER 다
++    """
++    row = service.generate(
++        access.project.id,
++        kind=request.kind,
++        deliverable_format=request.format,
++        period_from=request.period_from,
++        period_to=request.period_to,
++        user_id=access.member.user_id,
++    )
++    return _to_response(access.project.id, row)
++
++
++@router.get("/deliverables/{deliverable_id}/file")
++def download_deliverable(
++    deliverable_id: int,
++    access: ProjectAccess = Depends(get_project_access),
++    service: DeliverableService = Depends(get_deliverable_service),
++) -> FileResponse:
++    """만들어 둔 산출물을 내려받는다 (DLV-003-3).
++
++    경로는 계약서 45행 그대로다. 계약서 본문의 예시에는
++    `/api/deliverables/9/file` 로 적혀 있는데 **표(45행)와 어긋난다.** 표를 따랐다 —
++    다른 엔드포인트가 모두 프로젝트 아래에 있고, 권한도 프로젝트 단위로 판정한다.
++
++    조회는 `VIEWER` 에게도 열어 둔다. 만드는 것과 보는 것은 다른 권한이다.
++
++    받을 때의 파일 이름은 **제목으로** 만든다. 저장은 uuid 이름으로 하지만
++    사용자에게는 "주간 보고서 2026-08-04 ~ 2026-08-10.md" 가 보여야 한다.
++
++    오류
++      `404 DELIVERABLE_NOT_FOUND`     이 프로젝트에 그 산출물이 없다
++      `410 DELIVERABLE_FILE_MISSING`  이력은 있는데 파일이 사라졌다
++    """
++    row = service.open_file(access.project.id, deliverable_id)
++    extension = row.format.lower()
++    return FileResponse(
++        row.file_path,
++        # 한글 제목이라 브라우저가 알아볼 수 있게 FileResponse 가 RFC 5987 로
++        # 인코딩해 준다. 여기서 직접 헤더를 만들지 않는다.
++        filename=f"{row.title}.{extension}",
++        media_type="text/markdown; charset=utf-8",
++    )
+diff --git a/backend/app/core/error_codes.py b/backend/app/core/error_codes.py
+index 106a150..c3e33cc 100644
+--- a/backend/app/core/error_codes.py
++++ b/backend/app/core/error_codes.py
+@@ -89,6 +89,12 @@ class ErrorCode(Enum):
+     PERIOD_REQUIRED = ("PERIOD_REQUIRED", "대상 기간을 선택해 주세요.", 422)
+     DELIVERABLE_EMPTY = ("DELIVERABLE_EMPTY", "선택한 기간에 담을 내용이 없습니다.", 422)
+     DELIVERABLE_GENERATION_FAILED = ("DELIVERABLE_GENERATION_FAILED", "산출물 파일을 만들지 못했습니다.", 500)
++    # 값은 맞지만 아직 그 형식으로 만드는 코드가 없다. 400(잘못된 값)과 구분한다 —
++    # 사용자가 고를 수 있는 값이었고 서버가 아직 못 하는 것이다.
++    DELIVERABLE_FORMAT_NOT_READY = ("DELIVERABLE_FORMAT_NOT_READY", "아직 지원하지 않는 출력 형식입니다.", 501)
++    # 이력에는 있는데 파일이 사라졌다. NOT_FOUND 와 구분해야 "목록에 보이는데 왜 못
++    # 받나" 를 설명할 수 있다.
++    DELIVERABLE_FILE_MISSING = ("DELIVERABLE_FILE_MISSING", "산출물 파일이 남아 있지 않습니다. 다시 만들어 주세요.", 410)
+ 
+     # ── AI 모델 (금액 모델을 따로 돌리는 구성) ──
+     AI_MODEL_NOT_LOADED = ("AI_MODEL_NOT_LOADED", "AI 모델이 아직 준비되지 않았습니다. 잠시 후 다시 시도해 주세요.", 503)
+diff --git a/backend/app/dependencies.py b/backend/app/dependencies.py
+index eb19542..2ac2d37 100644
+--- a/backend/app/dependencies.py
++++ b/backend/app/dependencies.py
+@@ -380,9 +380,12 @@ def get_deliverable_repository(db: Session = Depends(get_db)) -> DeliverableRepo
+ # get_deliverable_repository **아래에** 두어야 한다. Depends(...) 는 기본값이라
+ # 함수를 정의하는 순간 평가되고, 위에 두면 import 시점에 NameError 로 앱이 안 뜬다.
+ def get_deliverable_service(
++    db: Session = Depends(get_db),
+     deliverable_repository: DeliverableRepository = Depends(get_deliverable_repository),
+ ) -> DeliverableService:
+-    # 세션을 넘기지 않는다. 미리보기는 읽기만 하고 조회는 전부 리포지토리를 거친다.
+-    # ProjectRepository 도 넘기지 않는다 — 범위가 현재 프로젝트 하나로 정해져 있고
++    # 세션을 넘기는 이유는 **만들기(DLV-002-x)** 다. 파일 저장과 이력 저장을 한
++    # 트랜잭션으로 묶어야 해서 서비스가 transactional 을 쓴다. 미리보기는 여전히
++    # 읽기만 하고 조회는 전부 리포지토리를 거친다.
++    # ProjectRepository 는 넘기지 않는다 — 범위가 현재 프로젝트 하나로 정해져 있고
+     # 권한은 라우터의 get_project_access 가 이미 판정했다.
+-    return DeliverableService(deliverable_repository)
++    return DeliverableService(deliverable_repository, db)
+diff --git a/backend/app/repositories/deliverable_repository.py b/backend/app/repositories/deliverable_repository.py
+index 86c5324..9b9f22f 100644
+--- a/backend/app/repositories/deliverable_repository.py
++++ b/backend/app/repositories/deliverable_repository.py
+@@ -29,10 +29,11 @@ from __future__ import annotations
+ from datetime import date
+ 
+ from sqlalchemy import func, or_, select
+-from sqlalchemy.orm import Session
++from sqlalchemy.orm import Session, joinedload
+ 
+ from app.models.amount import AmountItem
+ from app.models.decision import Decision
++from app.models.deliverable import Deliverable
+ from app.models.document import Document
+ from app.models.schedule import ScheduleItem
+ from app.models.task import Task
+@@ -206,3 +207,137 @@ class DeliverableRepository:
+         for stmt in (amounts, decisions, schedules):
+             total += int(self._db.execute(stmt).scalar() or 0)
+         return total
++
++
++    # --- 산출물에 담을 실제 행 (DLV-002-x) ----------------------------------
++    #
++    # ⚠ 세는 메서드와 **같은 조건**을 써야 한다. 조건이 갈리면 미리보기가 12건이라
++    #   했는데 보고서에 9건이 담기는 일이 생긴다. 그래서 아래 목록 메서드는 위
++    #   count_* 와 나란히 두고 필터를 그대로 옮겼다.
++    #
++    # ⚠ 상한을 둔다
++    #   보고서 한 장에 수천 행을 넣으면 파일도 크고 사람이 읽지도 못한다. 서비스가
++    #   limit 을 넘겨 자르고, 잘렸다는 사실은 건수(source_counts)와 표의 행 수가
++    #   다른 것으로 드러난다.
++
++    def list_documents(
++        self,
++        project_id: int,
++        *,
++        since: date | None = None,
++        until: date | None = None,
++        limit: int = 200,
++    ) -> list[Document]:
++        stmt = select(Document).where(Document.project_id == project_id)
++        if since is not None:
++            stmt = stmt.where(func.date(Document.created_at) >= since)
++        if until is not None:
++            stmt = stmt.where(func.date(Document.created_at) <= until)
++        stmt = stmt.order_by(Document.created_at, Document.id).limit(limit)
++        return list(self._db.execute(stmt).scalars())
++
++    def list_completed_tasks(
++        self,
++        project_id: int,
++        *,
++        since: date | None = None,
++        until: date | None = None,
++        limit: int = 200,
++    ) -> list[Task]:
++        stmt = (
++            select(Task)
++            .options(joinedload(Task.assignee))
++            .where(Task.project_id == project_id, Task.status == "DONE")
++        )
++        if since is not None:
++            stmt = stmt.where(func.date(Task.completed_at) >= since)
++        if until is not None:
++            stmt = stmt.where(func.date(Task.completed_at) <= until)
++        stmt = stmt.order_by(Task.completed_at, Task.id).limit(limit)
++        return list(self._db.execute(stmt).unique().scalars())
++
++    def list_decisions(
++        self,
++        project_id: int,
++        *,
++        since: date | None = None,
++        until: date | None = None,
++        status: str | None = None,
++        limit: int = 200,
++    ) -> list[Decision]:
++        stmt = select(Decision).where(Decision.project_id == project_id)
++        if status is not None:
++            stmt = stmt.where(Decision.status == status)
++        if since is not None:
++            stmt = stmt.where(Decision.decided_on >= since)
++        if until is not None:
++            stmt = stmt.where(Decision.decided_on <= until)
++        # 결정일이 NULL 인 행은 기간을 줄 때만 빠진다(count_decisions 와 같다).
++        # 정렬에서도 NULL 을 뒤로 보내 표 앞쪽에 날짜 없는 행이 몰리지 않게 한다.
++        stmt = stmt.order_by(Decision.decided_on.is_(None), Decision.decided_on, Decision.id)
++        return list(self._db.execute(stmt.limit(limit)).scalars())
++
++    def list_schedule_items(
++        self,
++        project_id: int,
++        *,
++        since: date | None = None,
++        until: date | None = None,
++        limit: int = 200,
++    ) -> list[ScheduleItem]:
++        stmt = select(ScheduleItem).where(ScheduleItem.project_id == project_id)
++        if since is not None or until is not None:
++            starts_ok = ScheduleItem.starts_on.is_not(None)
++            ends_ok = ScheduleItem.ends_on.is_not(None)
++            if since is not None:
++                starts_ok = starts_ok & (ScheduleItem.starts_on >= since)
++                ends_ok = ends_ok & (ScheduleItem.ends_on >= since)
++            if until is not None:
++                starts_ok = starts_ok & (ScheduleItem.starts_on <= until)
++                ends_ok = ends_ok & (ScheduleItem.ends_on <= until)
++            stmt = stmt.where(or_(starts_ok, ends_ok))
++        stmt = stmt.order_by(ScheduleItem.starts_on, ScheduleItem.ends_on, ScheduleItem.id)
++        return list(self._db.execute(stmt.limit(limit)).scalars())
++
++    def list_amount_items(
++        self,
++        project_id: int,
++        *,
++        since: date | None = None,
++        until: date | None = None,
++        limit: int = 200,
++    ) -> list[AmountItem]:
++        stmt = (
++            select(AmountItem)
++            .join(Document, Document.id == AmountItem.document_id)
++            .where(Document.project_id == project_id)
++        )
++        if since is not None:
++            stmt = stmt.where(func.date(Document.created_at) >= since)
++        if until is not None:
++            stmt = stmt.where(func.date(Document.created_at) <= until)
++        stmt = stmt.order_by(AmountItem.document_id, AmountItem.id).limit(limit)
++        return list(self._db.execute(stmt).scalars())
++
++    # --- 산출물 이력 --------------------------------------------------------
++
++    def add(self, deliverable: Deliverable) -> Deliverable:
++        """이력 한 건을 넣는다. 커밋은 서비스가 transactional 로 한다.
++
++        flush 까지만 하는 이유: 응답에 id 가 필요하고, 커밋 시점은 서비스가
++        정해야 한다(파일 저장과 함께 묶인다).
++        """
++        self._db.add(deliverable)
++        self._db.flush()
++        return deliverable
++
++    def get(self, project_id: int, deliverable_id: int) -> Deliverable | None:
++        """프로젝트를 함께 조건에 넣는다.
++
++        id 만으로 찾으면 남의 프로젝트 산출물을 내 프로젝트 경로로 받을 수 있다.
++        권한은 라우터가 프로젝트 단위로만 보므로 그 안에 있는지는 여기서 본다.
++        """
++        stmt = select(Deliverable).where(
++            Deliverable.id == deliverable_id, Deliverable.project_id == project_id
++        )
++        return self._db.execute(stmt).scalar_one_or_none()
+diff --git a/backend/app/schemas/deliverable.py b/backend/app/schemas/deliverable.py
+index e80bd4e..82c6cc5 100644
+--- a/backend/app/schemas/deliverable.py
++++ b/backend/app/schemas/deliverable.py
+@@ -17,14 +17,19 @@
+ #   format 을 받지 않는다.
+ # =============================================================================
+ 
+-from datetime import date
++from datetime import date, datetime
+ 
+ from pydantic import BaseModel, Field
+ 
+ __all__ = [
++    "DELIVERABLE_FORMATS",
++    "DELIVERABLE_KIND_LABELS",
+     "DELIVERABLE_KINDS",
+     "PERIOD_REQUIRED_KINDS",
++    "SUPPORTED_DELIVERABLE_FORMATS",
++    "DeliverableCreateRequest",
+     "DeliverablePreviewResponse",
++    "DeliverableResponse",
+     "PreviewCounts",
+ ]
+ 
+@@ -33,6 +38,21 @@ DELIVERABLE_KINDS = ("WEEKLY_REPORT", "DECISION_LOG", "MEETING_AGENDA", "PROJECT
+ # 기간이 필수인 유형. DB CHECK(ck_deliverable_period_required)와 같은 판단이다.
+ PERIOD_REQUIRED_KINDS = ("WEEKLY_REPORT",)
+ 
++# models/deliverable.py 의 _FORMAT 과 같아야 한다. 리비전 0021 이 PDF 를 더했다.
++DELIVERABLE_FORMATS = ("XLSX", "HTML", "MD", "PDF")
++# 실제로 만들 수 있는 형식. **DB 가 허용하는 것과 다르다** — 허용값은 넷인데
++# 만드는 코드는 아직 Markdown 하나다. 나머지는 501 로 분명히 알린다. 값이
++# 틀린 것(400)과 서버가 아직 못 하는 것(501)은 다른 상황이다.
++SUPPORTED_DELIVERABLE_FORMATS = ("MD",)
++
++# 제목에 쓰는 사람이 읽는 이름. 화면의 KINDS 목록과 문구를 맞춘다.
++DELIVERABLE_KIND_LABELS = {
++    "WEEKLY_REPORT": "주간 보고서",
++    "DECISION_LOG": "결정사항 대장",
++    "MEETING_AGENDA": "다음 회의 안건",
++    "PROJECT_STATUS": "프로젝트 현황",
++}
++
+ 
+ class PreviewCounts(BaseModel):
+     """산출물에 담길 재료의 건수.
+@@ -89,3 +109,49 @@ class DeliverablePreviewResponse(BaseModel):
+     # `tasks` 테이블이 생겨 지금은 항상 빈 목록이다. **필드를 지우지 않는다** —
+     # 다음에 또 못 세는 재료가 생기면 화면을 고치지 않고 여기로 알릴 수 있다.
+     uncountable: list[str] = Field(default_factory=list)
++
++
++
++class DeliverableCreateRequest(BaseModel):
++    """산출물 만들기 요청 (POST /deliverables).
++
++    `format` 에 **기본값을 두지 않는다.** DLV-001-1 완료 판정이 "형식을 고르지
++    않으면 생성 버튼이 비활성화된다" 이므로 서버도 받지 않는다. 기본값을 두면
++    나중에 "왜 md 로 나왔지" 가 생긴다.
++
++    기간은 유형과 무관하게 받는다. 주간 보고서만 필수이고 나머지에서는 서버가
++    무시한다 — 미리보기(GET)와 같은 규칙이라 화면이 유형별 규칙을 몰라도 된다.
++
++    ⚠ `format` 을 빼면 `422 VALIDATION_ERROR` 다. `ErrorCode.FORMAT_REQUIRED` 를
++    쓰지 않는다 — error_codes.py 머리말이 "요청 형식 오류는 Pydantic 이 먼저
++    막으므로 별도 코드를 두지 않는다" 로 정하고 있다. 둘 다 422 이고, 필드가
++    빠졌다는 사실은 검증 응답의 `errors` 가 더 정확히 알려준다.
++    (`models/deliverable.py` 주석은 FORMAT_REQUIRED 를 가리키는데 그 규칙이
++    정해지기 전에 쓴 것이다.)
++    """
++
++    kind: str = Field(description="WEEKLY_REPORT · DECISION_LOG · MEETING_AGENDA · PROJECT_STATUS")
++    format: str = Field(description="XLSX · HTML · MD · PDF. 지금 만들 수 있는 것은 MD 다")
++    period_from: date | None = None
++    period_to: date | None = None
++
++
++class DeliverableResponse(BaseModel):
++    """만들어진 산출물 한 건.
++
++    `source_counts` 는 **만든 시점의 재료 개수 스냅샷**이다. 나중에 지금 개수와
++    비교해 "생성 후 문서가 2건 추가됨" 을 띄우는 근거가 된다(DLV-003-4).
++    미리보기의 건수와 **같은 키**를 쓴다 — 그래야 다시 세어 비교할 수 있다.
++    """
++
++    id: int
++    kind: str
++    format: str
++    title: str
++    period_from: date | None
++    period_to: date | None
++    file_size: int | None
++    source_counts: dict[str, int]
++    generated_at: datetime
++    # 파일을 받는 경로. 화면이 경로를 조립하지 않게 서버가 준다.
++    download_url: str
+diff --git a/backend/app/services/deliverable_markdown.py b/backend/app/services/deliverable_markdown.py
+new file mode 100644
+index 0000000..ca4c154
+--- /dev/null
++++ b/backend/app/services/deliverable_markdown.py
+@@ -0,0 +1,246 @@
++# =============================================================================
++# 이 파일의 책임: 산출물 본문을 Markdown 문자열로 만든다. DB·파일·HTTP 를 모르고
++#   받은 자료만 문자열로 바꾼다.
++#
++# 다른 파일과의 관계
++#   services/deliverable_service.py  자료를 모아 이 함수를 부르고 파일로 저장한다
++#   repositories/deliverable_repository.py  자료를 조회한다
++#   schemas/deliverable.py  유형 이름(DELIVERABLE_KIND_LABELS)을 여기서도 쓴다
++#
++# Spring 비교: 템플릿 엔진(Thymeleaf·Freemarker) 자리다. 다만 템플릿 파일을 두지
++#   않고 문자열을 직접 만든다 — 표 몇 개라 템플릿 문법을 더할 이유가 없고,
++#   순수 함수라 DB 없이 테스트된다.
++#
++# ⚠ Markdown 을 먼저 만드는 이유
++#   새 의존성이 없다. XLSX 는 openpyxl, PDF 는 폰트나 별도 라이브러리가 필요하고
++#   그것은 팀 이미지 크기에 영향을 준다(이미 11.1GB 다). 형식을 늘리는 판단을
++#   미뤄도 "만들기" 자체는 끝낼 수 있다.
++#
++# ⚠ 개요는 비어 있다 — 일부러 그렇다
++#   DLV-002-1 완료 판정에 "LLM 호출은 개요 1회" 가 있다. 아직 LLM 이 붙지 않아
++#   개요 문장을 만들 수 없다. **없는 문장을 지어내지 않고** 자리를 비워 두고
++#   비었다고 적는다. 표는 전부 실제 자료다.
++#
++# ⚠ 표에 들어가는 값은 반드시 escape 한다
++#   문서 이름이나 항목명에 `|` 가 있으면 표가 깨진다. 줄바꿈이 있으면 행이
++#   갈라진다. 사용자 자료라 언제든 들어올 수 있다.
++# =============================================================================
++
++from __future__ import annotations
++
++from dataclasses import dataclass, field
++from datetime import date
++from decimal import Decimal
++from typing import Any
++
++from app.schemas.deliverable import DELIVERABLE_KIND_LABELS
++
++__all__ = ["DeliverableMaterials", "build_title", "render_markdown"]
++
++# 값이 없을 때 표에 넣는 글자. 0 과 구별한다.
++EMPTY = "—"
++
++
++@dataclass
++class DeliverableMaterials:
++    """산출물에 담을 실제 행들.
++
++    서비스가 리포지토리에서 받아 그대로 넣는다. 유형에 따라 비는 목록이 있다 —
++    예를 들어 회의 안건은 결정만 담으므로 나머지가 빈 목록이다.
++    """
++
++    documents: list[Any] = field(default_factory=list)
++    completed_tasks: list[Any] = field(default_factory=list)
++    decisions: list[Any] = field(default_factory=list)
++    schedule_items: list[Any] = field(default_factory=list)
++    amount_items: list[Any] = field(default_factory=list)
++
++
++def cell(value: Any) -> str:
++    """표 한 칸에 넣을 문자열. None 은 —, 표를 깨뜨리는 글자는 바꾼다."""
++    if value is None or value == "":
++        return EMPTY
++    text = str(value)
++    # 줄바꿈은 공백으로, 파이프는 전각으로. 전각으로 바꾸는 이유는 지우면 값이
++    # 달라 보이기 때문이다(예: "A|B" -> "AB" 는 다른 이름이 된다).
++    return text.replace("\r", " ").replace("\n", " ").replace("|", "｜").strip()
++
++
++def money(value: Decimal | int | None) -> str:
++    """금액. 천 단위 구분을 넣는다. 없으면 — 다 (0 으로 바꾸지 않는다)."""
++    if value is None:
++        return EMPTY
++    return f"{int(value):,}"
++
++
++def day(value: date | None) -> str:
++    return value.isoformat() if value else EMPTY
++
++
++def build_title(kind: str, period_from: date | None, period_to: date | None) -> str:
++    """제목. 기간이 있으면 붙인다.
++
++    계약서 예시가 "주간 보고서 2026-08-04 ~ 2026-08-10" 이다. 기간을 쓰지 않는
++    유형은 기간 대신 아무것도 붙이지 않는다 — 생성일을 붙이면 같은 내용을 두 번
++    만들었을 때 제목만 달라져 이력에서 구별이 어려워진다.
++    """
++    label = DELIVERABLE_KIND_LABELS.get(kind, kind)
++    if period_from and period_to:
++        return f"{label} {period_from.isoformat()} ~ {period_to.isoformat()}"
++    return label
++
++
++def _table(header: list[str], rows: list[list[str]]) -> list[str]:
++    lines = ["| " + " | ".join(header) + " |"]
++    lines.append("|" + "|".join(["---"] * len(header)) + "|")
++    lines.extend("| " + " | ".join(row) + " |" for row in rows)
++    return lines
++
++
++def _section(title: str, header: list[str], rows: list[list[str]], empty: str) -> list[str]:
++    """제목 + 표. 행이 없으면 표 대신 한 줄로 없다고 적는다.
++
++    빈 표를 넣지 않는 이유: 머리글만 있는 표는 "자료를 못 가져온 것" 처럼 보인다.
++    """
++    lines = [f"## {title}", ""]
++    if rows:
++        lines.extend(_table(header, rows))
++    else:
++        lines.append(empty)
++    lines.append("")
++    return lines
++
++
++def render_markdown(
++    *,
++    kind: str,
++    title: str,
++    period_from: date | None,
++    period_to: date | None,
++    materials: DeliverableMaterials,
++    generated_at_text: str,
++) -> str:
++    """산출물 본문. 유형에 따라 담는 절이 다르다.
++
++    유형별 규칙은 deliverable_service._count 의 표와 같아야 한다 — 세어서 보여준
++    것과 담기는 것이 다르면 미리보기가 거짓이 된다.
++    """
++    lines: list[str] = [f"# {title}", ""]
++
++    period = (
++        f"{period_from.isoformat()} ~ {period_to.isoformat()}"
++        if period_from and period_to
++        else "기간 전체"
++    )
++    lines.extend(
++        [
++            f"- 대상 기간: {period}",
++            f"- 만든 시각: {generated_at_text}",
++            "",
++        ]
++    )
++
++    if kind in ("WEEKLY_REPORT", "PROJECT_STATUS"):
++        lines.extend(
++            [
++                "## 개요",
++                "",
++                "_개요 문장은 아직 넣지 않았습니다. 저장된 문서 요약을 한 번 재요약해"
++                " 채울 자리입니다(LLM 연결 예정). 아래 표는 모두 실제 자료입니다._",
++                "",
++            ]
++        )
++        lines.extend(
++            _section(
++                "문서",
++                ["파일명", "유형", "등록일"],
++                [
++                    [cell(item.filename), cell(item.document_type), day(_as_date(item.created_at))]
++                    for item in materials.documents
++                ],
++                "이 기간에 등록된 문서가 없습니다.",
++            )
++        )
++        lines.extend(
++            _section(
++                "완료한 태스크",
++                ["제목", "담당", "완료일"],
++                [
++                    [
++                        cell(item.title),
++                        cell(getattr(getattr(item, "assignee", None), "name", None)),
++                        day(_as_date(item.completed_at)),
++                    ]
++                    for item in materials.completed_tasks
++                ],
++                "이 기간에 완료한 태스크가 없습니다.",
++            )
++        )
++        lines.extend(_decision_section(materials.decisions, "이 기간의 결정사항이 없습니다."))
++        lines.extend(
++            _section(
++                "일정·기한",
++                ["제목", "종류", "시작", "종료"],
++                [
++                    [cell(item.title), cell(item.kind), day(item.starts_on), day(item.ends_on)]
++                    for item in materials.schedule_items
++                ],
++                "이 기간에 걸리는 일정이 없습니다.",
++            )
++        )
++        lines.extend(
++            _section(
++                "금액",
++                ["항목", "수량", "단가", "금액"],
++                [
++                    [
++                        cell(item.item_name),
++                        cell(_trim_number(item.quantity)),
++                        money(item.unit_price),
++                        money(item.amount),
++                    ]
++                    for item in materials.amount_items
++                ],
++                "이 기간의 금액 항목이 없습니다.",
++            )
++        )
++    elif kind == "DECISION_LOG":
++        lines.extend(
++            _decision_section(materials.decisions, "기록된 결정사항이 없습니다.", show_status=True)
++        )
++    elif kind == "MEETING_AGENDA":
++        lines.extend(
++            _decision_section(materials.decisions, "미결 상태인 결정사항이 없습니다.")
++        )
++
++    # 끝에 개수를 다시 적지 않는다. 표를 세면 되고, 두 곳에 적으면 어긋난다.
++    return "\n".join(lines).rstrip() + "\n"
++
++
++def _decision_section(
++    decisions: list[Any], empty: str, *, show_status: bool = False
++) -> list[str]:
++    header = ["안건", "상태", "결정일"] if show_status else ["안건", "결정일"]
++    rows = []
++    for item in decisions:
++        row = [cell(item.title)]
++        if show_status:
++            row.append(cell(item.status))
++        row.append(day(item.decided_on))
++        rows.append(row)
++    return _section("결정사항", header, rows, empty)
++
++
++def _as_date(value: Any) -> date | None:
++    """datetime 이면 날짜만 꺼낸다. 보고서에 시각까지 넣지 않는다."""
++    if value is None:
++        return None
++    return value.date() if hasattr(value, "date") else value
++
++
++def _trim_number(value: Decimal | None) -> str | None:
++    """수량의 뒤 0 을 지운다. Numeric(18,4) 라 6 이 6.0000 으로 온다."""
++    if value is None:
++        return None
++    text = f"{value:f}"
++    return text.rstrip("0").rstrip(".") if "." in text else text
+diff --git a/backend/app/services/deliverable_service.py b/backend/app/services/deliverable_service.py
+index 76abc1e..e4e2038 100644
+--- a/backend/app/services/deliverable_service.py
++++ b/backend/app/services/deliverable_service.py
+@@ -36,20 +36,49 @@
+ from __future__ import annotations
+ 
+ import logging
+-from datetime import date
++import os
++import uuid
++from datetime import date, datetime, timezone
+ 
++from sqlalchemy.orm import Session
++
++from app.core.config import settings
+ from app.core.error_codes import ErrorCode
+ from app.core.exceptions import BusinessError
++from app.core.transaction import transactional
++from app.models.deliverable import Deliverable
+ from app.repositories.deliverable_repository import DeliverableRepository
+ from app.schemas.deliverable import (
++    DELIVERABLE_FORMATS,
+     DELIVERABLE_KINDS,
+     PERIOD_REQUIRED_KINDS,
++    SUPPORTED_DELIVERABLE_FORMATS,
+     DeliverablePreviewResponse,
+     PreviewCounts,
+ )
++from app.services.deliverable_markdown import (
++    DeliverableMaterials,
++    build_title,
++    render_markdown,
++)
+ 
+ logger = logging.getLogger(__name__)
+ 
++# 보고서 한 절에 넣을 행 수 상한. 수천 행을 넣으면 파일도 크고 사람이 읽지도
++# 못한다. 잘렸다는 사실은 source_counts 와 표의 행 수 차이로 드러난다.
++MATERIAL_ROW_LIMIT = 200
++
++# 갱신 판정(DLV-003-4)에 쓸 스냅샷 키. **미리보기의 건수와 같은 이름**이어야
++# 나중에 다시 세어 비교할 수 있다. 승인 대기는 넣지 않는다 — 담기는 재료가
++# 아니라 처리해야 할 일이고, 승인 여부로 값이 오가면 "재료가 늘었다" 가 흐려진다.
++SNAPSHOT_KEYS = (
++    "documents",
++    "completed_tasks",
++    "decisions",
++    "schedule_items",
++    "amount_items",
++)
++
+ # 셀 수 없는 재료. `tasks` 테이블이 리비전 0019 로 생겨 지금은 비어 있다.
+ # 상수를 지우지 않고 빈 목록으로 두는 이유: 응답의 uncountable 계약을 유지하면
+ # 다음에 못 세는 재료가 생겨도 화면을 고치지 않고 여기에 이름만 더하면 된다.
+@@ -59,8 +88,13 @@ __all__ = ["DeliverableService", "UNCOUNTABLE"]
+ 
+ 
+ class DeliverableService:
+-    def __init__(self, repository: DeliverableRepository) -> None:
++    def __init__(
++        self, repository: DeliverableRepository, db: Session | None = None
++    ) -> None:
+         self._repo = repository
++        # 미리보기는 읽기만 해서 세션이 필요 없다. **만들기(generate)는 필요하다** —
++        # 파일 저장과 이력 저장을 한 트랜잭션으로 묶어야 하기 때문이다.
++        self._db = db
+ 
+     def preview(
+         self,
+@@ -109,8 +143,179 @@ class DeliverableService:
+             uncountable=list(UNCOUNTABLE),
+         )
+ 
++    def generate(
++        self,
++        project_id: int,
++        *,
++        kind: str,
++        deliverable_format: str,
++        period_from: date | None = None,
++        period_to: date | None = None,
++        user_id: int | None = None,
++    ) -> Deliverable:
++        """산출물을 만들어 파일로 저장하고 이력 한 건을 남긴다 (DLV-002-x).
++
++        순서가 중요하다.
++          ① 형식을 먼저 본다 — DB 를 건드리기 전에 막을 수 있는 것은 먼저 막는다
++          ② 미리보기를 그대로 부른다 — **세는 규칙을 두 번 쓰지 않는다**
++          ③ 담을 것이 없으면 만들지 않는다 (DLV-001-2 완료 판정)
++          ④ 본문을 만들고 파일에 쓴 뒤 이력을 커밋한다
++
++        ②가 이 함수의 핵심이다. 만들기가 자기만의 집계를 갖게 되면 "미리보기는
++        12건이라 했는데 보고서는 9건" 이 생긴다. 그래서 건수는 미리보기 것을 쓰고
++        본문에 담는 행만 따로 조회한다(같은 필터를 쓰는 목록 메서드).
++
++        ⚠️ 파일과 이력이 어긋나지 않게 한다
++          파일을 먼저 쓰고 이력을 커밋한다. 커밋이 실패하면 **쓴 파일을 지운다.**
++          거꾸로 하면(이력 먼저) 목록에 있는데 받을 수 없는 행이 남는다.
++        """
++        if deliverable_format not in DELIVERABLE_FORMATS:
++            raise BusinessError(
++                ErrorCode.INVALID_DOCUMENT_TYPE,
++                detail=f"출력 형식은 {' · '.join(DELIVERABLE_FORMATS)} 중 하나여야 합니다.",
++            )
++        if deliverable_format not in SUPPORTED_DELIVERABLE_FORMATS:
++            raise BusinessError(
++                ErrorCode.DELIVERABLE_FORMAT_NOT_READY,
++                detail=(
++                    f"{deliverable_format} 형식은 아직 만들 수 없습니다. "
++                    f"지금 가능한 형식은 {' · '.join(SUPPORTED_DELIVERABLE_FORMATS)} 입니다."
++                ),
++            )
++
++        preview = self.preview(
++            project_id, kind=kind, period_from=period_from, period_to=period_to
++        )
++        if not preview.can_generate:
++            # 왜 못 만드는지는 미리보기가 이미 문장으로 만들어 뒀다. 여기서 다시
++            # 쓰면 두 곳의 문구가 갈린다.
++            #
++            # 코드를 새로 만들지 않고 **이미 있던 DELIVERABLE_EMPTY 를 쓴다.**
++            # 뜻이 같은 코드를 하나 더 만들면 화면이 둘 다 처리해야 한다.
++            raise BusinessError(
++                ErrorCode.DELIVERABLE_EMPTY, detail=preview.blocked_reason
++            )
++
++        since, until = preview.period_from, preview.period_to
++        materials = self._materials(project_id, kind=kind, since=since, until=until)
++        title = build_title(kind, since, until)
++        generated_at = datetime.now(timezone.utc)
++        body = render_markdown(
++            kind=kind,
++            title=title,
++            period_from=since,
++            period_to=until,
++            materials=materials,
++            generated_at_text=generated_at.astimezone().strftime("%Y-%m-%d %H:%M"),
++        )
++
++        path = self._write_file(project_id, body)
++        try:
++            with transactional(self._db) as db:  # type: ignore[arg-type]
++                row = self._repo.add(
++                    Deliverable(
++                        project_id=project_id,
++                        kind=kind,
++                        format=deliverable_format,
++                        period_from=since,
++                        period_to=until,
++                        title=title,
++                        file_path=path,
++                        file_size=os.path.getsize(path),
++                        source_counts_json=self.snapshot(preview.counts),
++                        generated_by=user_id,
++                        generated_at=generated_at,
++                    )
++                )
++                db.flush()
++        except Exception:
++            self._remove_quietly(path)
++            raise
++
++        logger.info(
++            "산출물 생성 project_id=%s kind=%s format=%s 기간=%s~%s 크기=%s",
++            project_id, kind, deliverable_format, since, until, row.file_size,
++        )
++        return row
++
++    def open_file(self, project_id: int, deliverable_id: int) -> Deliverable:
++        """다운로드할 산출물을 찾는다 (DLV-003-3).
++
++        파일이 사라진 경우를 404 와 구분한다. 목록에는 보이는데 받을 수 없는
++        상황이라, 같은 오류로 뭉치면 "왜 목록에 있나" 를 설명할 수 없다.
++        """
++        row = self._repo.get(project_id, deliverable_id)
++        if row is None:
++            raise BusinessError(ErrorCode.DELIVERABLE_NOT_FOUND)
++        if not os.path.exists(row.file_path):
++            logger.warning(
++                "산출물 파일 없음 id=%s path=%s", deliverable_id, row.file_path
++            )
++            raise BusinessError(ErrorCode.DELIVERABLE_FILE_MISSING)
++        return row
++
++    @staticmethod
++    def snapshot(counts: PreviewCounts) -> dict[str, int]:
++        """만든 시점의 재료 개수. 갱신 판정(DLV-003-4)의 근거가 된다."""
++        return {key: getattr(counts, key) for key in SNAPSHOT_KEYS}
++
+     # --- 내부 ---------------------------------------------------------------
+ 
++    def _materials(
++        self, project_id: int, *, kind: str, since: date | None, until: date | None
++    ) -> DeliverableMaterials:
++        """본문에 담을 행. **_count 의 표와 같은 규칙**이어야 한다."""
++        if kind == "MEETING_AGENDA":
++            return DeliverableMaterials(
++                decisions=self._repo.list_decisions(
++                    project_id, status="PENDING", limit=MATERIAL_ROW_LIMIT
++                )
++            )
++        if kind == "DECISION_LOG":
++            return DeliverableMaterials(
++                decisions=self._repo.list_decisions(project_id, limit=MATERIAL_ROW_LIMIT)
++            )
++        return DeliverableMaterials(
++            documents=self._repo.list_documents(
++                project_id, since=since, until=until, limit=MATERIAL_ROW_LIMIT
++            ),
++            completed_tasks=self._repo.list_completed_tasks(
++                project_id, since=since, until=until, limit=MATERIAL_ROW_LIMIT
++            ),
++            decisions=self._repo.list_decisions(
++                project_id, since=since, until=until, limit=MATERIAL_ROW_LIMIT
++            ),
++            schedule_items=self._repo.list_schedule_items(
++                project_id, since=since, until=until, limit=MATERIAL_ROW_LIMIT
++            ),
++            amount_items=self._repo.list_amount_items(
++                project_id, since=since, until=until, limit=MATERIAL_ROW_LIMIT
++            ),
++        )
++
++    @staticmethod
++    def _write_file(project_id: int, body: str) -> str:
++        """산출물 파일을 저장하고 경로를 돌려준다.
++
++        프로젝트별 폴더에 uuid 이름으로 둔다. 제목을 파일명에 쓰지 않는 이유는
++        제목에 한글·공백·특수문자가 들어가고 같은 제목이 여러 번 생기기 때문이다.
++        사용자가 받을 때의 이름은 다운로드 응답에서 따로 정한다.
++        """
++        directory = os.path.join(settings.UPLOAD_DIR, "deliverables", str(project_id))
++        os.makedirs(directory, exist_ok=True)
++        path = os.path.join(directory, f"{uuid.uuid4().hex}.md")
++        with open(path, "w", encoding="utf-8") as file:
++            file.write(body)
++        return path
++
++    @staticmethod
++    def _remove_quietly(path: str) -> None:
++        """정리에 실패해도 원래 예외를 가리지 않는다."""
++        try:
++            os.remove(path)
++        except OSError:
++            logger.warning("산출물 임시 파일 정리 실패 path=%s", path, exc_info=True)
++
+     def _count(
+         self, project_id: int, *, kind: str, since: date | None, until: date | None
+     ) -> PreviewCounts:
+diff --git a/backend/tests/test_deliverable_generate.py b/backend/tests/test_deliverable_generate.py
+new file mode 100644
+index 0000000..b7cc5d5
+--- /dev/null
++++ b/backend/tests/test_deliverable_generate.py
+@@ -0,0 +1,337 @@
++# =============================================================================
++# 이 파일의 책임: 산출물 만들기(DLV-002-x)를 DB 없이 검증한다.
++#
++#   검사하는 것
++#     ① 담을 것이 없으면 만들지 않는가 (미리보기와 같은 판단인가)
++#     ② 아직 못 만드는 형식을 400 이 아니라 501 로 구분하는가
++#     ③ 유형마다 담는 자료가 다른가 (_materials 가 _count 의 표와 같은가)
++#     ④ 본문에 실제 자료가 들어가고 표가 깨지지 않는가
++#     ⑤ 스냅샷이 미리보기 건수와 같은 키인가 (갱신 판정의 근거)
++#     ⑥ 이력 저장이 실패하면 쓴 파일을 남기지 않는가
++#
++# 다른 파일과의 관계: services/deliverable_service.py ·
++#   services/deliverable_markdown.py. 리포지토리는 MagicMock 이고 파일 저장만
++#   실제로 한다(tmp_path 로 UPLOAD_DIR 을 바꾼다).
++#
++# Spring 비교: Mockito 로 Repository 를 스텁하고 Service 만 단위 검증.
++#   파일 쓰기는 @TempDir 로 실제 디스크를 쓰는 것과 같다.
++# =============================================================================
++
++from datetime import date, datetime, timezone
++from decimal import Decimal
++from types import SimpleNamespace
++from unittest.mock import MagicMock
++
++import pytest
++
++from app.core.error_codes import ErrorCode
++from app.core.exceptions import BusinessError
++from app.services.deliverable_markdown import DeliverableMaterials, cell, render_markdown
++from app.services.deliverable_service import SNAPSHOT_KEYS, DeliverableService
++
++WEEK = {"period_from": date(2026, 8, 14), "period_to": date(2026, 8, 20)}
++
++
++@pytest.fixture(autouse=True)
++def upload_dir(tmp_path, monkeypatch):
++    """산출물 파일을 임시 폴더에 쓴다. 실제 uploads 를 더럽히지 않는다."""
++    from app.core.config import settings
++
++    monkeypatch.setattr(settings, "UPLOAD_DIR", str(tmp_path), raising=False)
++    return tmp_path
++
++
++def _document(name="계약서.pdf", document_type="CONTRACT"):
++    return SimpleNamespace(
++        filename=name,
++        document_type=document_type,
++        created_at=datetime(2026, 8, 17, 9, 30, tzinfo=timezone.utc),
++    )
++
++
++def _task(title="API 연동", assignee="김보현"):
++    return SimpleNamespace(
++        title=title,
++        assignee=SimpleNamespace(name=assignee),
++        completed_at=datetime(2026, 8, 18, 5, 0, tzinfo=timezone.utc),
++    )
++
++
++def _decision(title="이관 대상 확정", status="DECIDED", decided_on=date(2026, 8, 19)):
++    return SimpleNamespace(title=title, status=status, decided_on=decided_on)
++
++
++def _schedule(title="중간 보고", kind="MEETING"):
++    return SimpleNamespace(
++        title=title, kind=kind, starts_on=date(2026, 8, 20), ends_on=None
++    )
++
++
++def _amount(name="직접인건비", quantity=Decimal("6.0000"), unit_price=1_000_000, amount=6_000_000):
++    return SimpleNamespace(
++        item_name=name,
++        quantity=quantity,
++        unit_price=unit_price,
++        amount=amount,
++    )
++
++
++def _service(*, documents=0, decisions=0, schedules=0, amounts=0, tasks=0, pending=0,
++             open_decisions=0, rows=None):
++    repo = MagicMock()
++    repo.count_documents.return_value = documents
++    repo.count_schedule_items.return_value = schedules
++    repo.count_amount_items.return_value = amounts
++    repo.count_completed_tasks.return_value = tasks
++    repo.count_pending_suggestions.return_value = pending
++
++    def decisions_side_effect(project_id, *, since=None, until=None, status=None):
++        return open_decisions if status == "PENDING" else decisions
++
++    repo.count_decisions.side_effect = decisions_side_effect
++
++    rows = rows or {}
++    repo.list_documents.return_value = rows.get("documents", [])
++    repo.list_completed_tasks.return_value = rows.get("completed_tasks", [])
++    repo.list_decisions.return_value = rows.get("decisions", [])
++    repo.list_schedule_items.return_value = rows.get("schedule_items", [])
++    repo.list_amount_items.return_value = rows.get("amount_items", [])
++    repo.add.side_effect = lambda row: _with_id(row)
++    return DeliverableService(repo, MagicMock()), repo
++
++
++def _with_id(row, value=9):
++    """DB 가 매길 id 를 흉내낸다. flush 뒤에 채워지는 값이다."""
++    row.id = value
++    return row
++
++
++def _read(row) -> str:
++    with open(row.file_path, encoding="utf-8") as file:
++        return file.read()
++
++
++# --- ① 담을 것이 없으면 만들지 않는다 ---------------------------------------
++
++
++def test_blocked_when_nothing_to_include():
++    """미리보기가 막은 것과 같은 판단이어야 한다."""
++    service, repo = _service()
++    with pytest.raises(BusinessError) as err:
++        service.generate(1, kind="WEEKLY_REPORT", deliverable_format="MD", **WEEK)
++    # 이미 있던 코드를 쓴다. 뜻이 같은 코드를 하나 더 만들지 않는다.
++    assert err.value.error_code is ErrorCode.DELIVERABLE_EMPTY
++    # 파일도 이력도 만들지 않는다.
++    repo.add.assert_not_called()
++
++
++def test_blocked_reason_comes_from_preview():
++    """이유 문장을 만들기가 따로 쓰지 않는다 — 두 곳이 갈리면 안 된다."""
++    service, _ = _service(pending=4)
++    with pytest.raises(BusinessError) as err:
++        service.generate(1, kind="WEEKLY_REPORT", deliverable_format="MD", **WEEK)
++    assert "승인" in str(err.value)
++    assert "4건" in str(err.value)
++
++
++def test_period_required_is_checked_before_writing():
++    service, repo = _service(documents=3)
++    with pytest.raises(BusinessError) as err:
++        service.generate(1, kind="WEEKLY_REPORT", deliverable_format="MD")
++    assert err.value.error_code is ErrorCode.PERIOD_REQUIRED
++    repo.add.assert_not_called()
++
++
++# --- ② 형식 ------------------------------------------------------------------
++
++
++def test_unsupported_format_is_not_ready_not_invalid():
++    """DB 가 허용하는 값이다. 값이 틀린 것과 서버가 아직 못 하는 것을 구분한다."""
++    for unsupported in ("XLSX", "HTML", "PDF"):
++        service, repo = _service(documents=3)
++        with pytest.raises(BusinessError) as err:
++            service.generate(
++                1, kind="WEEKLY_REPORT", deliverable_format=unsupported, **WEEK
++            )
++        assert err.value.error_code is ErrorCode.DELIVERABLE_FORMAT_NOT_READY, unsupported
++        # 형식을 먼저 보므로 DB 조회도 하지 않는다.
++        repo.count_documents.assert_not_called()
++        repo.add.assert_not_called()
++
++
++def test_unknown_format_is_invalid():
++    service, _ = _service(documents=3)
++    with pytest.raises(BusinessError) as err:
++        service.generate(1, kind="WEEKLY_REPORT", deliverable_format="DOCX", **WEEK)
++    assert err.value.error_code is ErrorCode.INVALID_DOCUMENT_TYPE
++
++
++# --- ③ 유형마다 담는 자료가 다르다 ------------------------------------------
++
++
++def test_meeting_agenda_takes_only_open_decisions():
++    service, repo = _service(
++        open_decisions=2, rows={"decisions": [_decision(status="PENDING")]}
++    )
++    service.generate(1, kind="MEETING_AGENDA", deliverable_format="MD")
++    assert repo.list_decisions.call_args.kwargs["status"] == "PENDING"
++    repo.list_documents.assert_not_called()
++    repo.list_amount_items.assert_not_called()
++
++
++def test_decision_log_takes_all_decisions_without_period():
++    service, repo = _service(decisions=3, rows={"decisions": [_decision()]})
++    service.generate(1, kind="DECISION_LOG", deliverable_format="MD", **WEEK)
++    assert repo.list_decisions.call_args.kwargs.get("status") is None
++    assert "since" not in repo.list_decisions.call_args.kwargs
++
++
++def test_weekly_report_takes_five_materials_with_period():
++    service, repo = _service(documents=1, rows={"documents": [_document()]})
++    service.generate(1, kind="WEEKLY_REPORT", deliverable_format="MD", **WEEK)
++    for name in ("list_documents", "list_completed_tasks", "list_decisions",
++                 "list_schedule_items", "list_amount_items"):
++        call = getattr(repo, name).call_args
++        assert call.kwargs["since"] == WEEK["period_from"], name
++        assert call.kwargs["until"] == WEEK["period_to"], name
++
++
++# --- ④ 본문 ------------------------------------------------------------------
++
++
++def test_body_contains_real_rows():
++    service, _ = _service(
++        documents=1, tasks=1, decisions=1, schedules=1, amounts=1,
++        rows={
++            "documents": [_document("과업지시서.pdf")],
++            "completed_tasks": [_task("검색 API 연동")],
++            "decisions": [_decision("이관 범위 확정")],
++            "schedule_items": [_schedule("착수 보고")],
++            "amount_items": [_amount("직접인건비")],
++        },
++    )
++    row = service.generate(1, kind="WEEKLY_REPORT", deliverable_format="MD", **WEEK)
++    body = _read(row)
++
++    assert "과업지시서.pdf" in body
++    assert "검색 API 연동" in body
++    assert "이관 범위 확정" in body
++    assert "착수 보고" in body
++    assert "직접인건비" in body
++    # 금액은 천 단위 구분을 넣는다.
++    assert "6,000,000" in body
++    # 수량의 뒤 0 을 지운다. Numeric(18,4) 라 6.0000 으로 온다.
++    assert "| 6 |" in body
++    # 제목과 기간이 머리에 있다.
++    assert body.startswith("# 주간 보고서 2026-08-14 ~ 2026-08-20")
++    assert "2026-08-14 ~ 2026-08-20" in body
++
++
++def test_body_marks_summary_as_not_written():
++    """없는 개요를 지어내지 않는다. 비었다고 적는다."""
++    service, _ = _service(documents=1, rows={"documents": [_document()]})
++    body = _read(service.generate(1, kind="WEEKLY_REPORT", deliverable_format="MD", **WEEK))
++    assert "## 개요" in body
++    assert "아직" in body
++
++
++def test_empty_section_says_so_instead_of_empty_table():
++    """머리글만 있는 표는 '자료를 못 가져온 것' 처럼 보인다."""
++    service, _ = _service(documents=1, rows={"documents": [_document()]})
++    body = _read(service.generate(1, kind="WEEKLY_REPORT", deliverable_format="MD", **WEEK))
++    assert "이 기간에 완료한 태스크가 없습니다." in body
++
++
++def test_pipe_in_value_does_not_break_table():
++    """문서 이름에 | 가 있으면 표가 깨진다. 지우지 않고 전각으로 바꾼다."""
++    assert cell("A|B") == "A｜B"
++    assert cell("두\n줄") == "두 줄"
++    assert cell(None) == "—"
++
++
++def test_amount_none_is_dash_not_zero():
++    """금액이 없는 것과 0 원은 다르다."""
++    body = "\n".join(
++        render_markdown(
++            kind="PROJECT_STATUS",
++            title="t",
++            period_from=None,
++            period_to=None,
++            materials=DeliverableMaterials(amount_items=[_amount(amount=None, unit_price=None)]),
++            generated_at_text="2026-08-24 15:00",
++        ).splitlines()
++    )
++    assert "| — | — |" in body
++
++
++# --- ⑤ 스냅샷 ----------------------------------------------------------------
++
++
++def test_snapshot_uses_preview_count_keys():
++    """갱신 판정(DLV-003-4)이 다시 세어 비교할 수 있어야 한다."""
++    service, repo = _service(
++        documents=7, tasks=8, decisions=3, schedules=2, amounts=1,
++        rows={"documents": [_document()]},
++    )
++    service.generate(1, kind="WEEKLY_REPORT", deliverable_format="MD", **WEEK)
++    saved = repo.add.call_args.args[0]
++    assert saved.source_counts_json == {
++        "documents": 7, "completed_tasks": 8, "decisions": 3,
++        "schedule_items": 2, "amount_items": 1,
++    }
++    assert set(saved.source_counts_json) == set(SNAPSHOT_KEYS)
++    # 승인 대기는 담기는 재료가 아니라 스냅샷에 넣지 않는다.
++    assert "pending_suggestions" not in saved.source_counts_json
++
++
++def test_saved_row_keeps_kind_format_and_period():
++    service, repo = _service(documents=1, rows={"documents": [_document()]})
++    service.generate(1, kind="WEEKLY_REPORT", deliverable_format="MD", **WEEK)
++    saved = repo.add.call_args.args[0]
++    assert (saved.kind, saved.format) == ("WEEKLY_REPORT", "MD")
++    assert (saved.period_from, saved.period_to) == (WEEK["period_from"], WEEK["period_to"])
++    assert saved.file_size and saved.file_size > 0
++    assert saved.title == "주간 보고서 2026-08-14 ~ 2026-08-20"
++
++
++def test_period_is_ignored_for_kinds_without_period():
++    """결정사항 대장에 기간을 걸면 대장이 아니게 된다."""
++    service, repo = _service(decisions=2, rows={"decisions": [_decision()]})
++    service.generate(1, kind="DECISION_LOG", deliverable_format="MD", **WEEK)
++    saved = repo.add.call_args.args[0]
++    assert saved.period_from is None and saved.period_to is None
++
++
++# --- ⑥ 실패하면 파일을 남기지 않는다 ----------------------------------------
++
++
++def test_file_is_removed_when_history_fails():
++    """목록에 없는데 디스크에만 남는 파일을 만들지 않는다."""
++    service, repo = _service(documents=1, rows={"documents": [_document()]})
++    repo.add.side_effect = RuntimeError("이력 저장 실패")
++    with pytest.raises(RuntimeError):
++        service.generate(1, kind="WEEKLY_REPORT", deliverable_format="MD", **WEEK)
++
++    from app.core.config import settings
++
++    directory = f"{settings.UPLOAD_DIR}/deliverables/1"
++    import os
++
++    left = os.listdir(directory) if os.path.isdir(directory) else []
++    assert left == [], f"파일이 남았다: {left}"
++
++
++# --- 다운로드 ----------------------------------------------------------------
++
++
++def test_download_missing_file_is_distinguished_from_not_found():
++    service, repo = _service()
++    repo.get.return_value = SimpleNamespace(file_path="/없는/경로.md")
++    with pytest.raises(BusinessError) as err:
++        service.open_file(1, 9)
++    assert err.value.error_code is ErrorCode.DELIVERABLE_FILE_MISSING
++
++    repo.get.return_value = None
++    with pytest.raises(BusinessError) as err:
++        service.open_file(1, 9)
++    assert err.value.error_code is ErrorCode.DELIVERABLE_NOT_FOUND
