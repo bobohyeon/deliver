@@ -1,3 +1,31 @@
+diff --git a/backend/app/api/routes/deliverable_router.py b/backend/app/api/routes/deliverable_router.py
+index 473cd48..a5bf8c6 100644
+--- a/backend/app/api/routes/deliverable_router.py
++++ b/backend/app/api/routes/deliverable_router.py
+@@ -58,7 +58,7 @@ def preview_deliverable(
+ 
+     | kind | 기간 | 담기는 것 |
+     |---|---|---|
+-    | `WEEKLY_REPORT` | **필수** | 기간 안의 문서·결정·일정·금액 |
++    | `WEEKLY_REPORT` | **필수** | 기간 안의 문서·완료한 태스크·결정·일정·금액 |
+     | `DECISION_LOG` | 무시 | 결정 **전부** |
+     | `MEETING_AGENDA` | 무시 | **미결 결정만** (`status='PENDING'`) |
+     | `PROJECT_STATUS` | 무시 | 현재 상태 전부 |
+@@ -66,8 +66,12 @@ def preview_deliverable(
+     `can_generate` 가 `false` 면 만들 수 없고 `blocked_reason` 에 이유가 있다.
+     화면이 그 문장을 그대로 보여줄 수 있다.
+ 
+-    **`counts.completed_tasks` 가 `null` 인 것은 0건이 아니라 "아직 셀 수 없다"** 다
+-    (`tasks` 테이블 미구현). 화면에서 0 으로 바꾸면 안 된다.
++    `counts.completed_tasks` 는 리비전 0019 로 `tasks` 테이블이 생긴 뒤부터 실제
++    건수다. 상태가 `DONE` 이고 `completed_at` 이 기간에 드는 태스크만 센다. 전에는
++    셀 수 없어 `null` 이었고, 지금은 0 이 정말 0건이라는 뜻이다.
++
++    `uncountable` 은 셀 수 없는 재료의 이름이며 지금은 빈 목록이다. 다음에 못 세는
++    재료가 생기면 여기에 담아 보낸다.
+ 
+     오류
+       `422 PERIOD_REQUIRED`         주간 보고서인데 기간이 없다
 diff --git a/backend/app/repositories/deliverable_repository.py b/backend/app/repositories/deliverable_repository.py
 index d6e4a29..86c5324 100644
 --- a/backend/app/repositories/deliverable_repository.py
@@ -207,7 +235,7 @@ index 8ebd505..76abc1e 100644
 +            return "선택한 기간에 문서·태스크·결정·일정·금액 변동이 없습니다."
          return "프로젝트에 담을 내용이 아직 없습니다."
 diff --git a/backend/tests/test_deliverable_preview.py b/backend/tests/test_deliverable_preview.py
-index a31a318..bef59f2 100644
+index a31a318..58a3e94 100644
 --- a/backend/tests/test_deliverable_preview.py
 +++ b/backend/tests/test_deliverable_preview.py
 @@ -7,7 +7,7 @@
@@ -363,6 +391,20 @@ index a31a318..bef59f2 100644
      )
      assert counts.countable_total == 0
  
+@@ -207,9 +237,10 @@ def test_pending_is_shown_regardless_of_period():
+     repo.count_pending_suggestions.assert_called_once_with(1)
+ 
+ 
+-def test_countable_total_sums_four_kinds():
++def test_countable_total_sums_five_kinds():
++    """완료한 태스크까지 다섯을 더한다. 승인 대기는 아무리 많아도 더하지 않는다."""
+     counts = PreviewCounts(
+         documents=12, decisions=5, schedule_items=3, amount_items=2,
+-        pending_suggestions=99,
++        completed_tasks=7, pending_suggestions=99,
+     )
+-    assert counts.countable_total == 22
++    assert counts.countable_total == 29
 diff --git a/frontend/src/api/deliverable.js b/frontend/src/api/deliverable.js
 index 36fbc1c..7d02354 100644
 --- a/frontend/src/api/deliverable.js
