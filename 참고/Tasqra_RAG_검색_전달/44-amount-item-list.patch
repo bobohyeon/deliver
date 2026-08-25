@@ -1,0 +1,528 @@
+diff --git a/backend/app/api/routes/amount_router.py b/backend/app/api/routes/amount_router.py
+index e84b3f8..8094a4a 100644
+--- a/backend/app/api/routes/amount_router.py
++++ b/backend/app/api/routes/amount_router.py
+@@ -32,6 +32,7 @@ from app.dependencies import (
+     get_project_access,
+     get_project_amount_access,
+ )
++from app.schemas.amount_item import AmountItemListResponse
+ from app.schemas.amount_precedent import AmountPrecedentResponse
+ from app.schemas.amount_summary import AmountSummaryResponse
+ from app.services.amount_precedent_service import AmountPrecedentService
+@@ -96,3 +97,53 @@ def get_amount_summary(
+       `404`                     내가 멤버가 아닌 프로젝트
+     """
+     return service.summarize(access.project.id)
++
++
++
++@router.get("/amount-items", response_model=AmountItemListResponse)
++def list_amount_items(
++    limit: int = Query(200, ge=1, le=500, description="돌려줄 항목 수 상한"),
++    access: ProjectAccess = Depends(get_project_amount_access),
++    service: AmountSummaryService = Depends(get_amount_summary_service),
++) -> AmountItemListResponse:
++    """금액 항목 한 줄씩 + 항목별 검산 결과 (`AMT-003-3` 계산식·산출 근거 표시).
++
++    `amount-summary` 가 «얼마인가» 를 답하고 이 엔드포인트가 «무엇을 더했는가» 를
++    답합니다. 합계만 보면 그 숫자가 맞는지 확인할 방법이 없습니다.
++
++    **합계 응답과 같은 저장소 메서드를 씁니다** — 조회 조건이 갈라지면 "합계는
++    6건인데 목록은 4줄" 이 됩니다. 승인 상태(`APPROVED`·`EDITED`)와 정렬
++    (문서 id, 항목 id)이 둘 다 같습니다.
++
++    ### 검산 결과를 서버가 붙입니다
++
++    | 필드 | 뜻 |
++    |---|---|
++    | `expected` | 수량 × 단가. 둘 중 하나라도 없으면 `null` |
++    | `verified` | `true` 맞음 / `false` 어긋남 / **`null` 검산 불가** |
++    | `difference` | `expected - amount`. **양수면 문서 금액이 작게** 적혀 있다 |
++
++    `verified` 의 `false` 와 `null` 을 합치지 마십시오. 제경비·기술료처럼 비율로
++    산정된 항목은 수량·단가가 원래 없어서 `null` 인데, `false` 로 묶으면 정상
++    항목이 "틀린 항목" 으로 보입니다.
++
++    화면에서 수량 × 단가를 다시 곱하지 마십시오. 서버는 `ROUND_HALF_UP` 으로 원
++    단위에 맞추는데 자바스크립트 부동소수 곱셈은 큰 금액에서 1원씩 어긋납니다.
++
++    ### 금액이 안 적힌 항목도 담습니다
++
++    합계에서는 빠지지만(`excluded_no_amount`) 목록에서는 **어느 항목이 그랬는지
++    보여야** 합니다. 확인하려는 것이 바로 그것입니다. 대신 `excluded_reason` 에
++    이유를 적습니다.
++
++    ### 상한
++
++    기본 200, 최대 500 입니다. 산출내역서는 수백 줄이 흔해서 전부 내려주면 화면을
++    펼치는 순간 느려집니다. 잘렸으면 `truncated` 가 `true` 이고 `total` 에 전체
++    건수가 옵니다 — **자르고 말하지 않으면 사용자가 목록 줄 수를 전체로 읽습니다.**
++
++    오류
++      `403 PROJECT_FORBIDDEN`   VIEWER 다. 금액 열람 정책이 미결이라 지금은 막는다
++      `404`                     내가 멤버가 아닌 프로젝트
++    """
++    return service.list_items(access.project.id, limit)
+diff --git a/backend/app/schemas/amount_item.py b/backend/app/schemas/amount_item.py
+new file mode 100644
+index 0000000..8c68533
+--- /dev/null
++++ b/backend/app/schemas/amount_item.py
+@@ -0,0 +1,92 @@
++# =============================================================================
++# 이 파일의 책임: 금액 항목 목록 응답 모양을 정한다 (AMT-003-3 계산식·산출 근거
++#   표시). 항목 한 줄마다 **검산 결과를 서버가 붙여서** 내려준다.
++# 다른 파일과의 관계: services/amount_summary_service.py 가 채우고
++#   api/routes/amount_router.py 가 돌려준다. 값의 출처는 models/amount.py 다.
++# Spring 비교: 조회 전용 DTO 다. 엔티티를 그대로 내보내지 않는 이유가 여기서는
++#   하나 더 있다 — 검산 결과는 DB 컬럼이 아니라 계산해서 붙이는 값이다.
++#
++# 왜 합계 응답(amount-summary)에 목록을 넣지 않고 따로 두는가
++#   현황 화면은 열 때마다 부른다. 항목이 수백 줄인 프로젝트에서 합계만 보려는데
++#   목록까지 매번 실어 보내면 느려진다. 목록은 **펼칠 때** 부른다.
++#
++# 검산을 화면에서 하지 않는 이유
++#   수량 x 단가를 화면에서 곱하면 반올림 규칙이 두 곳에 생긴다. 서버는
++#   ROUND_HALF_UP 으로 원 단위에 맞추는데(amount_calculator.verify_line),
++#   자바스크립트는 부동소수 곱셈이라 큰 금액에서 1원씩 어긋날 수 있다.
++#   에러가 나지 않고 숫자만 틀리는 종류다.
++#
++# difference 부호를 화면이 그대로 쓰면 안 된다
++#   `difference = expected - amount` 다. 그래서 **문서 금액이 더 크면 음수**다.
++#   화면에 -50,000 만 띄우면 "5만원 부족" 으로 읽힌다. 문장으로 풀어야 한다.
++#   이 규칙을 LineMismatch(schemas/amount_summary.py)와 **같게** 맞춰 뒀다 —
++#   두 응답이 같은 값을 다른 부호로 주면 화면이 어느 쪽인지 외워야 한다.
++# =============================================================================
++
++from decimal import Decimal
++
++from pydantic import BaseModel, Field
++
++
++class AmountItemRow(BaseModel):
++    """금액 항목 한 줄 + 그 줄의 검산 결과.
++
++    금액을 `int` 로, 수량을 `Decimal` 로 두는 이유가 다르다.
++
++    | 필드 | 형 | 왜 |
++    |---|---|---|
++    | `amount`·`unit_price`·`expected` | `int` | 원 단위다. 합계 응답도 `int` 라 화면이 같은 방식으로 다룬다 |
++    | `quantity` | `Decimal` | `Numeric(18,4)` 다. 0.5 인월처럼 소수가 실제로 쓰인다 |
++    """
++
++    id: int
++    document_id: int
++    # 어느 문서에서 나온 값인지. 근거를 되짚는 출발점이다.
++    filename: str
++
++    item_name: str
++    # 판별하지 못하면 None 이다. 화면에서 '기타' 로 바꾸지 않는다 —
++    # "판별 못 했다" 와 "기타로 판별했다" 는 다르다(리비전 0015).
++    category: str | None
++    quantity: Decimal | None
++    unit: str | None
++    unit_price: int | None
++    # 문서에 적힌 금액. 안 적혀 있으면 None 이고 합계에서 빠진다.
++    amount: int | None
++    currency: str
++    # 원문 근거. 표에서는 줄여 보여주고 마우스를 올리면 전체가 보이게 한다.
++    source_quote: str | None
++    decision: str
++
++    # --- 서버가 계산해 붙이는 값 (DB 컬럼이 아니다) --------------------------
++    # 수량 x 단가. 둘 중 하나라도 없으면 None 이다.
++    expected: int | None = None
++    # 검산 결과. True 맞음 / False 어긋남 / **None 검산 불가**.
++    # 세 값이 뜻이 다르므로 False 와 None 을 합치지 않는다 — 합치면 제경비처럼
++    # 비율로 산정된 항목이 "틀린 항목" 으로 보인다.
++    verified: bool | None = None
++    # expected - amount. 양수면 문서 금액이 작게 적혀 있다.
++    difference: int | None = None
++    # 합계에 들어가지 않은 이유. 들어갔으면 None 이다.
++    excluded_reason: str | None = None
++
++
++class AmountItemListResponse(BaseModel):
++    """금액 항목 목록.
++
++    `total` 과 `returned` 를 **함께** 준다. 상한 때문에 잘렸을 때 화면이 개수를
++    잘못 세지 않게 하려는 것이다. 자르고 말하지 않으면 사용자는 목록의 줄 수를
++    전체 건수로 읽는다.
++    """
++
++    items: list[AmountItemRow] = Field(default_factory=list)
++    # 승인된 항목 전체 수. 상한과 무관하다.
++    total: int
++    # 이 응답에 실제로 담긴 수.
++    returned: int
++    # total > returned 인가. 화면이 직접 비교하지 않게 서버가 판단해 준다.
++    truncated: bool
++    limit: int
++    # 목록에 담은 승인 상태. 합계 응답과 같은 값이다 — 두 응답이 다른 범위를
++    # 보면 "6건인데 목록은 4줄" 같은 일이 생긴다.
++    included_decisions: list[str] = Field(default_factory=list)
+diff --git a/backend/app/services/amount_summary_service.py b/backend/app/services/amount_summary_service.py
+index c849095..7c5bfd6 100644
+--- a/backend/app/services/amount_summary_service.py
++++ b/backend/app/services/amount_summary_service.py
+@@ -43,7 +43,12 @@ from app.schemas.amount_summary import (
+     CategoryTotal,
+     LineMismatch,
+ )
+-from app.services.amount_calculator import aggregate_project, verify_lines
++from app.schemas.amount_item import AmountItemListResponse, AmountItemRow
++from app.services.amount_calculator import (
++    aggregate_project,
++    verify_line,
++    verify_lines,
++)
+ 
+ 
+ @dataclass(frozen=True)
+@@ -167,8 +172,84 @@ class AmountSummaryService:
+             included_decisions=list(APPROVED_DECISIONS),
+         )
+ 
++    def list_items(self, project_id: int, limit: int) -> AmountItemListResponse:
++        """금액 항목을 한 줄씩 돌려준다 (AMT-003-3 계산식·산출 근거 표시).
++
++        **summarize 와 같은 저장소 메서드를 쓴다.** 조회 조건이 갈라지면
++        "합계는 6건인데 목록은 4줄" 이 된다 — 승인 상태 조건이나 정렬이 한쪽만
++        바뀌었을 때 그렇게 되고, 에러가 없어 알아채기 어렵다.
++
++        **금액이 없는 항목도 담는다.** summarize 는 그런 항목을 건수만 세고
++        버리지만(`excluded_no_amount`), 목록에서는 어느 항목이 그랬는지 보여야
++        한다. 사용자가 확인하려는 것이 바로 그것이다. 대신 `excluded_reason` 에
++        왜 빠졌는지 적는다.
++
++        상한을 두는 이유: 산출내역서는 수백 줄이 흔하다. 전부 내려주면 화면을
++        펼치는 순간 느려진다. 자를 때는 `total` 을 함께 줘서 화면이 개수를
++        잘못 세지 않게 한다.
++        """
++        rows = self._amounts.list_project_items(project_id)
++        visible = rows[:limit]
++        items = [
++            self._to_row(item, document_id, filename)
++            for item, document_id, filename in visible
++        ]
++        return AmountItemListResponse(
++            items=items,
++            total=len(rows),
++            returned=len(items),
++            truncated=len(rows) > len(items),
++            limit=limit,
++            included_decisions=list(APPROVED_DECISIONS),
++        )
++
+     # --- 내부 ---------------------------------------------------------------
+ 
++    @classmethod
++    def _to_row(
++        cls, item: AmountItem, document_id: int, filename: str
++    ) -> AmountItemRow:
++        """DB 행 하나를 화면용 한 줄로 바꾸고 **검산 결과를 붙인다.**
++
++        검산을 여기서 하는 이유는 `verify_line` 이 이미 규칙을 갖고 있어서다 —
++        수량·단가 중 하나라도 없으면 `matches=None`, 반올림은 `ROUND_HALF_UP`.
++        화면에서 곱하면 그 규칙이 두 곳에 생기고 자바스크립트 부동소수라 큰
++        금액에서 1원씩 어긋난다.
++        """
++        amount = None if item.amount is None else _to_int(item.amount)
++        expected: int | None = None
++        verified: bool | None = None
++        difference: int | None = None
++        excluded_reason: str | None = None
++
++        if amount is None:
++            # summarize 가 이 항목을 합계에서 뺀 이유를 그대로 적는다.
++            excluded_reason = "문서에 금액이 적혀 있지 않아 합계에서 빠졌습니다."
++        else:
++            check = verify_line(cls._to_line(item, document_id, filename))
++            expected = check.expected
++            verified = check.matches
++            difference = check.difference
++
++        return AmountItemRow(
++            id=item.id,
++            document_id=document_id,
++            filename=filename,
++            item_name=item.item_name,
++            category=item.category,
++            quantity=item.quantity,
++            unit=item.unit,
++            unit_price=None if item.unit_price is None else _to_int(item.unit_price),
++            amount=amount,
++            currency=item.currency,
++            source_quote=item.source_quote,
++            decision=item.decision,
++            expected=expected,
++            verified=verified,
++            difference=difference,
++            excluded_reason=excluded_reason,
++        )
++
+     @staticmethod
+     def _to_line(item: AmountItem, document_id: int, filename: str) -> _Line:
+         """DB 행을 계산기가 요구하는 모양으로 바꾼다.
+diff --git a/frontend/src/api/amount.js b/frontend/src/api/amount.js
+index 2c3e479..8e5bb83 100644
+--- a/frontend/src/api/amount.js
++++ b/frontend/src/api/amount.js
+@@ -70,3 +70,40 @@ export async function getAmountSummary(projectId) {
+   const { data } = await http.get(`/api/projects/${projectId}/amount-summary`)
+   return data
+ }
++
++
++// GET /api/projects/{projectId}/amount-items?limit=200
++//
++// 금액 항목 한 줄씩 + **항목별 검산 결과** (AMT-003-3 계산식·산출 근거 표시).
++// amount-summary 가 "얼마인가" 를 답하고 이것이 "무엇을 더했는가" 를 답한다.
++//
++// 응답: {
++//   items: [{ id, document_id, filename, item_name, category,
++//             quantity, unit, unit_price, amount, currency,
++//             source_quote, decision,
++//             expected, verified, difference, excluded_reason }],
++//   total, returned, truncated, limit, included_decisions
++// }
++//
++// **verified 는 셋이다.** true 맞음 / false 어긋남 / null 검산 불가.
++// false 와 null 을 합치면 안 된다 — 제경비·기술료처럼 비율로 산정된 항목은
++// 수량·단가가 원래 없어서 null 인데, 묶으면 정상 항목이 틀린 항목으로 보인다.
++//
++// **수량 × 단가를 화면에서 다시 곱하지 않는다.** expected 가 이미 온다. 서버는
++// ROUND_HALF_UP 으로 원 단위에 맞추는데 자바스크립트 부동소수 곱셈은 큰 금액에서
++// 1원씩 어긋난다 — 에러 없이 숫자만 틀리는 종류다.
++//
++// difference = expected - amount 다. **양수면 문서 금액이 작게** 적혀 있다.
++// 부호를 그대로 보여주지 않고 문장으로 푼다(화면 쪽 verifyText 참고).
++//
++// truncated 가 true 면 목록이 상한에서 잘렸고 total 에 전체 건수가 온다.
++// 목록 줄 수를 전체 건수로 쓰지 않는다.
++//
++// 상한을 넘겨 이 함수를 부를 때 limit 을 키우기 전에, 정말 다 보여줄 필요가
++// 있는지 생각한다. 서버 최대는 500 이고 그 이상은 422 다.
++export async function getAmountItems(projectId, { limit = 200 } = {}) {
++  const { data } = await http.get(`/api/projects/${projectId}/amount-items`, {
++    params: { limit },
++  })
++  return data
++}
+diff --git a/frontend/src/features/amount/AmountSummaryView.css b/frontend/src/features/amount/AmountSummaryView.css
+index 0e4cc33..6befb97 100644
+--- a/frontend/src/features/amount/AmountSummaryView.css
++++ b/frontend/src/features/amount/AmountSummaryView.css
+@@ -62,3 +62,43 @@
+ @media (max-width: 560px) {
+   .amount-total-grid, .amount-scope-list { grid-template-columns: 1fr; }
+ }
++
++
++/* 항목 보기 토글. 「무엇을 집계했나」 아래에 둔다 — 숫자를 본 자리에서 바로
++   펼칠 수 있어야 "이 6건이 무엇인가" 가 이어진다. */
++.amount-toggle { min-height: 36px; margin-top: 12px; padding: 8px 14px; border: 1px solid var(--c-border-strong); border-radius: 9px; background: var(--c-bg); color: var(--c-text-strong); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
++.amount-toggle:hover, .amount-toggle:focus-visible { border-color: var(--c-accent); background: var(--c-accent-soft); }
++
++.amount-items { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--c-border); }
++
++/* 걸러보기. 눌린 것 하나만 채워서 지금 무엇을 보고 있는지 드러낸다. */
++.amount-filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
++.amount-filter { min-height: 32px; padding: 6px 12px; border: 1px solid var(--c-border-strong); border-radius: 999px; background: var(--c-bg); color: var(--c-text-muted); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
++.amount-filter:hover:not(:disabled), .amount-filter:focus-visible:not(:disabled) { border-color: var(--c-accent); color: var(--c-text-strong); }
++.amount-filter.is-active { border-color: var(--c-text-strong); background: var(--c-text-strong); color: #fff; }
++/* 0 건인 조건은 누를 수 없게 두되 **숨기지 않는다** — 없어진 것과 0 건인 것은 다르다. */
++.amount-filter:disabled { background: var(--c-bg-hover); color: var(--c-text-muted); cursor: not-allowed; }
++
++/* 표가 좁은 화면에서 잘리지 않게 가로 스크롤을 준다. 칸을 줄이면 금액이 줄바꿈된다. */
++.amount-table-scroll { overflow-x: auto; }
++.amount-items-table { width: 100%; min-width: 760px; border-collapse: collapse; }
++.amount-items-table th, .amount-items-table td { padding: 10px 12px; border-bottom: 1px solid var(--c-border); text-align: left; vertical-align: top; }
++.amount-items-table thead th { color: var(--c-text-muted); font-size: 12px; font-weight: 700; white-space: nowrap; }
++.amount-items-table tbody th { font-weight: 700; }
++.amount-items-table tbody th > strong { display: block; color: var(--c-text-strong); font-size: 14px; }
++/* 어긋난 줄. 색을 쓰지 않고 왼쪽 굵은 선으로만 표시한다 — 산출물 화면의
++   '갱신 필요' 와 같은 방식이라 두 화면이 같은 규칙으로 읽힌다. */
++.amount-items-table tbody tr.is-mismatch th { box-shadow: inset 3px 0 0 var(--c-text-strong); }
++
++/* 문서 파일명. 항목 아래에 작게 둔다. 길면 줄이고 마우스를 올리면 전체가 보인다. */
++.amount-item-source { display: block; max-width: 220px; margin-top: 4px; overflow: hidden; color: var(--c-text-muted); font-size: 11px; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
++
++.amount-verify { font-size: 12px; font-weight: 700; white-space: nowrap; }
++.amount-verify.is-ok { color: var(--c-text-muted); }
++/* 어긋난 것만 진하게. 맞은 줄까지 강조하면 어느 것이 문제인지 안 보인다. */
++.amount-verify.is-bad { color: var(--c-text-strong); }
++.amount-verify.is-muted { color: var(--c-text-muted); font-weight: 400; }
++
++/* 원문 근거. 한 줄로 줄이고 title 로 전체를 보여준다(마우스 올리면 뜬다).
++   cursor: help 로 "올리면 뭔가 나온다" 를 미리 알린다 — 안 그러면 아무도 안 올린다. */
++.amount-quote { max-width: 260px; overflow: hidden; color: var(--c-text-muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; cursor: help; }
+diff --git a/frontend/src/features/amount/AmountSummaryView.jsx b/frontend/src/features/amount/AmountSummaryView.jsx
+index 45348d8..6afb92f 100644
+--- a/frontend/src/features/amount/AmountSummaryView.jsx
++++ b/frontend/src/features/amount/AmountSummaryView.jsx
+@@ -30,8 +30,9 @@
+ //   상태 목록을 외우지 않고 받은 값을 그대로 적는다.
+ // =============================================================================
+ 
++import { useState } from 'react'
+ import { useQuery } from '@tanstack/react-query'
+-import { getAmountSummary } from '../../api/amount'
++import { getAmountItems, getAmountSummary } from '../../api/amount'
+ import PageHeading from '../../components/common/PageHeading'
+ import { formatMoney, formatNumber } from '../../utils/format'
+ import './AmountSummaryView.css'
+@@ -63,6 +64,10 @@ export default function AmountSummaryView({ projectId }) {
+   })
+   const summary = summaryQuery.data
+ 
++  // 항목 목록은 **펼칠 때** 부른다. 항목이 수백 줄인 프로젝트에서 합계만 보려고
++  // 들어왔는데 매번 목록까지 받으면 느려진다.
++  const [expanded, setExpanded] = useState(false)
++
+   return <>
+     <PageHeading
+       eyebrow='AMOUNTS'
+@@ -139,6 +144,17 @@ export default function AmountSummaryView({ projectId }) {
+             수량이나 단가가 없어 <strong>수량 × 단가 검산을 못 한 항목</strong>이 있습니다.
+             제경비·기술료처럼 비율로 산정된 항목이라 오류가 아닙니다.
+           </p>}
++
++          {/* 숫자만 보면 그것이 맞는지 확인할 방법이 없다. 무엇을 더했는지
++              펼쳐서 볼 수 있게 한다(AMT-003-3). */}
++          <button
++            type='button'
++            className='amount-toggle'
++            aria-expanded={expanded}
++            onClick={() => setExpanded(current => !current)}
++          >{expanded ? '항목 숨기기' : `항목 보기 (${formatNumber(summary?.included_item_count ?? 0)}건)`}</button>
++
++          {expanded && <ItemTable projectId={projectId}/>}
+         </>}
+     </section>
+ 
+@@ -174,6 +190,123 @@ function describeDecisions(decisions) {
+   return (decisions ?? []).map(value => DECISION_LABELS[value] ?? value).join(' · ')
+ }
+ 
++// 목록 걸러보기. 서버가 준 값만 보고 나누므로 규칙을 화면이 다시 만들지 않는다.
++//
++// '검산 불가' 와 '어긋남' 을 **따로 두는 이유**: 제경비·기술료는 수량·단가가
++// 원래 없어서 검산을 못 하는 것이고 오류가 아니다. 한 칸에 묶으면 정상 항목이
++// 문제로 보인다. 서버의 verified 가 true·false·null 셋인 것과 같은 이유다.
++const FILTERS = [
++  ['all', '전체', () => true],
++  ['mismatch', '어긋난 항목', row => row.verified === false],
++  ['unverifiable', '검산 불가', row => row.verified === null && row.amount !== null],
++  ['no-amount', '금액 없음', row => row.amount === null],
++]
++
++// 금액 항목 표(AMT-003-3). 「무엇을 집계했나」를 펼쳤을 때만 그린다.
++function ItemTable({ projectId }) {
++  const [filter, setFilter] = useState('all')
++  const itemsQuery = useQuery({
++    queryKey: ['projects', projectId, 'amount-items'],
++    queryFn: () => getAmountItems(projectId),
++    retry: false,
++  })
++  const rows = itemsQuery.data?.items ?? []
++  const matcher = FILTERS.find(([key]) => key === filter)?.[2] ?? (() => true)
++  const visible = rows.filter(matcher)
++
++  if (itemsQuery.isPending) return <p className='amount-scope-empty'>항목을 불러오는 중입니다.</p>
++  if (itemsQuery.isError) return <p className='amount-scope-empty'>항목을 불러오지 못했습니다. {itemsQuery.error?.message}</p>
++  if (rows.length === 0) return <p className='amount-scope-empty'>승인된 금액 항목이 없습니다.</p>
++
++  return <div className='amount-items'>
++    <div className='amount-filters' role='group' aria-label='항목 걸러보기'>
++      {FILTERS.map(([key, label, match]) => {
++        // 건수는 **받아온 목록에서** 센다. 상한에 걸려 잘렸으면 전체가 아니므로
++        // 아래에 잘렸다는 사실을 함께 적는다.
++        const count = rows.filter(match).length
++        return <button
++          className={'amount-filter' + (key === filter ? ' is-active' : '')}
++          type='button'
++          key={key}
++          aria-pressed={key === filter}
++          disabled={count === 0 && key !== 'all'}
++          onClick={() => setFilter(key)}
++        >{label} {formatNumber(count)}</button>
++      })}
++    </div>
++
++    {itemsQuery.data?.truncated && <p className='amount-scope-note'>
++      전체 <strong>{formatNumber(itemsQuery.data.total)}건</strong> 중 앞
++      {formatNumber(itemsQuery.data.returned)}건만 보여줍니다. 위 건수도 보여준 것만 센 값입니다.
++    </p>}
++
++    <div className='amount-table-scroll'>
++      <table className='amount-items-table'>
++        <thead>
++          <tr>
++            <th scope='col'>항목</th>
++            <th scope='col'>원가구분</th>
++            <th scope='col' className='amount-cell-number'>수량 × 단가</th>
++            <th scope='col' className='amount-cell-number'>문서 금액</th>
++            <th scope='col'>검산</th>
++            <th scope='col'>원문 근거</th>
++          </tr>
++        </thead>
++        <tbody>
++          {visible.map(row => <ItemRow key={row.id} row={row}/>)}
++        </tbody>
++      </table>
++    </div>
++
++    {visible.length === 0 && <p className='amount-scope-empty'>이 조건에 맞는 항목이 없습니다.</p>}
++  </div>
++}
++
++function ItemRow({ row }) {
++  const [text, tone] = verifyText(row)
++  return <tr className={tone === 'bad' ? 'is-mismatch' : undefined}>
++    <th scope='row'>
++      <strong>{row.item_name}</strong>
++      {/* 어느 문서에서 나온 값인지. 근거를 되짚는 출발점이다. */}
++      <span className='amount-item-source' title={row.filename}>{row.filename}</span>
++    </th>
++    <td>{row.category ? CATEGORY_LABELS[row.category] ?? row.category : '—'}</td>
++    <td className='amount-cell-number'>{quantityText(row)}</td>
++    <td className='amount-cell-number'>{row.amount === null ? '—' : formatMoney(row.amount)}</td>
++    <td className={'amount-verify is-' + tone}>{text}</td>
++    {/* 원문 근거는 길다. 표에서는 한 줄로 줄이고 마우스를 올리면 title 로 전체가
++        보인다. 전부 펼치면 표가 읽히지 않는다. */}
++    <td className='amount-quote' title={row.source_quote ?? ''}>{row.source_quote || '—'}</td>
++  </tr>
++}
++
++/** '3 인월 × 8,500,000' 또는 검산할 수 없으면 '—'. 곱셈은 서버가 한 값을 쓴다. */
++function quantityText(row) {
++  if (row.quantity === null || row.quantity === undefined || row.unit_price === null) return '—'
++  return `${formatMoney(row.quantity)}${row.unit ? ' ' + row.unit : ''} × ${formatMoney(row.unit_price)}`
++}
++
++/** 검산 결과를 사람 문장으로. **부호를 그대로 보여주지 않는다.**
++ *
++ *  difference = expected - amount 라서, 문서 금액이 더 크면 음수다. `-50,000`
++ *  만 띄우면 "5만원 부족" 으로 읽힌다. 어느 쪽이 큰지 말로 적는다.
++ *
++ *  verified 가 셋(true·false·null)이므로 분기도 셋이다. null 을 false 와 묶으면
++ *  제경비처럼 비율로 산정된 항목이 틀린 항목으로 보인다.
++ */
++function verifyText(row) {
++  if (row.excluded_reason) return ['금액 없음', 'muted']
++  if (row.verified === true) return ['맞음', 'ok']
++  if (row.verified === null) return ['검산 불가', 'muted']
++  const gap = row.difference ?? 0
++  return [
++    gap > 0
++      ? `문서 금액이 ${formatMoney(gap)}원 적음`
++      : `문서 금액이 ${formatMoney(Math.abs(gap))}원 많음`,
++    'bad',
++  ]
++}
++
+ // 합계 카드 하나. 통화를 값 옆에 적는다 — 서버가 currency 를 주는데 화면이
+ // '원' 을 하드코딩하면 다른 통화가 들어올 때 거짓말이 된다.
+ function TotalCard({ label, note, value, currency, loading, emphasis }) {
