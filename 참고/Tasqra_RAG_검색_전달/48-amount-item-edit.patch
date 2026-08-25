@@ -1,0 +1,606 @@
+diff --git a/backend/app/api/routes/amount_router.py b/backend/app/api/routes/amount_router.py
+index 01b352f..7f9fe84 100644
+--- a/backend/app/api/routes/amount_router.py
++++ b/backend/app/api/routes/amount_router.py
+@@ -28,6 +28,7 @@ from starlette import status
+ 
+ from app.dependencies import (
+     ProjectAccess,
++    get_amount_item_service,
+     get_amount_precedent_service,
+     get_amount_summary_service,
+     get_amount_task_service,
+@@ -35,10 +36,15 @@ from app.dependencies import (
+     get_project_amount_access,
+     get_project_editor_access,
+ )
+-from app.schemas.amount_item import AmountItemListResponse
++from app.schemas.amount_item import (
++    AmountItemListResponse,
++    AmountItemRow,
++    AmountItemUpdateRequest,
++)
+ from app.schemas.amount_precedent import AmountPrecedentResponse
+ from app.schemas.amount_summary import AmountSummaryResponse
+ from app.schemas.task import TaskResponse
++from app.services.amount_item_service import AmountItemService
+ from app.services.amount_precedent_service import AmountPrecedentService
+ from app.services.amount_summary_service import AmountSummaryService
+ from app.services.amount_task_service import AmountTaskService
+@@ -213,3 +219,63 @@ def create_task_from_amount_mismatch(
+         access.project.id, item_id, access.member.user_id
+     )
+     return TaskResponse.model_validate(task)
++
++
++
++@router.patch("/amount-items/{item_id}", response_model=AmountItemRow)
++def update_amount_item(
++    item_id: int,
++    body: AmountItemUpdateRequest,
++    access: ProjectAccess = Depends(get_project_editor_access),
++    service: AmountItemService = Depends(get_amount_item_service),
++) -> AmountItemRow:
++    """금액 항목을 고친다 (`AMT-001-2` 금액 항목 승인·수정).
++
++    검산이 어긋났을 때(`AMT-002-1`) **사람이 할 수 있는 일**이 이것입니다. 그전에는
++    불일치를 보여주기만 하고 고칠 곳이 없었습니다.
++
++    ### 보낸 필드만 고칩니다
++
++    「안 보냈다」와 「`null` 로 보냈다」가 다릅니다 — 앞은 그대로 두라는 뜻이고 뒤는
++    비우라는 뜻입니다. 제경비처럼 수량이 원래 없는 항목에서 잘못 채운 값을 지울 수
++    있어야 합니다.
++
++    고칠 수 있는 것은 `quantity`·`unit`·`unit_price`·`amount`·`category` 다섯입니다.
++    `item_name` 과 `source_quote` 는 **문서에서 읽은 사실**이라 고치지 않습니다 —
++    이름을 바꾸면 원문과 대조할 수 없습니다.
++
++    ### 고치면 승인된 것으로 봅니다
++
++    `decision` 이 `EDITED` 가 되고 `decided_by`·`decided_at` 이 남습니다.
++    `PENDING` 이던 항목은 이때 합계에 들어옵니다 — 그것이 `AMT-001-2` 가 말하는
++    *"승인하거나 수정한다"* 입니다. 사람이 값을 확인해 고쳤으면 그 자체가 승인입니다.
++
++    ### 응답이 목록의 한 줄과 같은 모양입니다
++
++    **다시 검산한 결과**(`expected`·`verified`·`difference`)가 함께 옵니다. 고쳐서
++    맞게 됐는지 바로 보이고, 화면은 전체를 다시 받지 않고 그 줄만 갈아끼울 수 있습니다.
++
++    고친 뒤 여전히 어긋나 있어도 **막지 않습니다.** 그것도 정보입니다 — 수량을
++    바로잡았는데 아직 맞지 않으면 다른 곳이 틀렸다는 뜻입니다.
++
++    ### 문서에 적힌 금액(`amount`)을 고치는 것
++
++    막지 않지만 **마지막 선택**입니다. 그 값을 고치면 문서의 오류가 감춰져서 합계
++    대조가 무의미해집니다(`models/amount.py` 의 그 컬럼 주석이 근거입니다).
++    우리가 잘못 읽은 것이라면 `quantity`·`unit_price` 를 고치는 것이 맞습니다.
++
++    ### 오류
++
++      `422 VALIDATION_ERROR`        고칠 값을 하나도 안 보냈다 · 음수 · 없는 원가구분
++      `404 AMOUNT_ITEM_NOT_FOUND`   그 항목이 없다 (다른 프로젝트 것 포함)
++      `403 PROJECT_FORBIDDEN`       VIEWER 다
++
++    음수를 막는 이유: 문서에 적힌 금액과 단가는 음수가 아닙니다. 감액은 변경계약서의
++    항목으로 들어오고, 여기에 음수를 넣으면 합계가 조용히 줄어듭니다.
++    """
++    return service.update(
++        access.project.id,
++        item_id,
++        access.member.user_id,
++        body.model_dump(exclude_unset=True),
++    )
+diff --git a/backend/app/dependencies.py b/backend/app/dependencies.py
+index fd8df7f..70a59bd 100644
+--- a/backend/app/dependencies.py
++++ b/backend/app/dependencies.py
+@@ -58,6 +58,7 @@ from app.models.enums import MemberRole
+ from app.models.project import Project, ProjectMember
+ from app.models.user import User
+ from app.services.amount_precedent_service import AmountPrecedentService
++from app.services.amount_item_service import AmountItemService
+ from app.services.amount_summary_service import AmountSummaryService
+ from app.services.amount_task_service import AmountTaskService
+ from app.services.auth_service import AuthService
+@@ -253,6 +254,19 @@ def get_amount_summary_service(
+     return AmountSummaryService(amount_repository, task_repository)
+ 
+ 
++def get_amount_item_service(
++    db: Session = Depends(get_db),
++    amount_repository: AmountRepository = Depends(get_amount_repository),
++    task_repository: TaskRepository = Depends(get_task_repository),
++) -> AmountItemService:
++    """금액 항목을 고치는 서비스 (AMT-001-2).
++
++    태스크 저장소는 응답에 `task_id` 를 붙이는 데만 쓴다 — 고친 줄이 목록과 같은
++    모양이어야 화면이 그 줄만 갈아끼울 수 있다.
++    """
++    return AmountItemService(db, amount_repository, task_repository)
++
++
+ def get_amount_task_service(
+     amount_repository: AmountRepository = Depends(get_amount_repository),
+     task_repository: TaskRepository = Depends(get_task_repository),
+diff --git a/backend/app/schemas/amount_item.py b/backend/app/schemas/amount_item.py
+index af731bd..86447bd 100644
+--- a/backend/app/schemas/amount_item.py
++++ b/backend/app/schemas/amount_item.py
+@@ -25,7 +25,9 @@
+ 
+ from decimal import Decimal
+ 
+-from pydantic import BaseModel, Field
++from pydantic import BaseModel, Field, model_validator
++
++from app.models.enums import AmountCategory
+ 
+ 
+ class AmountItemRow(BaseModel):
+@@ -97,3 +99,49 @@ class AmountItemListResponse(BaseModel):
+     # 목록에 담은 승인 상태. 합계 응답과 같은 값이다 — 두 응답이 다른 범위를
+     # 보면 "6건인데 목록은 4줄" 같은 일이 생긴다.
+     included_decisions: list[str] = Field(default_factory=list)
++
++
++
++class AmountItemUpdateRequest(BaseModel):
++    """금액 항목 수정 (`AMT-001-2` 금액 항목 승인·수정).
++
++    ### 왜 이 기능이 필요한가
++
++    검산이 어긋났을 때(`AMT-002-1`) 사람이 할 수 있는 일이 있어야 한다. 그전에는
++    불일치를 **보여주기만** 하고 고칠 곳이 없었다. `decision='EDITED'` 는 설계에만
++    있고 그 상태로 바꾸는 코드가 없었다.
++
++    ### 보낸 것만 고친다
++
++    필드를 `model_fields_set` 으로 판단한다. **「안 보냈다」와 「null 로 보냈다」가
++    다르다** — 앞은 그대로 두라는 뜻이고 뒤는 비우라는 뜻이다. 제경비처럼 수량이
++    원래 없는 항목에서 잘못 채운 값을 지울 수 있어야 한다.
++    `TaskUpdateRequest` 도 같은 방식이다.
++
++    ### 수정하면 승인된 것으로 본다
++
++    저장하면 `decision` 이 `EDITED` 가 된다. `PENDING` 이던 항목이 합계에 들어오게
++    되는데 그것이 `AMT-001-2` 가 말하는 «승인하거나 수정한다» 다 — 사람이 값을
++    확인해 고쳤으면 그 자체가 승인이다.
++
++    ### 음수를 막는 이유
++
++    문서에 적힌 금액과 단가는 음수가 아니다. 감액은 별도 문서(변경계약서)의 항목으로
++    들어오고, 이 컬럼에 음수를 넣으면 합계가 조용히 줄어든다. `unit_price` 는 DB
++    CHECK(`ck_amount_unit_price`)도 같은 조건이라 여기서 막는 것이 그 CHECK 과
++    같은 방향이다.
++    """
++
++    quantity: Decimal | None = Field(default=None, ge=0)
++    unit: str | None = Field(default=None, max_length=30)
++    unit_price: int | None = Field(default=None, ge=0)
++    # 문서에 적힌 금액. 이것을 고치면 문서의 오류가 감춰지므로 화면에서 마지막
++    # 선택임을 알린다. 그래도 막지는 않는다 — 어느 쪽이 맞는지는 사람이 정한다.
++    amount: int | None = Field(default=None, ge=0)
++    category: AmountCategory | None = None
++
++    @model_validator(mode="after")
++    def require_change(self):
++        if not self.model_fields_set:
++            raise ValueError("고칠 값을 하나 이상 보내야 합니다.")
++        return self
+diff --git a/backend/app/services/amount_item_service.py b/backend/app/services/amount_item_service.py
+new file mode 100644
+index 0000000..bfba25a
+--- /dev/null
++++ b/backend/app/services/amount_item_service.py
+@@ -0,0 +1,114 @@
++# =============================================================================
++# 이 파일의 책임: 금액 항목을 사람이 고치는 것 (AMT-001-2 금액 항목 승인·수정).
++#   고치면 decision 이 EDITED 가 되고 누가 언제 고쳤는지 남는다.
++# 다른 파일과의 관계: AmountRepository 로 항목을 읽고 그 자리에서 고친다. 응답은
++#   AmountSummaryService._to_row 를 재사용해 만든다 — 목록과 같은 모양이어야
++#   화면이 고친 줄만 갈아끼울 수 있다. TaskRepository 는 task_id 를 붙이는 데만 쓴다.
++# Spring 비교: @Service + @Transactional 이다. transactional(db) 컨텍스트매니저가
++#   그 어노테이션 자리를 대신한다.
++#
++# 왜 이 파일이 필요했나 — 없는 기능을 가리키고 있었다
++#   금액 불일치 태스크(AMT-004-3)의 설명에 "값을 고치면 불일치 표시가 사라집니다"
++#   라고 적어 뒀는데 **고칠 API 가 없었다.** decision='EDITED' 는 스키마와 주석에만
++#   있고 그 상태로 바꾸는 코드가 어디에도 없었다. 설계에 있는 것과 만들어진 것을
++#   구분하지 못한 실수였다.
++#
++# 검산 결과를 여기서 저장하지 않는다
++#   고친 뒤 여전히 어긋나 있어도 막지 않는다. 그것도 정보다 — 수량을 바로잡았는데
++#   아직 맞지 않으면 다른 곳이 틀렸다는 뜻이다. 검산은 조회할 때마다 다시 하므로
++#   저장할 것이 없다.
++#
++# 금액(amount)을 고치는 것을 막지 않는 이유
++#   models/amount.py 는 "수량x단가와 어긋나도 **코드가** 이 값을 고치지 않는다" 고
++#   적어 뒀다. 사람이 고치는 것은 다르다 — EDITED 의 설계 의도가 "수식을 편집하게
++#   하는 대신 값을 고치고 사실을 기록한다" 다. 대신 화면에서 **문서의 오류가
++#   감춰진다는 것**을 알린다. 어느 쪽이 맞는지는 사람이 정한다.
++# =============================================================================
++
++from __future__ import annotations
++
++from datetime import datetime, timezone
++
++from sqlalchemy.orm import Session
++
++from app.core.error_codes import ErrorCode
++from app.core.exceptions import BusinessError
++from app.core.transaction import transactional
++from app.repositories.amount_repository import AmountRepository
++from app.repositories.task_repository import TaskRepository
++from app.schemas.amount_item import AmountItemRow
++from app.services.amount_summary_service import AmountSummaryService
++
++# 고칠 수 있는 컬럼. 여기 없는 것은 요청에 들어와도 무시한다.
++#
++# item_name·source_quote 를 넣지 않은 이유: 그것은 문서에서 읽은 «사실» 이고
++# 검산에 쓰이지 않는다. 이름을 고치게 하면 원문과 대조할 수 없게 된다.
++_EDITABLE = ("quantity", "unit", "unit_price", "amount", "category")
++
++
++class AmountItemService:
++    def __init__(
++        self,
++        db: Session,
++        amounts: AmountRepository,
++        tasks: TaskRepository | None = None,
++    ) -> None:
++        self._db = db
++        self._amounts = amounts
++        self._tasks = tasks
++
++    def update(
++        self, project_id: int, item_id: int, user_id: int, values: dict
++    ) -> AmountItemRow:
++        """금액 항목을 고치고 `EDITED` 로 기록한다 (AMT-001-2).
++
++        `values` 에는 **보낸 필드만** 들어 있다(`model_dump(exclude_unset=True)`).
++        「안 보냈다」와 「null 로 보냈다」를 구별해야 하므로 스키마가 그 판단을 하고
++        여기서는 받은 것만 그대로 넣는다.
++
++        고친 줄 하나를 목록과 **같은 모양**으로 돌려준다. 화면이 전체를 다시 받지
++        않고 그 줄만 갈아끼울 수 있고, 무엇보다 **다시 검산한 결과**가 함께 온다 —
++        고쳐서 맞게 됐는지 바로 보인다.
++        """
++        found = self._amounts.get_item(project_id, item_id)
++        if found is None:
++            raise BusinessError(ErrorCode.AMOUNT_ITEM_NOT_FOUND)
++        item, document_id, filename = found
++
++        with transactional(self._db):
++            for field in _EDITABLE:
++                if field not in values:
++                    continue
++                setattr(item, field, self._normalize(field, values[field]))
++            # 사람이 값을 확인해 고쳤으면 그 자체가 승인이다 (AMT-001-2).
++            item.decision = "EDITED"
++            item.decided_by = user_id
++            item.decided_at = datetime.now(timezone.utc)
++
++        task_ids = (
++            self._tasks.suggestion_task_ids(project_id) if self._tasks else {}
++        )
++        return AmountSummaryService._to_row(
++            item, document_id, filename, task_ids.get(item.id)
++        )
++
++    @staticmethod
++    def _normalize(field: str, value):
++        """DB 에 넣기 전 다듬는다.
++
++        `category` 는 Enum 으로 들어오는데 컬럼이 `String(20)` 이라 값만 꺼낸다.
++        Enum 을 그대로 넣으면 `AmountCategory.DIRECT_LABOR` 문자열이 저장돼
++        `ck_amount_category` CHECK 에 걸린다.
++
++        `unit` 의 빈 문자열은 `None` 으로 바꾼다. 사용자가 입력칸을 비운 것은
++        「단위가 없다」는 뜻인데, `""` 로 저장하면 «비어 있음» 과 «없음» 이 갈려
++        조회마다 두 경우를 다 봐야 한다.
++        """
++        if value is None:
++            return None
++        if field == "category":
++            return getattr(value, "value", value)
++        if field == "unit":
++            text = str(value).strip()
++            return text or None
++        return value
+diff --git a/backend/app/services/amount_task_service.py b/backend/app/services/amount_task_service.py
+index c04a916..0ea706e 100644
+--- a/backend/app/services/amount_task_service.py
++++ b/backend/app/services/amount_task_service.py
+@@ -154,7 +154,7 @@ class AmountTaskService:
+             f"문서에 적힌 금액: {int(item.amount):,}원",
+             f"차이: {gap}",
+             "",
+-            "문서와 계산 중 어느 쪽이 맞는지 확인해 주세요. 문서가 맞다면 금액 항목의 "
+-            "값을 고치면(EDITED) 불일치 표시가 사라집니다.",
++            "수량·단가와 문서에 적힌 금액 중 어느 쪽이 맞는지 확인해 주세요.",
++            "금액 탭 → 항목 보기에서 이 항목을 고치면 합계와 검산에 바로 반영됩니다.",
+         ]
+         return "\n".join(lines)
+diff --git a/frontend/src/api/amount.js b/frontend/src/api/amount.js
+index ea6dba9..0b96dac 100644
+--- a/frontend/src/api/amount.js
++++ b/frontend/src/api/amount.js
+@@ -136,3 +136,30 @@ export async function createTaskFromMismatch(projectId, itemId) {
+   )
+   return data
+ }
++
++
++// PATCH /api/projects/{projectId}/amount-items/{itemId}
++//
++// 금액 항목을 고친다 (AMT-001-2 금액 항목 승인·수정). 검산이 어긋났을 때 사람이 할
++// 수 있는 일이 이것이다.
++//
++// **보낸 필드만 고친다.** 그래서 changes 에 담긴 키만 보낸다 — 「안 보냈다」와
++// 「null 로 보냈다」가 다르다. 앞은 그대로 두라는 뜻이고 뒤는 비우라는 뜻이다.
++// 제경비처럼 수량이 원래 없는 항목에서 잘못 채운 값을 지울 수 있어야 한다.
++//
++// 고칠 수 있는 것은 quantity·unit·unit_price·amount·category 다섯이다.
++// item_name·source_quote 는 문서에서 읽은 사실이라 서버가 받지 않는다.
++//
++// 고치면 decision 이 EDITED 가 된다. PENDING 이던 항목은 이때 합계에 들어온다 —
++// 사람이 값을 확인해 고쳤으면 그 자체가 승인이라는 것이 AMT-001-2 다.
++//
++// **응답이 목록의 한 줄과 같은 모양이다.** 다시 검산한 expected·verified·difference
++// 가 함께 오므로 고쳐서 맞게 됐는지 바로 알 수 있다. 화면이 수량×단가를 다시 곱해
++// 판단하지 않는다.
++export async function updateAmountItem(projectId, itemId, changes) {
++  const { data } = await http.patch(
++    `/api/projects/${projectId}/amount-items/${itemId}`,
++    changes,
++  )
++  return data
++}
+diff --git a/frontend/src/features/amount/AmountSummaryView.css b/frontend/src/features/amount/AmountSummaryView.css
+index 01b00a8..f9bb14b 100644
+--- a/frontend/src/features/amount/AmountSummaryView.css
++++ b/frontend/src/features/amount/AmountSummaryView.css
+@@ -120,3 +120,36 @@
+ /* 이미 만든 것. 버튼이 아니라 상태 표시라 눌리지 않는 모양으로 둔다. */
+ .amount-task-done { color: var(--c-text-strong); font-size: 12px; font-weight: 700; }
+ .amount-task-none { color: var(--c-text-muted); font-size: 12px; }
++
++
++/* 금액 항목 고치기 (AMT-001-2). 표 아래에 펼친다 — 표 안에 넣으면 가로 스크롤
++   안에서 입력칸이 잘리고, 모달로 만들면 표와 값을 나란히 볼 수 없다. */
++.amount-edit { margin-top: 14px; padding: 15px 17px; border: 1px solid var(--c-border-strong); border-radius: 12px; background: var(--c-bg-subtle); }
++.amount-edit-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
++.amount-edit-heading strong { color: var(--c-text-strong); font-size: 14px; }
++.amount-edit-heading span { color: var(--c-text-muted); font-size: 12px; }
++
++.amount-edit-fields { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 12px; }
++.amount-edit-fields label { display: grid; gap: 5px; }
++.amount-edit-fields label > span { color: var(--c-text-muted); font-size: 12px; font-weight: 700; }
++.amount-edit-fields input, .amount-edit-fields select { min-height: 38px; padding: 8px 10px; border: 1px solid var(--c-border-strong); border-radius: 8px; background: var(--c-bg); color: var(--c-text-strong); font: inherit; font-size: 13px; }
++.amount-edit-fields input:focus-visible, .amount-edit-fields select:focus-visible { border-color: var(--c-accent); outline: none; }
++/* 문서에 적힌 금액. 고치면 문서의 오류가 감춰지므로 눈에 띄게 구분해 둔다. */
++.amount-edit-fields label.is-caution > span { color: var(--c-text-strong); }
++.amount-edit-fields label.is-caution input { border-style: dashed; }
++
++.amount-edit-note { margin: 0 0 12px; color: var(--c-text-muted); font-size: 12px; line-height: 1.6; }
++.amount-edit-note strong { color: var(--c-text-strong); }
++
++.amount-edit-actions { display: flex; gap: 8px; }
++.amount-edit-actions button { min-height: 36px; padding: 8px 15px; border: 1px solid var(--c-border-strong); border-radius: 9px; background: var(--c-bg); color: var(--c-text-strong); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
++.amount-edit-actions button.is-primary { border-color: var(--c-accent); background: var(--c-accent); color: #fff; }
++.amount-edit-actions button.is-primary:hover:not(:disabled) { border-color: var(--c-accent-strong); background: var(--c-accent-strong); }
++.amount-edit-actions button:disabled { background: var(--c-bg-hover); color: var(--c-text-muted); cursor: not-allowed; }
++
++@media (max-width: 900px) {
++  .amount-edit-fields { grid-template-columns: repeat(2, 1fr); }
++}
++@media (max-width: 560px) {
++  .amount-edit-fields { grid-template-columns: 1fr; }
++}
+diff --git a/frontend/src/features/amount/AmountSummaryView.jsx b/frontend/src/features/amount/AmountSummaryView.jsx
+index 5f61f1a..16d6c77 100644
+--- a/frontend/src/features/amount/AmountSummaryView.jsx
++++ b/frontend/src/features/amount/AmountSummaryView.jsx
+@@ -32,7 +32,12 @@
+ 
+ import { useState } from 'react'
+ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+-import { createTaskFromMismatch, getAmountItems, getAmountSummary } from '../../api/amount'
++import {
++  createTaskFromMismatch,
++  getAmountItems,
++  getAmountSummary,
++  updateAmountItem,
++} from '../../api/amount'
+ import PageHeading from '../../components/common/PageHeading'
+ import { formatMoney, formatNumber } from '../../utils/format'
+ import './AmountSummaryView.css'
+@@ -293,6 +298,9 @@ function ItemTable({ projectId, notify }) {
+ 
+   // 어긋난 항목을 태스크로 만든다 (AMT-004-3). **자동으로 만들지 않는다** —
+   // 사람이 누를 때만 부른다. 그것이 완료 판정의 "자동 등록은 하지 않는다" 다.
++  // 고치는 중인 항목. null 이면 편집 영역이 닫혀 있다.
++  const [editing, setEditing] = useState(null)
++
+   const taskMutation = useMutation({
+     mutationFn: item => createTaskFromMismatch(projectId, item.id),
+     onSuccess: task => notify?.('success', '태스크를 만들었습니다', task.title),
+@@ -347,6 +355,7 @@ function ItemTable({ projectId, notify }) {
+             <th scope='col'>검산</th>
+             <th scope='col'>원문 근거</th>
+             <th scope='col'>태스크</th>
++            <th scope='col'>고치기</th>
+           </tr>
+         </thead>
+         <tbody>
+@@ -354,16 +363,146 @@ function ItemTable({ projectId, notify }) {
+             key={row.id}
+             row={row}
+             pending={taskMutation.isPending && taskMutation.variables?.id === row.id}
++            editing={editing?.id === row.id}
+             onCreateTask={item => taskMutation.mutate(item)}
++            onEdit={item => setEditing(item)}
+           />)}
+         </tbody>
+       </table>
+     </div>
+ 
+     {visible.length === 0 && <p className='amount-scope-empty'>이 조건에 맞는 항목이 없습니다.</p>}
++
++    {editing && <ItemEditor
++      key={editing.id}
++      projectId={projectId}
++      item={editing}
++      notify={notify}
++      onClose={() => setEditing(null)}
++    />}
+   </div>
+ }
+ 
++// 원가구분 선택 목록. CATEGORY_LABELS 에서 만든다 — 두 곳에 적으면 한쪽만 고쳐서
++// 표와 선택 목록이 다른 이름을 쓰게 된다.
++const CATEGORY_OPTIONS = Object.entries(CATEGORY_LABELS)
++
++/** 값을 입력칸에 넣을 문자열로. null·undefined 는 빈 칸이다. */
++function toInput(value) {
++  return value === null || value === undefined ? '' : String(value)
++}
++
++// 금액 항목 고치기 (AMT-001-2). 표 아래에 펼친다.
++//
++// **보낸 필드만 서버에 넘긴다.** 처음 값과 비교해 바뀐 것만 담는다 — 안 바꾼 필드를
++// 함께 보내면 그 값을 «다시 확정» 하는 셈이고, 두 사람이 같은 항목의 다른 칸을
++// 고칠 때 나중 사람이 앞사람의 변경을 덮어쓴다.
++//
++// 빈 칸은 null 로 보낸다. 「비웠다」와 「안 건드렸다」가 다르므로, 처음에 값이
++// 있었는데 비운 경우만 null 이 된다.
++function ItemEditor({ projectId, item, notify, onClose }) {
++  const [form, setForm] = useState({
++    quantity: toInput(item.quantity),
++    unit: toInput(item.unit),
++    unit_price: toInput(item.unit_price),
++    amount: toInput(item.amount),
++    category: item.category ?? '',
++  })
++  const queryClient = useQueryClient()
++
++  const saveMutation = useMutation({
++    mutationFn: changes => updateAmountItem(projectId, item.id, changes),
++    onSuccess: row => {
++      // 서버가 다시 검산해서 돌려준다. 화면이 곱해서 판단하지 않는다.
++      notify?.(
++        'success',
++        '금액 항목을 고쳤습니다',
++        row.verified === true ? '검산이 맞았습니다.' : verifyText(row)[0],
++      )
++      queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'amount-items'] })
++      // 합계·원가구분별·문서 합계 대조가 다 바뀐다.
++      queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'amount-summary'] })
++      onClose()
++    },
++    onError: error => notify?.('error', '고치지 못했습니다', error?.message),
++  })
++
++  const set = (field, value) => setForm(current => ({ ...current, [field]: value }))
++
++  const submit = event => {
++    event.preventDefault()
++    const changes = {}
++    for (const [field, initial] of [
++      ['quantity', toInput(item.quantity)],
++      ['unit', toInput(item.unit)],
++      ['unit_price', toInput(item.unit_price)],
++      ['amount', toInput(item.amount)],
++      ['category', item.category ?? ''],
++    ]) {
++      const next = form[field]
++      if (next === initial) continue
++      // 빈 칸은 «비웠다» 다. 서버가 null 을 받아 컬럼을 비운다.
++      changes[field] = next === '' ? null : next
++    }
++    if (Object.keys(changes).length === 0) {
++      notify?.('info', '바뀐 값이 없습니다', '고칠 값을 하나 이상 바꿔 주세요.')
++      return
++    }
++    saveMutation.mutate(changes)
++  }
++
++  return <form className='amount-edit' onSubmit={submit}>
++    <div className='amount-edit-heading'>
++      <strong>{item.item_name} 고치기</strong>
++      <span>{item.filename}</span>
++    </div>
++
++    <div className='amount-edit-fields'>
++      <label>
++        <span>수량</span>
++        <input type='number' step='any' min='0' value={form.quantity} onChange={e => set('quantity', e.target.value)}/>
++      </label>
++      <label>
++        <span>단위</span>
++        <input value={form.unit} maxLength={30} onChange={e => set('unit', e.target.value)}/>
++      </label>
++      <label>
++        <span>단가</span>
++        <input type='number' step='1' min='0' value={form.unit_price} onChange={e => set('unit_price', e.target.value)}/>
++      </label>
++      {/* 문서에 적힌 금액. 고치면 문서의 오류가 감춰지므로 구분해 둔다. */}
++      <label className='is-caution'>
++        <span>문서에 적힌 금액</span>
++        <input type='number' step='1' min='0' value={form.amount} onChange={e => set('amount', e.target.value)}/>
++      </label>
++      <label>
++        <span>원가구분</span>
++        <select value={form.category} onChange={e => set('category', e.target.value)}>
++          <option value=''>판별 안 됨</option>
++          {CATEGORY_OPTIONS.map(([value, label]) => <option value={value} key={value}>{label}</option>)}
++        </select>
++      </label>
++    </div>
++
++    <p className='amount-edit-note'>
++      우리가 문서를 잘못 읽었다면 <strong>수량·단위·단가</strong>를 고치세요.
++      「문서에 적힌 금액」을 고치는 것은 <strong>마지막 선택</strong>입니다 —
++      그 값을 바꾸면 문서 자체의 오류가 감춰져서 합계 대조가 무의미해집니다.
++    </p>
++    <p className='amount-edit-note'>
++      저장하면 <strong>사람이 확인한 값(EDITED)</strong>으로 남고 합계·검산에 바로 반영됩니다.
++      빈 칸으로 두면 그 값을 <strong>비웁니다</strong> — 제경비처럼 수량·단가가 원래 없는 항목에 씁니다.
++    </p>
++
++    <div className='amount-edit-actions'>
++      <button type='submit' className='is-primary' disabled={saveMutation.isPending}>
++        {saveMutation.isPending ? '저장 중…' : '저장'}
++      </button>
++      <button type='button' onClick={onClose} disabled={saveMutation.isPending}>취소</button>
++    </div>
++  </form>
++}
++
+ // 원문 근거를 표에서 한 줄로 줄이는 기준 글자 수.
+ //
+ // **이 길이를 넘을 때만 마우스 올림 안내(title·물음표 커서)를 붙인다.** 짧은 근거는
+@@ -375,7 +514,7 @@ function ItemTable({ projectId, notify }) {
+ // 해서 얻는 것보다 복잡하다. 어긋나도 손해가 "툴팁이 한 번 더 뜬다" 뿐이다.
+ const QUOTE_INLINE_MAX = 24
+ 
+-function ItemRow({ row, pending, onCreateTask }) {
++function ItemRow({ row, pending, editing, onCreateTask, onEdit }) {
+   const [text, tone] = verifyText(row)
+   const quote = row.source_quote || ''
+   const quoteClipped = quote.length > QUOTE_INLINE_MAX
+@@ -404,6 +543,13 @@ function ItemRow({ row, pending, onCreateTask }) {
+           </button>
+           : <span className='amount-task-none'>—</span>}
+     </td>
++    {/* 어긋난 항목만이 아니라 **모든 항목**을 고칠 수 있다. 맞은 항목도 원가구분이
++        틀렸거나 단위가 잘못 읽혔을 수 있다. */}
++    <td className='amount-task-cell'>
++      <button type='button' className='amount-task-button' disabled={editing} onClick={() => onEdit(row)}>
++        {editing ? '고치는 중' : '고치기'}
++      </button>
++    </td>
+   </tr>
+ }
+ 
