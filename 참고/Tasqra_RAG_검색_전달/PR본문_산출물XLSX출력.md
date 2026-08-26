@@ -128,10 +128,33 @@ XLSX 를 만들기 형식으로는 고를 수 있게 하고, 미리보기 「보
 어떤 시트에 어떤 값이 들어가는지 확인했습니다(시트 6개 생성, 빈 절에도 문장,
 금액이 문자열 `"6,000,000"` 이 아니라 정수 `6000000` 으로 들어감).
 
-**팀 CI 에서 pytest 통과를 확인해 주세요** — 특히
-`test_deliverable_generate.py::test_unsupported_format_is_not_ready_not_invalid`
-(XLSX 를 뺐습니다, 이제 501 은 PDF 만)와 `test_deliverable_html.py` 의 회귀
-(MD·HTML 문자열 경로 유지).
+**⚠ 이 레포에는 CI 가 없습니다**(`.github/workflows` 없음). 그래서 pytest 는 누군가
+손으로 돌려야 확인됩니다. 아래 두 개를 봐 주세요.
+
+- `test_deliverable_generate.py::test_unsupported_format_is_not_ready_not_invalid`
+  — XLSX 를 뺐습니다(이제 501 은 PDF 만)
+- `test_deliverable_html.py` — MD·HTML 문자열 경로가 그대로인지(회귀)
+
+**`docker compose exec api pytest` 는 안 됩니다.** `pytest` 가
+`requirements-dev.txt` 에만 있고 `Dockerfile` 은 `requirements.txt` 만 이미지에
+넣습니다(16행). 컨테이너 안에는 `requirements-dev.txt` 자체가 없습니다.
+
+이 테스트들은 **모델도 DB 도 쓰지 않습니다**(리포지토리는 `MagicMock`, 파일 저장만
+임시폴더에 실제로 합니다). import 를 따라가면 필요한 것은 `pytest`·`pydantic`·
+`pydantic-settings`·`sqlalchemy`·`fastapi`·`openpyxl`·`pgvector` 뿐이고
+`torch`·`paddleocr` 는 필요 없습니다. 그래서 가벼운 venv 로 돌릴 수 있습니다:
+
+```
+cd backend
+python -m venv .venv-test
+.venv-test\Scripts\Activate.ps1
+pip install pytest pydantic pydantic-settings sqlalchemy fastapi openpyxl pgvector
+python -m pytest tests/test_deliverable_generate.py tests/test_deliverable_html.py -q
+```
+
+`python -m pytest` 여야 합니다 — `tests/__init__.py` 도 `pytest.ini` 도 없어서
+`pytest` 만 치면 `from app...` 이 안 잡힙니다. 그리고 `Settings` 에 기본값 없는
+필수 항목이 여러 개라 `backend/.env` 가 있어야 import 가 됩니다.
 
 ## 이 PR 에 없는 것
 
@@ -212,4 +235,5 @@ CSS 변수(`--foo`)는 쓰지 않았습니다. 나중에 붙일 PDF 변환기가
 만 스텁으로 대체하고 `deliverable_markdown`·`deliverable_html` 은 실제 파일을
 불렀습니다). 헤드리스 브라우저로 렌더링해 배치도 확인했습니다.
 
-**팀 CI 에서 `pytest backend/tests/test_deliverable_html.py` 를 확인해 주세요.**
+**CI 가 없으므로** `test_deliverable_html.py` 는 손으로 돌려 확인해 주세요 — 방법은
+위 「검증」 절의 venv 명령을 참고하세요.
