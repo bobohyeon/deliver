@@ -8,7 +8,7 @@
 
 | ID | 작업명 | 출력 |
 |---|---|---|
-| `ANL-001-2` | 문서 유형 분류 | `document_type`(9종 중 1) + `reason` |
+| `ANL-001-2` | 문서 유형 분류 | `document_type`(8종 중 1) + `reason` |
 | `REC-001` | 액션 태스크 추천 · 프로젝트 갭 분석 | 추천 배열(`title`·`description`·`reason`·`source`) |
 | `ANL-002-1` | 액션 아이템 추출(선택) | 배열(`title`·`assignee_hint`·`due_date`·`confidence`·`reason`) |
 
@@ -24,8 +24,9 @@
 
 ## 1. 도메인 · 라벨 (고정)
 
-도메인은 **공공 SI·용역 사업**. 문서 유형은 **9종 고정**이며 이 밖의 값을 라벨로
-쓰면 앱이 못 받는다(`documents.document_type` enum, `DocFlow_DB.dbml`).
+도메인은 **공공 SI·용역 사업**. 문서 유형은 **8종 고정**이며 이 밖의 값을 라벨로
+쓰면 앱이 못 받는다(`documents.document_type` enum 은 `BILLING` 포함 9개지만,
+분류 카테고리에서 `BILLING` 을 빼기로 해 학습 라벨은 8종이다 — 아래 표 주석 참고).
 
 | 값 | 뜻 | 작성 주체 |
 |---|---|---|
@@ -36,8 +37,10 @@
 | `CONTRACT_CHANGE` | 변경계약서 · 과업변경합의서 | 양자 |
 | `REPORT` | 착수/주간/월간/완료보고서 · 검사조서 | 수행사 |
 | `MEETING_NOTES` | 회의록 | 양자 |
-| `BILLING` | 대가지급청구서 · 세금계산서 | 수행사 |
-| `ETC` | 위 어디에도 안 맞음 | — |
+| `ETC` | 위 어디에도 안 맞음 · **대가지급청구서·세금계산서(구 `BILLING`)** | — |
+
+> **`BILLING` 은 뺀다(2026-08-26, 세현님 결정).** 분류 카테고리에서 제거하고
+> 청구서·세금계산서류는 `ETC` 로 흡수한다. 그래서 라벨은 **8종**이다.
 
 ---
 
@@ -49,12 +52,12 @@
 ### 2-1. 문서 유형 분류 `ANL-001-2`
 ```json
 {"messages":[
- {"role":"system","content":"문서를 9종 유형 중 하나로 분류하고 근거를 한 문장으로 쓴다. 유형: RFP,PROPOSAL,COST_SHEET,CONTRACT,CONTRACT_CHANGE,REPORT,MEETING_NOTES,BILLING,ETC"},
+ {"role":"system","content":"문서를 8종 유형 중 하나로 분류하고 근거를 한 문장으로 쓴다. 유형: RFP,PROPOSAL,COST_SHEET,CONTRACT,CONTRACT_CHANGE,REPORT,MEETING_NOTES,ETC"},
  {"role":"user","content":"<문서 본문(발췌)>"},
  {"role":"assistant","content":"{\"document_type\":\"RFP\",\"reason\":\"...판별 신호를 인용한 한 문장...\"}"}
 ]}
 ```
-- `document_type`: 9종 중 정확히 하나
+- `document_type`: 8종 중 정확히 하나
 - `reason`: **왜 그 유형인지** 한 문장. RFP/PROPOSAL 이면 §3 의 판별 신호를 반드시 인용
 
 ### 2-2. 갭 분석 · 태스크 추천 `REC-001`
@@ -118,5 +121,5 @@
 ## 6. 검증
 
 `데이터셋/파인튜닝/validate_sft.py` 로 JSONL 을 검사한다(표준 라이브러리만):
-9종 enum · 필수 필드 · assistant 가 유효 JSON 인지 · due_date 형식(null 또는
+8종 enum · 필수 필드 · assistant 가 유효 JSON 인지 · due_date 형식(null 또는
 YYYY-MM-DD) 등. 세현님께 넘기기 전 이 검사를 통과시킨다.

@@ -2,7 +2,7 @@
 # ---------------------------------------------------------------------------
 # ① 이 파일의 책임
 #    파인튜닝용 messages JSONL 이 규격(규격_및_RFP-PROPOSAL_판별.md)을 지키는지
-#    검사한다. 9종 유형 enum, 필수 필드, assistant 가 유효 JSON 인지, due_date
+#    검사한다. 8종 유형 enum, 필수 필드, assistant 가 유효 JSON 인지, due_date
 #    형식 등을 줄 단위로 확인하고 어긋난 곳을 줄번호와 함께 보고한다.
 # ② 다른 파일과의 관계
 #    입력은 사람이/도구가 만든 *.jsonl. 통과해야 세현님께 넘긴다. 규격 문서가
@@ -20,8 +20,8 @@ import sys
 
 DOC_TYPES = {
     "RFP", "PROPOSAL", "COST_SHEET", "CONTRACT", "CONTRACT_CHANGE",
-    "REPORT", "MEETING_NOTES", "BILLING", "ETC",
-}
+    "REPORT", "MEETING_NOTES", "ETC",
+}  # BILLING 은 2026-08-26 제외(ETC 로 흡수, 세현님 결정)
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
@@ -35,7 +35,7 @@ def _last_assistant(messages):
 
 def _check_classification(obj, errs, ln):
     if obj.get("document_type") not in DOC_TYPES:
-        errs.append(f"{ln}행: document_type 값이 9종 밖 → {obj.get('document_type')!r}")
+        errs.append(f"{ln}행: document_type 값이 8종 밖 → {obj.get('document_type')!r}")
     if not str(obj.get("reason", "")).strip():
         errs.append(f"{ln}행: 분류에 reason 이 비어 있다")
 
