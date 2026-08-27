@@ -476,7 +476,7 @@ index f9bb14b..74c729f 100644
 +/* 거절함(휴지통) — 맨 아래 접힌 섹션. 집계와 떨어뜨려 두려고 위 여백만 준다. */
 +.amount-rejected { margin-top: 18px; }
 diff --git a/frontend/src/features/amount/AmountSummaryView.jsx b/frontend/src/features/amount/AmountSummaryView.jsx
-index 07c4cb1..8ac7e8d 100644
+index 07c4cb1..05afc31 100644
 --- a/frontend/src/features/amount/AmountSummaryView.jsx
 +++ b/frontend/src/features/amount/AmountSummaryView.jsx
 @@ -33,11 +33,17 @@
@@ -654,7 +654,7 @@ index 07c4cb1..8ac7e8d 100644
        </button>
      </td>
    </tr>
-@@ -615,3 +659,237 @@ function TotalCard({ label, note, value, currency, loading, emphasis }) {
+@@ -615,3 +659,239 @@ function TotalCard({ label, note, value, currency, loading, emphasis }) {
      <p>{note}</p>
    </div>
  }
@@ -682,7 +682,9 @@ index 07c4cb1..8ac7e8d 100644
 +  // 승인·거절 뒤에는 대기 목록·합계·항목목록·대시보드 승인대기 건수가 모두
 +  // 바뀐다. 한곳에서 무효화해 화면들이 어긋나지 않게 한다.
 +  const invalidateAll = () => {
-+    for (const key of ['amount-pending', 'amount-summary', 'amount-items', 'dashboard']) {
++    // amount-rejected 도 갱신한다 — 거절하면 그 항목이 하단 「거절함」에 바로
++    // 나타나야 한다. 없으면 새로고침해야 보인다(실제로 겪은 문제).
++    for (const key of ['amount-pending', 'amount-summary', 'amount-items', 'amount-rejected', 'dashboard']) {
 +      queryClient.invalidateQueries({ queryKey: ['projects', projectId, key] })
 +    }
 +  }
