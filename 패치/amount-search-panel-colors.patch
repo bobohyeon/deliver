@@ -1,19 +1,8 @@
 diff --git a/frontend/src/features/amount/AmountPrecedentPanel.css b/frontend/src/features/amount/AmountPrecedentPanel.css
-index 9530794..56b3bee 100644
+index 9530794..2421ce1 100644
 --- a/frontend/src/features/amount/AmountPrecedentPanel.css
 +++ b/frontend/src/features/amount/AmountPrecedentPanel.css
-@@ -70,6 +70,10 @@
-   display: grid; grid-template-columns: minmax(0, 1fr) 230px;
-   align-items: start; gap: 20px;
-   padding: 15px 0; border-top: 1px solid #e5eaf1;
-+  /* 이름(왼쪽)과 단가(오른쪽)가 한 눈에 들어오도록 줄 폭을 제한한다. 패널(섹션)
-+     크기는 그대로 두고 목록 줄 내용만 읽기 편한 폭으로 좁혀 왼쪽으로 모은다 —
-+     양 끝이 1000px 가까이 벌어지면 '특급기술자 ↔ 9,200,000' 을 눈으로 잇기 어렵다. */
-+  max-width: 760px;
- }
- .precedent-item:first-child { border-top: 0; }
- .precedent-item__main { min-width: 0; }
-@@ -126,3 +130,71 @@
+@@ -126,3 +126,95 @@
    .precedent-form { flex-direction: column; }
    .precedent-submit { width: 100%; }
  }
@@ -43,6 +32,7 @@ index 9530794..56b3bee 100644
 +  --precedent-accent-strong: var(--c-accent-strong); /* 강조(짙게) — 중앙값·버튼 hover */
 +  --precedent-accent-surface: var(--c-accent-soft);  /* 강조 카드 배경 */
 +  --precedent-accent-border: var(--c-accent-border); /* 강조 카드 테두리·포커스 */
++  --precedent-hover-surface: var(--c-accent-bg);     /* 줄 호버 배경 (테마색 옅은 워시) */
 +}
 +
 +/* 남색 배경을 밝은 면으로 덮고, .search-panel 의 color:#fff 를 본문색으로 되돌린다.
@@ -85,6 +75,29 @@ index 9530794..56b3bee 100644
 +.search-panel--precedent .precedent-item__total { color: var(--precedent-ink-soft); }
 +.search-panel--precedent .precedent-item__total b { color: var(--precedent-ink); }
 +.search-panel--precedent .precedent-item__tags { color: var(--precedent-ink-muted); }
++
++
++
++/* 줄 호버 강조 — 이름은 왼쪽에, 단가는 오른쪽에 그대로 두고(정렬 유지), 마우스를
++   올리면 줄 전체에 옅은 테마색 배경이 깔리고 이름·단가가 살짝 커지며 강조된다.
++   배경 밴드가 글자에 딱 붙지 않도록 좌우 14px 을 주되, 같은 크기의 음수 마진으로
++   내용 위치(위 카드·제목과의 정렬)는 그대로 둔다. */
++.search-panel--precedent .precedent-item { padding-left: 14px; padding-right: 14px; margin-left: -14px; margin-right: -14px; }
++
++/* transform 은 레이아웃을 밀지 않아(리플로우 없음) 줄 높이가 흔들리지 않는다.
++   hover 가 있는 기기에서만 걸어 터치에서 sticky hover 로 남지 않게 한다. */
++@media (hover: hover) {
++  .search-panel--precedent .precedent-item { transition: background .14s ease; }
++  .search-panel--precedent .precedent-item:hover { background: var(--precedent-hover-surface); }
++  .search-panel--precedent .precedent-item__main strong,
++  .search-panel--precedent .precedent-item__unit { transition: transform .14s ease, color .14s ease; }
++  .search-panel--precedent .precedent-item:hover .precedent-item__main strong {
++    transform: scale(1.04); transform-origin: left center; color: var(--precedent-accent-strong);
++  }
++  .search-panel--precedent .precedent-item:hover .precedent-item__unit {
++    transform: scale(1.06); transform-origin: right center; color: var(--precedent-accent-strong);
++  }
++}
 diff --git a/frontend/src/features/search/SearchView.css b/frontend/src/features/search/SearchView.css
 index 94683be..b95382a 100644
 --- a/frontend/src/features/search/SearchView.css
