@@ -10,34 +10,36 @@ body { margin: 0; background: #ffffff; color: #1b1b1b; font-size: 14px; line-hei
   font-family: -apple-system, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo",
     "NanumGothic", "Nanum Gothic", sans-serif; }
 
-/* 표지. 검정 면을 걷어내고 흰 바탕에 상단 포인트색 선 하나로 격을 만든다.
+/* 표지. 검정 면을 걷어내고 흰 바탕에 위·아래 포인트색 선으로 제목 블록을 감싼다.
    본문·꼬리말과 같은 920px 가운데 컬럼에 두어 왼쪽 끝을 맞춘다 — 전에는 표지만
-   화면 폭 전체라 가운데 정렬된 본문과 왼쪽이 어긋나 표지만 튀어 보였다. */
-.cover { max-width: 920px; margin: 0 auto; padding: 34px 44px 24px;
-  border-top: 3px solid #33408c; }
+   화면 폭 전체라 가운데 정렬된 본문과 왼쪽이 어긋나 표지만 튀어 보였다.
+   선 두께로 위계를 만든다: 표지 위 6px > 절 머리 4px > 표지 아래 3px > 표 머리 2px.
+   이렇게 두어야 절 머리 선과 표 머리 선이 두께로 구별된다(전에는 둘 다 2px 라 헷갈렸다). */
+.cover { max-width: 920px; margin: 0 auto; padding: 30px 44px 22px;
+  border-top: 6px solid #b5531f; border-bottom: 3px solid #b5531f; }
 .cover h1 { margin: 0; font-size: 26px; font-weight: 700; line-height: 1.32;
   letter-spacing: -0.01em; color: #1b1b1b; }
 .cover .meta { display: flex; flex-wrap: wrap; gap: 4px 20px; margin: 16px 0 0; padding: 0;
   list-style: none; }
 .cover .meta li { position: relative; padding-left: 14px; color: #6a6a6a; font-size: 12px; }
 .cover .meta li::before { content: ""; position: absolute; left: 0; top: 7px; width: 6px;
-  height: 6px; background: #33408c; border-radius: 50%; }
+  height: 6px; background: #b5531f; border-radius: 50%; }
 
-main { max-width: 920px; margin: 0 auto; padding: 10px 44px 4px; }
+main { max-width: 920px; margin: 0 auto; padding: 20px 44px 4px; }
 
 /* 절 머리. 검정 면 뱃지를 없애고 포인트색 번호 + 제목 + 아래 포인트색 keyline 으로
-   짠다. 강조를 면이 아니라 선으로 만들어 검정이 덜 튀게 한다. */
+   짠다. keyline 은 4px 로 표 머리(2px)보다 굵게 — 위계를 두께로 드러낸다. */
 .block { margin: 0 0 30px; }
 .block-head { display: flex; align-items: baseline; gap: 10px; margin: 0 0 13px;
-  padding-bottom: 8px; border-bottom: 2px solid #33408c; }
-.block-num { flex: none; color: #33408c; font-size: 13px; font-weight: 700;
+  padding-bottom: 9px; border-bottom: 4px solid #b5531f; }
+.block-num { flex: none; color: #b5531f; font-size: 13px; font-weight: 700;
   letter-spacing: 0.08em; }
 .block-head h2 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: 0.02em; }
 
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 /* 표 머리. 검정 면 -> 연회색 바탕 + 포인트색 밑선. 제일 무겁던 검정 덩어리를 없앤다. */
 thead th { padding: 9px 11px; background: #f2f2f2; color: #1b1b1b;
-  border-bottom: 2px solid #33408c; font-size: 11px; font-weight: 700;
+  border-bottom: 2px solid #b5531f; font-size: 11px; font-weight: 700;
   letter-spacing: 0.04em; text-align: left; white-space: nowrap; }
 tbody td { padding: 9px 11px; border-bottom: 1px solid #e6e6e6; vertical-align: top; }
 tbody tr:nth-child(even) td { background: #fafafa; }
@@ -45,7 +47,7 @@ tbody tr:nth-child(even) td { background: #fafafa; }
 .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 /* 자료가 없는 절과 개요. 빈 표 대신 문장을 두고 왼쪽 포인트색 선으로 구분한다. */
-p.note { margin: 0; padding: 12px 15px; border-left: 3px solid #33408c; background: #f6f6f6;
+p.note { margin: 0; padding: 12px 15px; border-left: 3px solid #b5531f; background: #f6f6f6;
   color: #4a4a4a; font-size: 13px; }
 
 footer { max-width: 920px; margin: 0 auto; padding: 14px 44px 42px; }
