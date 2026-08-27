@@ -1,8 +1,8 @@
 diff --git a/backend/app/api/routes/amount_router.py b/backend/app/api/routes/amount_router.py
-index 7f9fe84..727d628 100644
+index 7f9fe84..f5e3251 100644
 --- a/backend/app/api/routes/amount_router.py
 +++ b/backend/app/api/routes/amount_router.py
-@@ -161,6 +161,33 @@ def list_amount_items(
+@@ -161,6 +161,55 @@ def list_amount_items(
  
  
  
@@ -32,11 +32,33 @@ index 7f9fe84..727d628 100644
 +    return service.list_pending(access.project.id, limit)
 +
 +
++@router.get("/amount-items/rejected", response_model=AmountItemListResponse)
++def list_rejected_amount_items(
++    limit: int = Query(200, ge=1, le=500, description="돌려줄 항목 수 상한"),
++    access: ProjectAccess = Depends(get_project_amount_access),
++    service: AmountSummaryService = Depends(get_amount_summary_service),
++) -> AmountItemListResponse:
++    """**거절된(`REJECTED`)** 금액 항목 (되살리기용 「거절함」).
++
++    거절은 데이터를 지우지 않고 상태만 바꿉니다. 실수로 거절한 것을 되살릴 수
++    있도록 이 목록을 화면 맨 아래 접힌 섹션에서 보여줍니다. 되살리기는
++    `POST /amount-items/{id}/cancel`(→ `PENDING`)을 그대로 씁니다.
++
++    응답 모양은 `amount-items` 와 같고 `included_decisions` 만 `["REJECTED"]`
++    입니다. 집계·대기 건수와 무관한 별개 목록입니다.
++
++    오류
++      `403 PROJECT_FORBIDDEN`   VIEWER 다
++      `404`                     내가 멤버가 아닌 프로젝트
++    """
++    return service.list_rejected(access.project.id, limit)
++
++
 +
  @router.post(
      "/amount-items/{item_id}/task",
      response_model=TaskResponse,
-@@ -279,3 +306,65 @@ def update_amount_item(
+@@ -279,3 +328,65 @@ def update_amount_item(
          access.member.user_id,
          body.model_dump(exclude_unset=True),
      )
@@ -103,10 +125,10 @@ index 7f9fe84..727d628 100644
 +    """
 +    return service.cancel(access.project.id, item_id)
 diff --git a/backend/app/repositories/amount_repository.py b/backend/app/repositories/amount_repository.py
-index d1a97ac..546754f 100644
+index d1a97ac..87d934c 100644
 --- a/backend/app/repositories/amount_repository.py
 +++ b/backend/app/repositories/amount_repository.py
-@@ -271,3 +271,37 @@ class AmountRepository:
+@@ -271,3 +271,61 @@ class AmountRepository:
              (row[0], int(row[1]), row[2])
              for row in self._db.execute(stmt).all()
          ]
@@ -138,6 +160,30 @@ index d1a97ac..546754f 100644
 +            .join(Document, Document.id == AmountItem.document_id)
 +            .where(Document.project_id == project_id)
 +            .where(AmountItem.decision == "PENDING")
++            .order_by(Document.id, AmountItem.id)
++        )
++        return [
++            (row[0], int(row[1]), row[2])
++            for row in self._db.execute(stmt).all()
++        ]
++
++    def list_rejected_items(
++        self, project_id: int
++    ) -> list[tuple[AmountItem, int, str]]:
++        """**거절된(REJECTED)** 금액 항목을 문서 정보와 함께 가져온다.
++
++        거절은 데이터를 지우지 않고 `decision='REJECTED'` 로 둘 뿐이라, 실수로
++        거절한 것을 되살릴 수 있어야 한다. 이 목록이 그 「거절함(휴지통)」이다.
++        되살리기는 `AmountItemService.cancel`(→PENDING)을 그대로 쓴다.
++
++        `list_pending_items` 와 같은 구조(최신분석 필터 없이 문서·항목 순서)다.
++        집계·대기 어디에도 세지 않는 별개 조회라 화면 맨 아래 접힌 섹션에서만 쓴다.
++        """
++        stmt: Select = (
++            select(AmountItem, Document.id, Document.filename)
++            .join(Document, Document.id == AmountItem.document_id)
++            .where(Document.project_id == project_id)
++            .where(AmountItem.decision == "REJECTED")
 +            .order_by(Document.id, AmountItem.id)
 +        )
 +        return [
@@ -233,10 +279,10 @@ index 7b95259..9fc6bb5 100644
          """이 항목으로 만든 태스크가 있으면 지금 상태를 그 설명에 적는다.
  
 diff --git a/backend/app/services/amount_summary_service.py b/backend/app/services/amount_summary_service.py
-index 9f7f663..ad3180e 100644
+index 9f7f663..007f8ab 100644
 --- a/backend/app/services/amount_summary_service.py
 +++ b/backend/app/services/amount_summary_service.py
-@@ -270,6 +270,37 @@ class AmountSummaryService:
+@@ -270,6 +270,62 @@ class AmountSummaryService:
              included_decisions=list(APPROVED_DECISIONS),
          )
  
@@ -271,14 +317,39 @@ index 9f7f663..ad3180e 100644
 +            included_decisions=["PENDING"],
 +        )
 +
++    def list_rejected(self, project_id: int, limit: int) -> AmountItemListResponse:
++        """**거절된(REJECTED)** 금액 항목을 한 줄씩 돌려준다 (되살리기용 「거절함」).
++
++        `list_pending` 과 응답 모양이 같다(같은 `_to_row`). `included_decisions` 만
++        `["REJECTED"]` 다. 화면 맨 아래 접힌 섹션에서 «되살리기»(→PENDING) 대상으로
++        보여준다 — 집계·대기 건수와는 무관한 별개 목록이다.
++        """
++        rows = self._amounts.list_rejected_items(project_id)
++        visible = rows[:limit]
++        task_ids = (
++            self._tasks.suggestion_task_ids(project_id) if self._tasks else {}
++        )
++        items = [
++            self._to_row(item, document_id, filename, task_ids.get(item.id))
++            for item, document_id, filename in visible
++        ]
++        return AmountItemListResponse(
++            items=items,
++            total=len(rows),
++            returned=len(items),
++            truncated=len(rows) > len(items),
++            limit=limit,
++            included_decisions=["REJECTED"],
++        )
++
      # --- 내부 ---------------------------------------------------------------
  
      @classmethod
 diff --git a/frontend/src/api/amount.js b/frontend/src/api/amount.js
-index 0b96dac..dd9a56b 100644
+index 0b96dac..eed6d52 100644
 --- a/frontend/src/api/amount.js
 +++ b/frontend/src/api/amount.js
-@@ -163,3 +163,62 @@ export async function updateAmountItem(projectId, itemId, changes) {
+@@ -163,3 +163,77 @@ export async function updateAmountItem(projectId, itemId, changes) {
    )
    return data
  }
@@ -341,11 +412,26 @@ index 0b96dac..dd9a56b 100644
 +  )
 +  return data
 +}
++
++
++
++// GET /api/projects/{projectId}/amount-items/rejected?limit=200
++//
++// 거절된(REJECTED) 금액 항목 (되살리기용 「거절함」). 거절은 데이터를 지우지 않고
++// 상태만 바꾸므로, 실수로 거절한 것을 되살릴 수 있게 이 목록을 화면 맨 아래
++// 접힌 섹션에서 보여준다. 응답 모양은 getAmountItems 와 같고 included_decisions 만
++// ["REJECTED"]. 되살리기는 cancelAmountItem(→PENDING)을 그대로 쓴다.
++export async function getRejectedAmountItems(projectId, { limit = 200 } = {}) {
++  const { data } = await http.get(`/api/projects/${projectId}/amount-items/rejected`, {
++    params: { limit },
++  })
++  return data
++}
 diff --git a/frontend/src/features/amount/AmountSummaryView.css b/frontend/src/features/amount/AmountSummaryView.css
-index f9bb14b..a31a6eb 100644
+index f9bb14b..74c729f 100644
 --- a/frontend/src/features/amount/AmountSummaryView.css
 +++ b/frontend/src/features/amount/AmountSummaryView.css
-@@ -153,3 +153,38 @@
+@@ -153,3 +153,43 @@
  @media (max-width: 560px) {
    .amount-edit-fields { grid-template-columns: 1fr; }
  }
@@ -384,11 +470,16 @@ index f9bb14b..a31a6eb 100644
 +/* 승인 취소. 되돌릴 수 있는(→대기) 동작이라 거절보다 약하게 — 호버 때 경고색으로만. */
 +.amount-task-button.is-cancel:hover:not(:disabled),
 +.amount-task-button.is-cancel:focus-visible:not(:disabled) { border-color: var(--c-warning); background: var(--c-warning-bg); color: var(--c-warning); }
++
++
++
++/* 거절함(휴지통) — 맨 아래 접힌 섹션. 집계와 떨어뜨려 두려고 위 여백만 준다. */
++.amount-rejected { margin-top: 18px; }
 diff --git a/frontend/src/features/amount/AmountSummaryView.jsx b/frontend/src/features/amount/AmountSummaryView.jsx
-index 07c4cb1..4d549a6 100644
+index 07c4cb1..8ac7e8d 100644
 --- a/frontend/src/features/amount/AmountSummaryView.jsx
 +++ b/frontend/src/features/amount/AmountSummaryView.jsx
-@@ -33,9 +33,13 @@
+@@ -33,11 +33,17 @@
  import { useState } from 'react'
  import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
  import {
@@ -398,11 +489,15 @@ index 07c4cb1..4d549a6 100644
    getAmountItems,
    getAmountSummary,
 +  getPendingAmountItems,
++  getRejectedAmountItems,
 +  rejectAmountItem,
    updateAmountItem,
  } from '../../api/amount'
++import ConfirmDialog from '../../components/common/ConfirmDialog'
  import PageHeading from '../../components/common/PageHeading'
-@@ -80,6 +84,11 @@ export default function AmountSummaryView({ projectId, notify }) {
+ import { formatMoney, formatNumber } from '../../utils/format'
+ import './AmountSummaryView.css'
+@@ -80,6 +86,11 @@ export default function AmountSummaryView({ projectId, notify }) {
        description='승인된 금액 항목만 집계합니다. 합계에 들어가지 않은 항목은 따로 셉니다.'
      />
  
@@ -414,7 +509,18 @@ index 07c4cb1..4d549a6 100644
      {summaryQuery.isError && <section className='panel amount-notice'>
        <div>
          <strong>금액 현황을 불러오지 못했습니다.</strong>
-@@ -210,9 +219,12 @@ function describeDecisions(decisions) {
+@@ -189,6 +200,10 @@ export default function AmountSummaryView({ projectId, notify }) {
+             </tbody>
+           </table>}
+     </section>
++
++    {/* 거절함(휴지통). 맨 아래 접힌 섹션 — 거절은 데이터를 지우지 않으므로 실수로
++        거절한 것을 되살릴 수 있다. 집계 건수와는 무관한 별개 목록이라 여기 따로 둔다. */}
++    <RejectedPanel projectId={projectId} notify={notify}/>
+   </>
+ }
+ 
+@@ -210,9 +225,12 @@ function describeDecisions(decisions) {
  function TotalCheckPanel({ summary, loading }) {
    const checks = summary?.total_checks ?? []
    const missing = summary?.documents_without_stated_total ?? 0
@@ -430,7 +536,7 @@ index 07c4cb1..4d549a6 100644
  
    return <section className='panel amount-total-check' aria-label='문서 합계 대조'>
      <div className='amount-category-heading'>
-@@ -314,6 +326,20 @@ function ItemTable({ projectId, notify }) {
+@@ -314,6 +332,20 @@ function ItemTable({ projectId, notify }) {
        queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'tasks'] })
      },
    })
@@ -451,7 +557,7 @@ index 07c4cb1..4d549a6 100644
    const rows = itemsQuery.data?.items ?? []
    const matcher = FILTERS.find(([key]) => key === filter)?.[2] ?? (() => true)
    const visible = rows.filter(matcher)
-@@ -355,7 +381,7 @@ function ItemTable({ projectId, notify }) {
+@@ -355,7 +387,7 @@ function ItemTable({ projectId, notify }) {
              <th scope='col'>검산</th>
              <th scope='col'>원문 근거</th>
              <th scope='col'>태스크</th>
@@ -460,7 +566,7 @@ index 07c4cb1..4d549a6 100644
            </tr>
          </thead>
          <tbody>
-@@ -364,8 +390,10 @@ function ItemTable({ projectId, notify }) {
+@@ -364,8 +396,10 @@ function ItemTable({ projectId, notify }) {
              row={row}
              pending={taskMutation.isPending && taskMutation.variables?.id === row.id}
              editing={editing?.id === row.id}
@@ -471,7 +577,7 @@ index 07c4cb1..4d549a6 100644
            />)}
          </tbody>
        </table>
-@@ -421,7 +449,7 @@ function ItemEditor({ projectId, item, notify, onClose }) {
+@@ -421,7 +455,7 @@ function ItemEditor({ projectId, item, notify, onClose }) {
        const detail = row.verified === true ? '검산이 맞았습니다.' : verifyText(row)[0]
        notify?.(
          'success',
@@ -480,7 +586,7 @@ index 07c4cb1..4d549a6 100644
          row.task_id
            ? `${detail} 연결된 태스크에도 적었습니다 — 보드에서 확인해 주세요.`
            : detail,
-@@ -429,6 +457,9 @@ function ItemEditor({ projectId, item, notify, onClose }) {
+@@ -429,6 +463,9 @@ function ItemEditor({ projectId, item, notify, onClose }) {
        queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'amount-items'] })
        // 합계·원가구분별·문서 합계 대조가 다 바뀐다.
        queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'amount-summary'] })
@@ -490,7 +596,7 @@ index 07c4cb1..4d549a6 100644
        onClose()
      },
      onError: error => notify?.('error', '고치지 못했습니다', error?.message),
-@@ -460,7 +491,7 @@ function ItemEditor({ projectId, item, notify, onClose }) {
+@@ -460,7 +497,7 @@ function ItemEditor({ projectId, item, notify, onClose }) {
  
    return <form className='amount-edit' onSubmit={submit}>
      <div className='amount-edit-heading'>
@@ -499,7 +605,7 @@ index 07c4cb1..4d549a6 100644
        <span>{item.filename}</span>
      </div>
  
-@@ -511,7 +542,7 @@ function ItemEditor({ projectId, item, notify, onClose }) {
+@@ -511,7 +548,7 @@ function ItemEditor({ projectId, item, notify, onClose }) {
        <button type='submit' className='is-primary' disabled={saveMutation.isPending}>
          {saveMutation.isPending ? '저장 중…' : '저장'}
        </button>
@@ -508,7 +614,7 @@ index 07c4cb1..4d549a6 100644
      </div>
    </form>
  }
-@@ -527,7 +558,7 @@ function ItemEditor({ projectId, item, notify, onClose }) {
+@@ -527,7 +564,7 @@ function ItemEditor({ projectId, item, notify, onClose }) {
  // 해서 얻는 것보다 복잡하다. 어긋나도 손해가 "툴팁이 한 번 더 뜬다" 뿐이다.
  const QUOTE_INLINE_MAX = 24
  
@@ -517,7 +623,7 @@ index 07c4cb1..4d549a6 100644
    const [text, tone] = verifyText(row)
    const quote = row.source_quote || ''
    const quoteClipped = quote.length > QUOTE_INLINE_MAX
-@@ -536,6 +567,9 @@ function ItemRow({ row, pending, editing, onCreateTask, onEdit }) {
+@@ -536,6 +573,9 @@ function ItemRow({ row, pending, editing, onCreateTask, onEdit }) {
        <strong>{row.item_name}</strong>
        {/* 어느 문서에서 나온 값인지. 근거를 되짚는 출발점이다. */}
        <span className='amount-item-source' title={row.filename}>{row.filename}</span>
@@ -527,7 +633,7 @@ index 07c4cb1..4d549a6 100644
      </th>
      <td>{row.category ? CATEGORY_LABELS[row.category] ?? row.category : '—'}</td>
      <td className='amount-cell-number'>{quantityText(row)}</td>
-@@ -556,11 +590,15 @@ function ItemRow({ row, pending, editing, onCreateTask, onEdit }) {
+@@ -556,11 +596,15 @@ function ItemRow({ row, pending, editing, onCreateTask, onEdit }) {
            </button>
            : <span className='amount-task-none'>—</span>}
      </td>
@@ -548,7 +654,7 @@ index 07c4cb1..4d549a6 100644
        </button>
      </td>
    </tr>
-@@ -615,3 +653,124 @@ function TotalCard({ label, note, value, currency, loading, emphasis }) {
+@@ -615,3 +659,237 @@ function TotalCard({ label, note, value, currency, loading, emphasis }) {
      <p>{note}</p>
    </div>
  }
@@ -565,6 +671,9 @@ index 07c4cb1..4d549a6 100644
 +// 반영된 값인가" 가 흐려진다.
 +function PendingPanel({ projectId, notify }) {
 +  const queryClient = useQueryClient()
++  // 거절 확인 대상. null 이면 확인창이 닫혀 있다. 거절은 화면에서 사라지므로
++  // (되살리려면 맨 아래 「거절함」을 거쳐야 한다) 실수 방지로 한 번 확인받는다.
++  const [rejectTarget, setRejectTarget] = useState(null)
 +  const pendingQuery = useQuery({
 +    queryKey: ['projects', projectId, 'amount-pending'],
 +    queryFn: () => getPendingAmountItems(projectId),
@@ -633,11 +742,25 @@ index 07c4cb1..4d549a6 100644
 +            row={row}
 +            busy={busyId === row.id}
 +            onApprove={item => approveMutation.mutate(item)}
-+            onReject={item => rejectMutation.mutate(item)}
++            onReject={item => setRejectTarget(item)}
 +          />)}
 +        </tbody>
 +      </table>
 +    </div>
++
++    {/* 거절 확인. 거절하면 이 목록에서 사라지므로(되살리려면 맨 아래 「거절함」)
++        한 번 물어본다. danger 로 두어 승인과 시각적으로 구분한다. */}
++    <ConfirmDialog
++      open={Boolean(rejectTarget)}
++      title='이 금액을 거절할까요?'
++      message={rejectTarget
++        ? `"${rejectTarget.item_name}" 을(를) 거절하면 합계·집계에 들어가지 않고 목록에서 사라집니다. 맨 아래 「거절된 항목」에서 되살릴 수 있습니다.`
++        : ''}
++      confirmLabel='거절'
++      danger
++      onCancel={() => setRejectTarget(null)}
++      onConfirm={() => { rejectMutation.mutate(rejectTarget); setRejectTarget(null) }}
++    />
 +  </section>
 +}
 +
@@ -670,6 +793,102 @@ index 07c4cb1..4d549a6 100644
 +        {busy ? '처리 중…' : '승인'}
 +      </button>
 +      <button type='button' className='amount-task-button is-reject' disabled={locked} onClick={() => onReject(row)}>거절</button>
++    </td>
++  </tr>
++}
++
++
++
++// 거절함(휴지통) — 거절된(REJECTED) 항목. 맨 아래 접힌 섹션이다. 거절은 데이터를
++// 지우지 않으므로, 실수로 거절한 것을 여기서 「되살리기」(→PENDING)할 수 있다.
++// 집계·대기 건수와 무관한 별개 목록이라 기본은 접어 두고 필요할 때만 편다.
++// 거절한 게 하나도 없으면 섹션 자체가 나타나지 않는다.
++function RejectedPanel({ projectId, notify }) {
++  const queryClient = useQueryClient()
++  const [expanded, setExpanded] = useState(false)
++  const rejectedQuery = useQuery({
++    queryKey: ['projects', projectId, 'amount-rejected'],
++    queryFn: () => getRejectedAmountItems(projectId),
++    retry: false,
++  })
++
++  const restoreMutation = useMutation({
++    // 되살리기 = 승인 취소와 같은 동작(→PENDING)이라 cancel 엔드포인트를 그대로 쓴다.
++    mutationFn: item => cancelAmountItem(projectId, item.id),
++    onSuccess: (_row, item) => notify?.('success', '되살렸습니다', `${item.item_name} — 승인 대기로 되돌렸습니다.`),
++    onError: error => notify?.('error', '되살리지 못했습니다', error?.message),
++    onSettled: () => {
++      for (const key of ['amount-rejected', 'amount-pending', 'dashboard']) {
++        queryClient.invalidateQueries({ queryKey: ['projects', projectId, key] })
++      }
++    },
++  })
++
++  // 로딩·오류·0건이면 섹션을 띄우지 않는다 — 거절한 게 없으면 보일 이유가 없다.
++  if (rejectedQuery.isPending || rejectedQuery.isError) return null
++  const rows = rejectedQuery.data?.items ?? []
++  if (rows.length === 0) return null
++
++  const busyId = restoreMutation.isPending ? restoreMutation.variables?.id : null
++
++  return <section className='panel amount-rejected' aria-label='거절된 금액'>
++    <button
++      type='button'
++      className='amount-toggle'
++      aria-expanded={expanded}
++      onClick={() => setExpanded(v => !v)}
++    >{expanded ? '거절된 항목 숨기기' : `거절된 항목 보기 (${formatNumber(rejectedQuery.data.total)}건)`}</button>
++
++    {expanded && <>
++      <p className='amount-scope-note'>
++        거절한 항목입니다. 합계·집계에는 들어가지 않습니다. <strong>되살리면</strong> 승인 대기로 돌아가 다시 승인·거절할 수 있습니다.
++      </p>
++      <div className='amount-table-scroll'>
++        <table className='amount-items-table'>
++          <thead>
++            <tr>
++              <th scope='col'>항목</th>
++              <th scope='col'>원가구분</th>
++              <th scope='col' className='amount-cell-number'>수량 × 단가</th>
++              <th scope='col' className='amount-cell-number'>문서 금액</th>
++              <th scope='col'>원문 근거</th>
++              <th scope='col'>되살리기</th>
++            </tr>
++          </thead>
++          <tbody>
++            {rows.map(row => <RejectedRow
++              key={row.id}
++              row={row}
++              busy={busyId === row.id}
++              onRestore={item => restoreMutation.mutate(item)}
++            />)}
++          </tbody>
++        </table>
++      </div>
++    </>}
++  </section>
++}
++
++// 거절함 한 줄. 검산·태스크는 안 보여준다 — 여기서 할 일은 「되살리기」뿐이다.
++function RejectedRow({ row, busy, onRestore }) {
++  const quote = row.source_quote || ''
++  const quoteClipped = quote.length > QUOTE_INLINE_MAX
++  return <tr>
++    <th scope='row'>
++      <strong>{row.item_name}</strong>
++      <span className='amount-item-source' title={row.filename}>{row.filename}</span>
++    </th>
++    <td>{row.category ? CATEGORY_LABELS[row.category] ?? row.category : '—'}</td>
++    <td className='amount-cell-number'>{quantityText(row)}</td>
++    <td className='amount-cell-number'>{row.amount === null ? '—' : formatMoney(row.amount)}</td>
++    <td
++      className={'amount-quote' + (quoteClipped ? ' is-clipped' : '')}
++      title={quoteClipped ? quote : undefined}
++    >{quote || '—'}</td>
++    <td className='amount-task-cell'>
++      <button type='button' className='amount-task-button' disabled={busy} onClick={() => onRestore(row)}>
++        {busy ? '되살리는 중…' : '되살리기'}
++      </button>
 +    </td>
 +  </tr>
 +}
