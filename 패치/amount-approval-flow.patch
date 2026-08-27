@@ -307,7 +307,7 @@ index f9bb14b..7059cc4 100644
 +.amount-task-button.is-reject:hover:not(:disabled),
 +.amount-task-button.is-reject:focus-visible:not(:disabled) { border-color: var(--c-danger); background: var(--c-danger-bg); color: var(--c-danger); }
 diff --git a/frontend/src/features/amount/AmountSummaryView.jsx b/frontend/src/features/amount/AmountSummaryView.jsx
-index 07c4cb1..4d195e4 100644
+index 07c4cb1..a102b7b 100644
 --- a/frontend/src/features/amount/AmountSummaryView.jsx
 +++ b/frontend/src/features/amount/AmountSummaryView.jsx
 @@ -33,9 +33,12 @@
@@ -381,7 +381,7 @@ index 07c4cb1..4d195e4 100644
        </button>
      </td>
    </tr>
-@@ -615,3 +626,138 @@ function TotalCard({ label, note, value, currency, loading, emphasis }) {
+@@ -615,3 +626,124 @@ function TotalCard({ label, note, value, currency, loading, emphasis }) {
      <p>{note}</p>
    </div>
  }
@@ -403,10 +403,7 @@ index 07c4cb1..4d195e4 100644
 +    queryFn: () => getPendingAmountItems(projectId),
 +    retry: false,
 +  })
-+  // 수정 중인 항목. 수정(=EDITED)은 승인의 한 형태라 처리하면 대기에서 빠진다.
-+  const [editing, setEditing] = useState(null)
-+
-+  // 승인·거절·수정 뒤에는 대기 목록·합계·항목목록·대시보드 승인대기 건수가 모두
++  // 승인·거절 뒤에는 대기 목록·합계·항목목록·대시보드 승인대기 건수가 모두
 +  // 바뀐다. 한곳에서 무효화해 화면들이 어긋나지 않게 한다.
 +  const invalidateAll = () => {
 +    for (const key of ['amount-pending', 'amount-summary', 'amount-items', 'dashboard']) {
@@ -468,34 +465,23 @@ index 07c4cb1..4d195e4 100644
 +            key={row.id}
 +            row={row}
 +            busy={busyId === row.id}
-+            editing={editing?.id === row.id}
 +            onApprove={item => approveMutation.mutate(item)}
 +            onReject={item => rejectMutation.mutate(item)}
-+            onEdit={item => setEditing(item)}
 +          />)}
 +        </tbody>
 +      </table>
 +    </div>
-+
-+    {/* 승인 목록과 같은 편집기를 재사용한다. 수정하면 EDITED(=승인)가 되어
-+        이 대기 목록에서 빠지고 합계로 넘어간다. */}
-+    {editing && <ItemEditor
-+      key={editing.id}
-+      projectId={projectId}
-+      item={editing}
-+      notify={notify}
-+      onClose={() => setEditing(null)}
-+    />}
 +  </section>
 +}
 +
 +// 승인 대기 한 줄. 검산 표시는 승인 목록과 같은 helper(verifyText·quantityText)를
-+// 써서 두 화면이 같은 규칙으로 읽히게 한다. 처리 버튼만 셋(승인·수정·거절)이다.
-+function PendingRow({ row, busy, editing, onApprove, onReject, onEdit }) {
++// 써서 두 화면이 같은 규칙으로 읽히게 한다. 처리 버튼은 승인·거절 둘뿐이다 —
++// 값 정정(수정)은 승인한 뒤 아래 집계 목록에서 한다.
++function PendingRow({ row, busy, onApprove, onReject }) {
 +  const [text, tone] = verifyText(row)
 +  const quote = row.source_quote || ''
 +  const quoteClipped = quote.length > QUOTE_INLINE_MAX
-+  const locked = busy || editing
++  const locked = busy
 +  return <tr className={tone === 'bad' ? 'is-mismatch' : undefined}>
 +    <th scope='row'>
 +      <strong>{row.item_name}</strong>
@@ -509,13 +495,13 @@ index 07c4cb1..4d195e4 100644
 +      className={'amount-quote' + (quoteClipped ? ' is-clipped' : '')}
 +      title={quoteClipped ? quote : undefined}
 +    >{quote || '—'}</td>
-+    {/* 승인 = 값 그대로 인정, 수정 = 고쳐서 인정(EDITED), 거절 = 뺌. 승인만
-+        강조색으로 채워 기본 동작임을 보인다. */}
++    {/* 여기선 받아들일지(승인)·뺄지(거절)만 정한다. 값 정정은 승인한 뒤 아래
++        「무엇을 집계했나 → 항목 보기」에서 «수정» 으로 한다 — 대기와 집계의
++        역할을 갈라 둔다. 승인만 강조색으로 채워 기본 동작임을 보인다. */}
 +    <td className='amount-pending-actions'>
 +      <button type='button' className='amount-task-button is-approve' disabled={locked} onClick={() => onApprove(row)}>
 +        {busy ? '처리 중…' : '승인'}
 +      </button>
-+      <button type='button' className='amount-task-button' disabled={locked} onClick={() => onEdit(row)}>수정</button>
 +      <button type='button' className='amount-task-button is-reject' disabled={locked} onClick={() => onReject(row)}>거절</button>
 +    </td>
 +  </tr>
