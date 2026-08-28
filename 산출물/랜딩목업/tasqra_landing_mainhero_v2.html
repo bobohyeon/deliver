@@ -5,7 +5,7 @@
   - 팀원 프로토타입의 안정적인 전체 비율, 신뢰 기능 스트립, 3단 설명 구조를 결합했다.
   - 버튼·카드 호버, 히어로 진입, 스크롤 등장 애니메이션을 적용했고
     prefers-reduced-motion 환경에서는 움직임을 제거한다.
-  - 외부 CDN·웹폰트 요청 없이 로컬에서 바로 열리는 단일 HTML이다.
+  - Pretendard Variable 웹폰트를 적용하고, 로딩 실패 시 Noto Sans KR 및 시스템 한글 폰트로 대체한다.
 -->
 <html lang="ko">
 <head>
@@ -13,6 +13,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Tasqra 메인 랜딩 기능 허브 섹션">
   <title>Tasqra — 기능 허브 소개</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
   <style>
     :root {
       --blue: #2563eb;
@@ -37,14 +39,14 @@
       min-width: 320px;
       background: #fff;
       color: var(--body);
-      /* 한글 전용 폰트(맑은 고딕/Apple SD Gothic Neo/Noto Sans KR)를 시스템 UI 폰트보다
-         앞에 둔다 — Segoe UI 등 일부 시스템 폰트는 한글 자리에 빈 사각형(notdef) 글리프를
-         갖고 있어서, 브라우저가 자동으로 다른 폰트로 넘기지 않고 그 빈 사각형을 그대로
-         쓰는 경우가 있다(h1처럼 특이한 font-weight일 때 특히 잘 드러난다). 실제로 그렇게
-         제목만 깨져 보인다는 피드백을 받고 순서를 바꿨다. */
-      font-family: "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR",
-        -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      /* Pretendard를 기본 UI 서체로 사용하고, 네트워크에서 웹폰트를 받지 못하면
+         Noto Sans KR와 운영체제 한글 서체 순서로 자연스럽게 대체한다. */
+      font-family: "Pretendard Variable", Pretendard, "Noto Sans KR",
+        "Malgun Gothic", "Apple SD Gothic Neo", -apple-system,
+        BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      font-synthesis: none;
       -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
     }
 
     a { color: inherit; text-decoration: none; }
@@ -258,8 +260,8 @@
     .t-light,
     .t-orbit {
       position: absolute;
-      left: 37%;
-      top: 52%;
+      left: 36.58%;
+      top: 50.88%;
       z-index: 2;
       translate: -50% -50%;
       border-radius: 50%;
