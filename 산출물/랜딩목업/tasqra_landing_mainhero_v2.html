@@ -1,0 +1,487 @@
+<!doctype html>
+<!--
+  Tasqra 메인 랜딩 히어로 v2
+  - 사용자가 직접 준 "tasqra-landing-section" 문서를 그대로 가져왔다(디자인 창작 없이 카피).
+    v1(내가 임의로 만든 Tailwind 버전)은 배경에 반도체 사진을 넣는 등 시안과 달라서 폐기.
+  - CSS만으로 그린 정적 HTML. 외부 CDN·웹폰트·이미지 요청이 전혀 없다 — 더블클릭으로
+    바로 열리고, 네트워크가 막힌 환경에서도 100% 동일하게 보인다.
+-->
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Tasqra 메인 랜딩 기능 허브 섹션">
+  <title>Tasqra — 기능 허브 소개</title>
+  <style>
+    :root {
+      --blue: #2563eb;
+      --blue-dark: #1d4ed8;
+      --blue-50: #eff6ff;
+      --blue-100: #dbeafe;
+      --heading: #0f172a;
+      --body: #475569;
+      --muted: #64748b;
+      --line: #e2e8f0;
+      --surface: #f8fafc;
+      --white: #ffffff;
+      --shadow: 0 18px 52px rgba(37, 99, 235, 0.10);
+    }
+
+    * { box-sizing: border-box; }
+
+    html { color-scheme: light; }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      background:
+        radial-gradient(circle at 78% 22%, rgba(147, 197, 253, .20), transparent 30%),
+        #f4f7fb;
+      color: var(--body);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    a:focus-visible { outline: 3px solid #93c5fd; outline-offset: 3px; }
+
+    .page {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+    }
+
+    .site {
+      padding: 0 34px 34px;
+      background: rgba(255, 255, 255, .96);
+    }
+
+    .site-header {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      min-height: 76px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      width: fit-content;
+      color: var(--heading);
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -.04em;
+    }
+
+    .brand-mark {
+      position: relative;
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 36px;
+      background: var(--blue);
+      clip-path: polygon(25% 5%, 75% 5%, 100% 50%, 75% 95%, 25% 95%, 0 50%);
+      color: #fff;
+      font-size: 17px;
+      font-weight: 900;
+      font-style: italic;
+      text-indent: -2px;
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      color: #334155;
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .nav a:hover, .login:hover { color: var(--blue); }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 18px;
+      color: #334155;
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 42px;
+      padding: 0 20px;
+      border: 1px solid var(--blue);
+      border-radius: 10px;
+      background: var(--blue);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 750;
+      box-shadow: 0 9px 22px rgba(37, 99, 235, .18);
+      transition: transform .16s ease, background .16s ease;
+    }
+
+    .button:hover { background: var(--blue-dark); transform: translateY(-1px); }
+    .button-small { min-height: 38px; padding-inline: 16px; font-size: 12px; box-shadow: none; }
+    .button-outline { border-color: #cbd5e1; background: #fff; color: #334155; box-shadow: none; }
+    .button-outline:hover { border-color: #93c5fd; background: var(--blue-50); color: var(--blue-dark); }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(360px, .9fr) minmax(520px, 1.1fr);
+      gap: 58px;
+      align-items: center;
+      min-height: 450px;
+      padding: 55px 0 38px;
+    }
+
+    .hero-copy h1 {
+      margin: 0;
+      color: var(--heading);
+      font-size: clamp(40px, 4.2vw, 58px);
+      line-height: 1.18;
+      letter-spacing: -.06em;
+      font-weight: 810;
+    }
+
+    .hero-copy h1 strong { color: var(--blue); font-weight: inherit; }
+
+    .hero-copy p {
+      max-width: 470px;
+      margin: 22px 0 0;
+      color: var(--body);
+      font-size: 15px;
+      line-height: 1.75;
+      letter-spacing: -.02em;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 30px;
+    }
+
+    .hub {
+      position: relative;
+      display: grid;
+      grid-template-columns: 150px 52px 150px 1fr;
+      align-items: center;
+      min-height: 330px;
+    }
+
+    .upload-card {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 190px;
+      padding: 18px;
+      border: 1px dashed #bfdbfe;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, .94);
+      text-align: center;
+      box-shadow: 0 12px 28px rgba(15, 23, 42, .05);
+    }
+
+    .document-icon {
+      position: relative;
+      width: 48px;
+      height: 60px;
+      margin-bottom: 16px;
+      border: 2px solid #cbd5e1;
+      border-radius: 5px;
+      background: linear-gradient(145deg, #fff, #eff6ff);
+    }
+
+    .document-icon::before {
+      content: "";
+      position: absolute;
+      left: 10px;
+      right: 10px;
+      top: 17px;
+      height: 3px;
+      border-radius: 3px;
+      background: #cbd5e1;
+      box-shadow: 0 10px 0 #cbd5e1, 0 20px 0 #dbeafe;
+    }
+
+    .upload-card strong, .result-card strong {
+      color: var(--heading);
+      font-size: 12px;
+    }
+
+    .upload-card span {
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .upload-symbol {
+      display: grid;
+      place-items: center;
+      width: 30px;
+      height: 30px;
+      margin-top: 14px;
+      border-radius: 50%;
+      background: var(--blue-50);
+      color: var(--blue);
+      font-size: 18px;
+      font-weight: 800;
+    }
+
+    .arrow {
+      position: relative;
+      z-index: 2;
+      color: var(--blue);
+      text-align: center;
+      font-size: 23px;
+      font-weight: 700;
+    }
+
+    .core {
+      position: relative;
+      z-index: 2;
+      display: grid;
+      place-items: center;
+      width: 136px;
+      height: 136px;
+      border: 1px solid #93c5fd;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, .9);
+      box-shadow:
+        0 0 0 16px rgba(219, 234, 254, .65),
+        0 0 0 32px rgba(239, 246, 255, .72),
+        0 20px 45px rgba(37, 99, 235, .17);
+    }
+
+    .core::before {
+      content: "";
+      position: absolute;
+      inset: 23px;
+      border-radius: 24px;
+      background: linear-gradient(145deg, #3b82f6, #2563eb);
+      box-shadow: 0 12px 26px rgba(37, 99, 235, .25);
+      transform: rotate(45deg);
+    }
+
+    .core span {
+      position: relative;
+      z-index: 1;
+      color: #fff;
+      font-size: 50px;
+      font-weight: 900;
+      font-style: italic;
+      line-height: 1;
+      text-indent: -5px;
+    }
+
+    .results {
+      position: relative;
+      z-index: 2;
+      display: grid;
+      gap: 13px;
+      padding-left: 46px;
+    }
+
+    .result-card {
+      position: relative;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 12px;
+      align-items: center;
+      min-height: 82px;
+      padding: 14px 16px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, .97);
+      box-shadow: 0 10px 24px rgba(15, 23, 42, .06);
+    }
+
+    .result-card::before {
+      content: "";
+      position: absolute;
+      top: 50%;
+      right: 100%;
+      width: 42px;
+      height: 1px;
+      background: #60a5fa;
+    }
+
+    .result-card::after {
+      content: "";
+      position: absolute;
+      top: calc(50% - 3px);
+      right: calc(100% + 39px);
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--blue);
+    }
+
+    .result-icon {
+      display: grid;
+      place-items: center;
+      width: 36px;
+      height: 40px;
+      background: var(--blue-100);
+      clip-path: polygon(25% 7%, 75% 7%, 100% 50%, 75% 93%, 25% 93%, 0 50%);
+      color: var(--blue);
+      font-size: 16px;
+      font-weight: 800;
+    }
+
+    .result-card p {
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.45;
+    }
+
+    .feature-chips {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      max-width: 650px;
+      padding-top: 18px;
+    }
+
+    .feature-chip {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      min-height: 64px;
+      padding: 13px 16px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fff;
+      color: var(--heading);
+      font-size: 12px;
+      font-weight: 720;
+      box-shadow: 0 8px 22px rgba(15, 23, 42, .045);
+    }
+
+    .chip-icon {
+      display: grid;
+      flex: 0 0 auto;
+      place-items: center;
+      width: 32px;
+      height: 36px;
+      background: var(--blue-100);
+      clip-path: polygon(25% 7%, 75% 7%, 100% 50%, 75% 93%, 25% 93%, 0 50%);
+      color: var(--blue);
+      font-size: 10px;
+      font-weight: 850;
+    }
+
+    @media (max-width: 980px) {
+      .site-header { grid-template-columns: 1fr auto; }
+      .nav { display: none; }
+      .hero { grid-template-columns: 1fr; gap: 28px; }
+      .hero-copy { text-align: center; }
+      .hero-copy p { margin-inline: auto; }
+      .hero-actions, .feature-chips { justify-content: center; margin-inline: auto; }
+      .hub { max-width: 690px; margin-inline: auto; }
+    }
+
+    @media (max-width: 700px) {
+      .page { width: min(100% - 20px, 1180px); margin-block: 10px; }
+      .concept-label { padding-inline: 18px; font-size: 13px; }
+      .site { padding: 0 18px 22px; }
+      .header-actions .login { display: none; }
+      .hero { padding-top: 36px; }
+      .hero-copy { text-align: left; }
+      .hero-copy h1 { font-size: clamp(36px, 11vw, 48px); }
+      .hero-copy p { margin-inline: 0; }
+      .hero-actions { display: grid; margin-inline: 0; }
+      .hub { grid-template-columns: 1fr; gap: 18px; }
+      .upload-card { min-height: 160px; }
+      .arrow { transform: rotate(90deg); }
+      .core { margin: 20px auto; }
+      .results { padding-left: 0; }
+      .result-card::before, .result-card::after { display: none; }
+      .feature-chips { grid-template-columns: 1fr; max-width: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+      <div class="site">
+        <header class="site-header">
+          <a class="brand" href="#" aria-label="Tasqra 홈">
+            <span class="brand-mark" aria-hidden="true">T</span>
+            <span>Tasqra</span>
+          </a>
+
+          <nav class="nav" aria-label="주요 메뉴">
+            <a href="#features">기능</a>
+            <a href="#pricing">요금제</a>
+            <a href="#customers">고객사</a>
+            <a href="#resources">리소스⌄</a>
+          </nav>
+
+          <div class="header-actions">
+            <a class="login" href="#login">로그인</a>
+            <a class="button button-small" href="#start">무료로 시작하기 →</a>
+          </div>
+        </header>
+
+        <div class="hero">
+          <div class="hero-copy">
+            <h1>복잡한 문서를<br>명확한 <strong>실행으로</strong></h1>
+            <p>AI가 문서의 핵심을 분석하고,<br>프로젝트와 태스크로 전환해 실행까지 지원합니다.</p>
+            <div class="hero-actions">
+              <a class="button" href="#start">무료로 시작하기 →</a>
+              <a class="button button-outline" href="#features">기능 알아보기</a>
+            </div>
+          </div>
+
+          <div class="hub" role="img" aria-label="문서를 업로드하면 Tasqra가 프로젝트, 태스크와 일정, 핵심 요약을 생성하는 흐름">
+            <div class="upload-card">
+              <span class="document-icon" aria-hidden="true"></span>
+              <strong>문서 드롭존 &amp; 업로드</strong>
+              <span>PDF, DOCX, HWP, XLSX 등</span>
+              <span class="upload-symbol" aria-hidden="true">↑</span>
+            </div>
+
+            <div class="arrow" aria-hidden="true">→</div>
+
+            <div class="core" aria-hidden="true"><span>T</span></div>
+
+            <div class="results">
+              <article class="result-card">
+                <span class="result-icon" aria-hidden="true">□</span>
+                <div><strong>프로젝트 생성</strong><p>문서 기반으로 프로젝트 구조를 자동 구성</p></div>
+              </article>
+              <article class="result-card">
+                <span class="result-icon" aria-hidden="true">✓</span>
+                <div><strong>태스크 및 일정 생성</strong><p>WBS 기반 태스크와 일정을 자동 생성</p></div>
+              </article>
+              <article class="result-card">
+                <span class="result-icon" aria-hidden="true">≡</span>
+                <div><strong>핵심 요약 제공</strong><p>핵심 내용과 요구사항을 요약해 제공</p></div>
+              </article>
+            </div>
+          </div>
+        </div>
+
+        <div class="feature-chips" id="features">
+          <div class="feature-chip"><span class="chip-icon" aria-hidden="true">OCR</span>정확한 OCR</div>
+          <div class="feature-chip"><span class="chip-icon" aria-hidden="true">AI</span>AI 분석</div>
+          <div class="feature-chip"><span class="chip-icon" aria-hidden="true">TASK</span>자동 프로젝트 생성</div>
+        </div>
+      </div>
+  </main>
+</body>
+</html>
