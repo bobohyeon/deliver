@@ -1,13 +1,10 @@
 <!DOCTYPE html>
 <!--
-  Tasqra 랜딩 목업 (정적 HTML 한 파일 · 설치/프레임워크/외부 CDN 없음)
-  - 레이아웃: A안 기준
-  - 변경 반영: (1) 하단 지표바(98%/70%/10,000+/ISO) 삭제 — 근거 없는 수치
-               (2) B안 팔레트(밝은 블루·흰 배경)로 색 통일, 어두운 면 최소화
-               (3) B안 발광 로고 그대로 안 씀 — 새 T 심볼 + 은은한 글로우
-               (4) 로고→노드 연결선은 직선으로 깔끔하게(안 휘게)
-               (5) 상단 4단계는 아이콘 + 한 줄로 축소
-  - 브라우저로 더블클릭해서 열면 됩니다. 마음에 들면 팀 코드에 옮기면 됩니다.
+  Tasqra 랜딩 목업 v2 (정적 HTML 1파일 · 설치/프레임워크/CDN 없음)
+  - 네가 준 TasqraLandingA.jsx 구조를 그대로 옮김(헤더 + 좌 히어로 + 우 네트워크).
+  - 고친 것: (1) 오른쪽 네트워크 카드를 다크네이비 -> 밝은 B팔레트로 (안 어둡게)
+             (2) 노드<->중앙 연결선 추가(직선, 안 휘게)  (3) 타이포 정리
+  - 브라우저로 더블클릭하면 바로 열립니다.
 -->
 <html lang="ko">
 <head>
@@ -16,308 +13,224 @@
 <title>Tasqra — 문서 하나로 프로젝트를 시작하세요</title>
 <style>
   :root{
-    --brand:#2563EB;      /* 브랜드 블루: 버튼·강조·링크 */
-    --brand-2:#3B82F6;     /* 밝은 블루: 글로우·아이콘 */
-    --brand-soft:#EFF4FF;  /* 아주 옅은 블루 배경 */
-    --ink:#0F172A;         /* 헤딩 */
-    --body:#475569;        /* 본문 */
-    --muted:#94A3B8;       /* 보조 */
-    --line:#E2E8F0;        /* 경계선 */
-    --bg-soft:#F8FAFC;     /* 섹션 구분 배경 */
-    --white:#fff;
-    --radius:14px;
-    --shadow:0 1px 2px rgba(15,23,42,.04), 0 8px 24px rgba(15,23,42,.06);
+    --navy:#0D1B3D; --blue:#315FEA; --blue-2:#5B84F0;
+    --light-blue:#EEF4FF; --border:#DCE5F4; --border-2:#E3EBF8;
+    --text:#17233F; --sub:#66738D; --bg:#F8FAFF;
   }
   *{box-sizing:border-box;}
-  html,body{margin:0;padding:0;}
+  html,body{margin:0;}
   body{
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Malgun Gothic",
       "Apple SD Gothic Neo","Noto Sans KR",sans-serif;
-    color:var(--body); background:var(--white); line-height:1.6;
-    -webkit-font-smoothing:antialiased;
+    color:var(--text); background:var(--bg); -webkit-font-smoothing:antialiased;
   }
-  a{color:inherit; text-decoration:none;}
-  .wrap{max-width:1120px; margin:0 auto; padding:0 24px;}
+  a{text-decoration:none; color:inherit;}
+  button{font-family:inherit; cursor:pointer;}
 
-  /* ---------- 상단 네비 (고정) ---------- */
+  /* ---------- 헤더 ---------- */
   header{
-    position:sticky; top:0; z-index:50; background:rgba(255,255,255,.85);
-    backdrop-filter:saturate(160%) blur(10px);
-    border-bottom:1px solid var(--line);
+    height:76px; padding:0 6vw; display:flex; align-items:center;
+    justify-content:space-between; background:rgba(255,255,255,.94);
+    border-bottom:1px solid var(--border); position:sticky; top:0; z-index:20;
+    backdrop-filter:blur(8px);
   }
-  .nav{display:flex; align-items:center; justify-content:space-between; height:66px;}
-  .brand{display:flex; align-items:center; gap:10px; font-weight:800; color:var(--ink); font-size:19px;}
-  .logo-mark{width:30px; height:30px; display:block;}
-  .menu{display:flex; gap:28px; font-size:15px; font-weight:500; color:#334155;}
-  .menu a:hover{color:var(--brand);}
-  .nav-right{display:flex; align-items:center; gap:18px;}
-  .nav-right .login{font-size:15px; font-weight:600; color:#334155;}
-  .btn{
-    display:inline-flex; align-items:center; gap:8px; border:none; cursor:pointer;
-    font-weight:700; font-size:15px; border-radius:10px; padding:11px 18px;
-    transition:transform .05s ease, box-shadow .2s ease, background .2s ease;
+  .logo{display:flex; align-items:center; gap:10px;}
+  .logo-mark{
+    width:31px; height:31px; display:flex; align-items:center; justify-content:center;
+    color:#fff; font-weight:800; font-size:17px; border-radius:9px;
+    background:linear-gradient(145deg,#3774ff,#173fbb);
+    box-shadow:0 5px 15px rgba(49,95,234,.25);
   }
-  .btn:active{transform:translateY(1px);}
-  .btn-primary{background:var(--brand); color:#fff; box-shadow:0 6px 16px rgba(37,99,235,.28);}
-  .btn-primary:hover{background:#1d4ed8;}
-  .btn-ghost{background:#fff; color:#1e293b; border:1px solid var(--line);}
-  .btn-ghost:hover{border-color:#cbd5e1;}
+  .logo-text{display:flex; flex-direction:column; line-height:1.1;}
+  .logo-text strong{font-size:18px; letter-spacing:-.5px; color:var(--text);}
+  .logo-text span{margin-top:2px; font-size:9px; letter-spacing:1.5px; color:#8A97AE;}
+  nav.menu{display:flex; gap:34px;}
+  nav.menu a{color:#34415B; font-size:14px; font-weight:500;}
+  nav.menu a:hover{color:var(--blue);}
+  .actions{display:flex; align-items:center; gap:10px;}
+  .btn{border-radius:9px; font-weight:600; border:none; display:inline-flex;
+    align-items:center; gap:8px; transition:.15s;}
+  .btn-login{padding:10px 18px; background:#fff; border:1px solid var(--border); color:var(--text);}
+  .btn-login:hover{border-color:#c3cfe2;}
+  .btn-primary{padding:11px 19px; background:var(--blue); color:#fff;
+    box-shadow:0 6px 16px rgba(49,95,234,.24);}
+  .btn-primary:hover{background:#2450d8;}
 
   /* ---------- 히어로 ---------- */
-  .hero{padding:74px 0 56px;}
-  .hero-grid{display:grid; grid-template-columns:1.05fr .95fr; gap:56px; align-items:center;}
-  .eyebrow{
-    display:inline-flex; align-items:center; gap:7px; font-size:13px; font-weight:700;
-    color:var(--brand); background:var(--brand-soft); border:1px solid #DBE7FF;
-    padding:6px 12px; border-radius:999px; margin-bottom:20px;
+  .hero{
+    min-height:calc(100vh - 76px); padding:64px 7vw 56px;
+    display:grid; grid-template-columns:.95fr 1.05fr; align-items:center; gap:48px;
+    background:radial-gradient(circle at 78% 42%, rgba(213,226,255,.5), transparent 42%), var(--bg);
   }
-  h1{font-size:52px; line-height:1.16; letter-spacing:-1px; margin:0 0 18px; color:var(--ink); font-weight:800;}
-  h1 .accent{color:var(--brand);}
-  .lead{font-size:18px; max-width:460px; margin:0 0 30px;}
-  .hero-cta{display:flex; gap:12px; flex-wrap:wrap;}
+  .hero-left{max-width:600px;}
+  .eyebrow{display:inline-flex; align-items:center; gap:7px; padding:8px 14px;
+    border-radius:20px; color:var(--blue); background:var(--light-blue);
+    font-size:13px; font-weight:700;}
+  h1{margin:22px 0 20px; font-size:clamp(40px,4vw,60px); line-height:1.15;
+    letter-spacing:-1.5px; color:var(--navy); font-weight:800;}
+  h1 .accent{color:var(--blue);}
+  .desc{color:var(--sub); font-size:16px; line-height:1.8; margin:0;}
+  .hero-btns{display:flex; gap:12px; margin-top:30px;}
+  .btn-lg{padding:14px 22px; font-size:15px; border-radius:10px;}
+  .btn-ghost{background:#fff; border:1px solid var(--border); color:#35415A;}
+  .btn-ghost:hover{border-color:#c3cfe2;}
+  .feature-row{display:flex; gap:30px; margin-top:46px; flex-wrap:wrap;}
+  .feat{display:flex; align-items:center; gap:10px;}
+  .feat-ic{width:36px; height:36px; display:flex; align-items:center; justify-content:center;
+    border-radius:9px; color:var(--blue); background:#fff; border:1px solid var(--border);}
+  .feat-tx{display:flex; flex-direction:column;}
+  .feat-tx strong{font-size:13px; color:var(--text);}
+  .feat-tx span{margin-top:2px; font-size:11px; color:#8792A7;}
 
-  /* 히어로 우측: 4단계를 아이콘+한 줄로 축소 */
-  .flow-card{
-    background:#fff; border:1px solid var(--line); border-radius:var(--radius);
-    box-shadow:var(--shadow); padding:22px;
+  /* ---------- 네트워크 (밝게) ---------- */
+  .net-area{display:flex; align-items:center; justify-content:center;}
+  .net-card{
+    position:relative; width:min(720px,100%); height:470px; border-radius:24px;
+    overflow:hidden; border:1px solid var(--border-2);
+    background:
+      radial-gradient(circle at 50% 50%, rgba(49,95,234,.10), transparent 58%),
+      linear-gradient(160deg,#FFFFFF,#F2F6FF);
+    box-shadow:0 24px 55px rgba(30,58,95,.10);
   }
-  .flow-card .cap{font-size:13px; font-weight:700; color:var(--muted); margin-bottom:16px; letter-spacing:.02em;}
-  .flow{display:flex; align-items:stretch; gap:6px;}
-  .step{flex:1; text-align:center; padding:8px 4px;}
-  .step .ic{width:44px; height:44px; margin:0 auto 10px;}
-  .step .t{font-size:13.5px; font-weight:700; color:var(--ink); line-height:1.3;}
-  .arrow{align-self:center; color:#CBD5E1; font-size:18px; padding:0 2px;}
-  @media (max-width:520px){ .flow{flex-wrap:wrap;} .arrow{display:none;} .step{flex:0 0 46%;} }
-
-  /* ---------- 특징 칩 ---------- */
-  .features{background:var(--bg-soft); border-top:1px solid var(--line); border-bottom:1px solid var(--line); padding:26px 0;}
-  .chips{display:grid; grid-template-columns:repeat(3,1fr); gap:20px;}
-  .chip{display:flex; align-items:center; gap:14px;}
-  .chip .hex{width:40px; height:40px; flex:0 0 40px;}
-  .chip .tt{font-size:15.5px; font-weight:800; color:var(--ink);}
-  .chip .ss{font-size:13.5px; color:var(--body);}
-  @media (max-width:820px){ .chips{grid-template-columns:1fr;} }
-
-  /* ---------- 아키텍처 밴드 (밝게 유지) ---------- */
-  .arch{padding:72px 0 78px; background:
-      radial-gradient(680px 360px at 50% 42%, #EAF1FF 0%, rgba(234,241,255,0) 70%), #fff;}
-  .arch h2{text-align:center; font-size:32px; color:var(--ink); margin:0 0 8px; letter-spacing:-.5px;}
-  .arch .sub{text-align:center; color:var(--body); margin:0 0 44px;}
-
-  .diagram{position:relative; height:440px; max-width:1000px; margin:0 auto;}
-  .diagram-lines{position:absolute; inset:0; width:100%; height:100%; z-index:1;}
+  /* 은은한 점배경 */
+  .net-card::before{content:""; position:absolute; inset:0;
+    background-image:radial-gradient(circle, rgba(49,95,234,.10) 1px, transparent 1px);
+    background-size:34px 34px; opacity:.5;}
+  .net-lines{position:absolute; inset:0; width:100%; height:100%; z-index:1;}
   .node{
-    position:absolute; z-index:2; width:236px; background:#fff; border:1px solid var(--line);
-    border-radius:var(--radius); box-shadow:var(--shadow); padding:16px 18px;
+    position:absolute; z-index:2; width:194px; display:flex; align-items:center; gap:11px;
+    padding:13px 14px; border-radius:13px; background:#fff; border:1px solid var(--border-2);
+    box-shadow:0 8px 20px rgba(30,58,95,.08);
   }
-  .node .nt{display:flex; align-items:center; gap:9px; font-weight:800; color:var(--ink); font-size:15.5px; margin-bottom:4px;}
-  .node .nd{font-size:13px; color:var(--body); line-height:1.5;}
-  .node .dot{width:9px; height:9px; border-radius:50%; background:var(--brand); flex:0 0 9px;}
-  .n-lt{left:0; top:8%;}  .n-lb{left:0; top:60%;}
-  .n-rt{right:0; top:8%;} .n-rb{right:0; top:60%;}
+  .node-ic{width:38px; height:38px; flex:0 0 38px; display:flex; align-items:center;
+    justify-content:center; border-radius:10px; color:var(--blue); background:var(--light-blue);}
+  .node-tx{display:flex; flex-direction:column; min-width:0;}
+  .node-tx strong{font-size:13.5px; color:var(--text);}
+  .node-tx span{margin-top:3px; font-size:11px; color:var(--sub); line-height:1.35;}
+  .n-doc{left:3%;  top:11%;}
+  .n-ai{left:3%;   top:60%;}
+  .n-proj{right:3%; top:11%;}
+  .n-task{right:3%; top:60%;}
+  .n-team{left:50%; bottom:5%; transform:translateX(-50%);}
 
-  .hub{
-    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); z-index:3;
-    display:flex; flex-direction:column; align-items:center; gap:12px;
-  }
-  .hub-glow{position:absolute; width:300px; height:300px; left:50%; top:44%; transform:translate(-50%,-50%);
-    background:radial-gradient(circle, rgba(59,130,246,.30) 0%, rgba(147,197,253,0) 68%); z-index:-1;}
-  .hub-logo{width:104px; height:104px; border-radius:26px; box-shadow:0 12px 34px rgba(37,99,235,.32);}
-  .hub-name{font-weight:800; color:var(--ink); font-size:17px; letter-spacing:.02em;}
+  .hub{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); z-index:3;
+    display:flex; flex-direction:column; align-items:center;}
+  .hub-glow{position:absolute; width:150px; height:150px; left:50%; top:36px;
+    transform:translate(-50%,-50%);
+    background:radial-gradient(circle, rgba(91,132,240,.45), rgba(91,132,240,0) 68%); z-index:-1;}
+  .hub-logo{width:76px; height:76px; display:flex; align-items:center; justify-content:center;
+    color:#fff; font-size:38px; font-weight:800; border-radius:20px;
+    background:linear-gradient(145deg,#5B84F0,#2450d8);
+    box-shadow:0 12px 30px rgba(49,95,234,.4);}
+  .hub-label{margin-top:12px; color:var(--text); font-size:13px; font-weight:700;}
 
-  @media (max-width:860px){
-    .diagram{height:auto; display:flex; flex-direction:column; gap:14px; align-items:center;}
-    .diagram-lines{display:none;}
-    .node{position:static!important; width:100%; max-width:420px;}
-    .hub{position:static!important; transform:none!important; order:-1; margin-bottom:6px;}
-    .hub-glow{display:none;}
-  }
-
-  /* ---------- 마감 CTA (삭제한 지표바 자리) ---------- */
-  .cta{padding:66px 0;}
-  .cta-inner{
-    background:linear-gradient(135deg,#1E3A5F 0%, #2563EB 100%); border-radius:22px;
-    padding:52px 40px; text-align:center; color:#fff; box-shadow:0 20px 50px rgba(30,58,95,.28);
-  }
-  .cta-inner h2{font-size:30px; margin:0 0 10px; letter-spacing:-.5px;}
-  .cta-inner p{margin:0 0 26px; color:#DCE7FF; font-size:16px;}
-  .cta .btn-primary{background:#fff; color:var(--brand); box-shadow:0 8px 20px rgba(0,0,0,.14);}
-  .cta .btn-primary:hover{background:#f1f5ff;}
-
-  footer{border-top:1px solid var(--line); padding:26px 0; color:var(--muted); font-size:13.5px;}
-  .foot{display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;}
-
-  @media (max-width:900px){
-    .hero-grid{grid-template-columns:1fr; gap:34px;}
-    h1{font-size:40px;}
-    .menu{display:none;}
+  @media (max-width:1000px){ .hero{grid-template-columns:1fr; gap:36px;} nav.menu{display:none;} }
+  @media (max-width:620px){
+    .net-card{height:auto; padding:20px; display:flex; flex-direction:column; gap:12px;}
+    .net-card::before, .net-lines, .hub-glow{display:none;}
+    .node{position:static!important; transform:none!important; width:100%;}
+    .hub{position:static!important; transform:none!important; order:-1; margin-bottom:4px;}
   }
 </style>
 </head>
 <body>
 
-<!-- 재사용 SVG 정의 -->
-<svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <defs>
-    <linearGradient id="tg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#3B82F6"/><stop offset="1" stop-color="#2563EB"/>
-    </linearGradient>
-  </defs>
-</svg>
-
-<!-- ============ 헤더 ============ -->
 <header>
-  <div class="wrap nav">
-    <div class="brand">
-      <svg class="logo-mark" viewBox="0 0 40 40" aria-label="Tasqra">
-        <rect x="3" y="3" width="34" height="34" rx="9" fill="url(#tg)"/>
-        <path d="M12.5 15 H27.5 M20 15 V27" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/>
-      </svg>
-      Tasqra
-    </div>
-    <nav class="menu">
-      <a href="#">제품소개</a><a href="#">기능</a><a href="#">요금제</a><a href="#">고객사</a>
-    </nav>
-    <div class="nav-right">
-      <a class="login" href="#">로그인</a>
-      <button class="btn btn-primary">무료로 시작하기</button>
-    </div>
+  <div class="logo">
+    <div class="logo-mark">T</div>
+    <div class="logo-text"><strong>Tasqra</strong><span>DOCUMENT · TO · ACTION</span></div>
+  </div>
+  <nav class="menu">
+    <a href="#">제품소개</a><a href="#">기능</a><a href="#">요금제</a><a href="#">고객사</a>
+  </nav>
+  <div class="actions">
+    <button class="btn btn-login">로그인</button>
+    <button class="btn btn-primary">무료로 시작하기</button>
   </div>
 </header>
 
-<!-- ============ 히어로 ============ -->
 <section class="hero">
-  <div class="wrap hero-grid">
-    <div>
-      <span class="eyebrow">OCR · LLM 기반 문서 분석</span>
-      <h1>문서 하나로,<br><span class="accent">프로젝트를 시작하세요.</span></h1>
-      <p class="lead">OCR과 LLM으로 문서를 분석하고, 프로젝트와 태스크를 자동으로 생성해 드립니다.</p>
-      <div class="hero-cta">
-        <button class="btn btn-primary">무료로 시작하기 →</button>
-        <button class="btn btn-ghost">기능 둘러보기</button>
-      </div>
+  <!-- 좌: 텍스트 -->
+  <div class="hero-left">
+    <span class="eyebrow">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><path d="M12 8l1.4 2.6L16 12l-2.6 1.4L12 16l-1.4-2.6L8 12l2.6-1.4z"/></svg>
+      AI 문서 분석 · 프로젝트 자동 생성
+    </span>
+    <h1>문서 하나로,<br><span class="accent">프로젝트</span>를 시작하세요.</h1>
+    <p class="desc">제안요청서, 사업계획서, 계약서 등 다양한 문서를 업로드하면<br>
+      Tasqra가 핵심 내용을 분석하고 프로젝트와 태스크로 연결해드립니다.</p>
+    <div class="hero-btns">
+      <button class="btn btn-primary btn-lg">무료로 시작하기
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </button>
+      <button class="btn btn-ghost btn-lg">기능 둘러보기</button>
     </div>
-
-    <!-- 4단계를 아이콘 + 한 줄로 축소 -->
-    <div class="flow-card">
-      <div class="cap">문서 한 장이 프로젝트가 되기까지</div>
-      <div class="flow">
-        <div class="step">
-          <svg class="ic" viewBox="0 0 48 48"><rect x="10" y="7" width="24" height="30" rx="4" fill="none" stroke="#2563EB" stroke-width="2.4"/><path d="M15 16h14M15 22h14M15 28h9" stroke="#93C5FD" stroke-width="2.2" stroke-linecap="round"/></svg>
-          <div class="t">문서 업로드</div>
-        </div>
-        <div class="arrow">→</div>
-        <div class="step">
-          <svg class="ic" viewBox="0 0 48 48"><rect x="9" y="12" width="30" height="24" rx="4" fill="none" stroke="#2563EB" stroke-width="2.4"/><path d="M15 21h18M15 27h12" stroke="#93C5FD" stroke-width="2.2" stroke-linecap="round"/><circle cx="24" cy="9" r="3" fill="#2563EB"/></svg>
-          <div class="t">OCR 추출</div>
-        </div>
-        <div class="arrow">→</div>
-        <div class="step">
-          <svg class="ic" viewBox="0 0 48 48"><circle cx="24" cy="24" r="6" fill="none" stroke="#2563EB" stroke-width="2.4"/><circle cx="24" cy="10" r="3" fill="#2563EB"/><circle cx="12" cy="32" r="3" fill="#2563EB"/><circle cx="36" cy="32" r="3" fill="#2563EB"/><path d="M24 18v-5M20 27l-6 3M28 27l6 3" stroke="#93C5FD" stroke-width="2.2"/></svg>
-          <div class="t">AI 분석</div>
-        </div>
-        <div class="arrow">→</div>
-        <div class="step">
-          <svg class="ic" viewBox="0 0 48 48"><path d="M9 14a3 3 0 013-3h7l3 4h13a3 3 0 013 3v15a3 3 0 01-3 3H12a3 3 0 01-3-3z" fill="none" stroke="#2563EB" stroke-width="2.4"/></svg>
-          <div class="t">프로젝트 생성</div>
-        </div>
+    <div class="feature-row">
+      <div class="feat">
+        <div class="feat-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg></div>
+        <div class="feat-tx"><strong>문서 분석</strong><span>다양한 문서 지원</span></div>
+      </div>
+      <div class="feat">
+        <div class="feat-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="4" r="1.6"/><circle cx="5" cy="18" r="1.6"/><circle cx="19" cy="18" r="1.6"/><path d="M12 9V5.6M9.8 13.6l-3.4 2.8M14.2 13.6l3.4 2.8"/></svg></div>
+        <div class="feat-tx"><strong>AI 내용 분석</strong><span>핵심 내용 자동 추출</span></div>
+      </div>
+      <div class="feat">
+        <div class="feat-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5a2 2 0 012-2h4l2 3h6a2 2 0 012 2v9a2 2 0 01-2 2H4z"/><path d="M8 12v5M12 10v7M16 13v4"/></svg></div>
+        <div class="feat-tx"><strong>프로젝트 생성</strong><span>업무 구조 자동 구성</span></div>
       </div>
     </div>
   </div>
-</section>
 
-<!-- ============ 특징 칩 ============ -->
-<section class="features">
-  <div class="wrap chips">
-    <div class="chip">
-      <svg class="hex" viewBox="0 0 44 44"><path d="M22 3l16 9v20l-16 9-16-9V12z" fill="#fff" stroke="#2563EB" stroke-width="2.2"/><path d="M15 22l5 5 9-10" stroke="#2563EB" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <div><div class="tt">정확한 OCR</div><div class="ss">다양한 문서 형식 지원</div></div>
-    </div>
-    <div class="chip">
-      <svg class="hex" viewBox="0 0 44 44"><path d="M22 3l16 9v20l-16 9-16-9V12z" fill="#fff" stroke="#2563EB" stroke-width="2.2"/><circle cx="22" cy="22" r="4" fill="#2563EB"/><path d="M22 16v-3M22 31v-3M28 22h3M13 22h3" stroke="#2563EB" stroke-width="2.2"/></svg>
-      <div><div class="tt">AI 분석</div><div class="ss">핵심 정보 자동 추출</div></div>
-    </div>
-    <div class="chip">
-      <svg class="hex" viewBox="0 0 44 44"><path d="M22 3l16 9v20l-16 9-16-9V12z" fill="#fff" stroke="#2563EB" stroke-width="2.2"/><path d="M15 17h14M15 22h14M15 27h9" stroke="#2563EB" stroke-width="2.2" stroke-linecap="round"/></svg>
-      <div><div class="tt">자동 프로젝트 생성</div><div class="ss">태스크·일정 구성</div></div>
-    </div>
-  </div>
-</section>
-
-<!-- ============ 아키텍처 밴드 ============ -->
-<section class="arch">
-  <div class="wrap">
-    <h2>문서에서 실행까지, 하나로 이어집니다</h2>
-    <p class="sub">흩어진 문서를 모아 분석하고, 프로젝트와 태스크로 자동 연결합니다.</p>
-
-    <div class="diagram">
-      <!-- 연결선: 직선으로 깔끔하게 (non-scaling-stroke 로 어느 폭에서도 두께 일정) -->
-      <svg class="diagram-lines" viewBox="0 0 100 100" preserveAspectRatio="none">
-        <g stroke="#B9D0F5" stroke-width="1.4" vector-effect="non-scaling-stroke">
-          <line x1="50" y1="50" x2="26" y2="20"/>
-          <line x1="50" y1="50" x2="26" y2="78"/>
-          <line x1="50" y1="50" x2="74" y2="20"/>
-          <line x1="50" y1="50" x2="74" y2="78"/>
+  <!-- 우: 네트워크 -->
+  <div class="net-area">
+    <div class="net-card">
+      <!-- 연결선: 직선, 폭 변해도 두께 일정 -->
+      <svg class="net-lines" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <g stroke="#B9CEF3" stroke-width="1.5" vector-effect="non-scaling-stroke">
+          <line x1="50" y1="50" x2="20" y2="22"/>
+          <line x1="50" y1="50" x2="20" y2="72"/>
+          <line x1="50" y1="50" x2="80" y2="22"/>
+          <line x1="50" y1="50" x2="80" y2="72"/>
+          <line x1="50" y1="50" x2="50" y2="88"/>
         </g>
-        <g fill="#2563EB">
-          <circle cx="26" cy="20" r="1.4" vector-effect="non-scaling-stroke"/>
-          <circle cx="26" cy="78" r="1.4"/>
-          <circle cx="74" cy="20" r="1.4"/>
-          <circle cx="74" cy="78" r="1.4"/>
+        <g fill="#315FEA">
+          <circle cx="20" cy="22" r="1.3" vector-effect="non-scaling-stroke"/>
+          <circle cx="20" cy="72" r="1.3"/>
+          <circle cx="80" cy="22" r="1.3"/>
+          <circle cx="80" cy="72" r="1.3"/>
+          <circle cx="50" cy="88" r="1.3"/>
         </g>
       </svg>
 
-      <!-- 중앙 허브: 새로 만든 T 심볼 + 은은한 글로우 -->
       <div class="hub">
         <div class="hub-glow"></div>
-        <svg class="hub-logo" viewBox="0 0 40 40" aria-label="Tasqra">
-          <rect x="3" y="3" width="34" height="34" rx="9" fill="url(#tg)"/>
-          <path d="M12.5 15 H27.5 M20 15 V27" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/>
-        </svg>
-        <div class="hub-name">Tasqra</div>
+        <div class="hub-logo">T</div>
+        <div class="hub-label">Tasqra</div>
       </div>
 
-      <!-- 4개 노드 -->
-      <div class="node n-lt">
-        <div class="nt"><span class="dot"></span>문서</div>
-        <div class="nd">여러 곳에 흩어진 문서를 한곳에 모아 텍스트로 정리합니다.</div>
+      <div class="node n-doc">
+        <div class="node-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg></div>
+        <div class="node-tx"><strong>문서</strong><span>사업 문서 업로드</span></div>
       </div>
-      <div class="node n-lb">
-        <div class="nt"><span class="dot"></span>팀 협업</div>
-        <div class="nd">분석 결과를 팀과 공유하고 실시간으로 함께 관리합니다.</div>
+      <div class="node n-ai">
+        <div class="node-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="4" r="1.6"/><circle cx="5" cy="18" r="1.6"/><circle cx="19" cy="18" r="1.6"/><path d="M12 9V5.6M9.8 13.6l-3.4 2.8M14.2 13.6l3.4 2.8"/></svg></div>
+        <div class="node-tx"><strong>AI 분석</strong><span>핵심 내용 분석</span></div>
       </div>
-      <div class="node n-rt">
-        <div class="nt"><span class="dot"></span>프로젝트</div>
-        <div class="nd">분석된 정보를 기반으로 프로젝트를 자동으로 생성합니다.</div>
+      <div class="node n-proj">
+        <div class="node-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5a2 2 0 012-2h4l2 3h6a2 2 0 012 2v9a2 2 0 01-2 2H4z"/><path d="M8 12v5M12 10v7M16 13v4"/></svg></div>
+        <div class="node-tx"><strong>프로젝트</strong><span>분석 내용을 프로젝트로</span></div>
       </div>
-      <div class="node n-rb">
-        <div class="nt"><span class="dot"></span>태스크 관리</div>
-        <div class="nd">자동 생성된 태스크를 팀과 함께 추적하고 관리합니다.</div>
+      <div class="node n-task">
+        <div class="node-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l2 2 3-3M4 13l2 2 3-3M4 20l2 2 3-3M13 7h7M13 14h7M13 21h7"/></svg></div>
+        <div class="node-tx"><strong>태스크 관리</strong><span>업무를 나누고 관리</span></div>
+      </div>
+      <div class="node n-team">
+        <div class="node-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3 2.7-5 6-5s6 2 6 5"/><circle cx="17" cy="9" r="2.4"/><path d="M16 15c2.5 0 5 1.6 5 5"/></svg></div>
+        <div class="node-tx"><strong>팀 협업</strong><span>담당자와 업무 연결</span></div>
       </div>
     </div>
   </div>
 </section>
-
-<!-- ============ 마감 CTA (삭제한 지표바 자리) ============ -->
-<section class="cta">
-  <div class="wrap">
-    <div class="cta-inner">
-      <h2>지금 문서 하나로 시작해 보세요</h2>
-      <p>업로드부터 프로젝트 생성까지, 몇 분이면 충분합니다.</p>
-      <button class="btn btn-primary">무료로 시작하기 →</button>
-    </div>
-  </div>
-</section>
-
-<footer>
-  <div class="wrap foot">
-    <div class="brand" style="font-size:16px;">
-      <svg class="logo-mark" viewBox="0 0 40 40"><rect x="3" y="3" width="34" height="34" rx="9" fill="url(#tg)"/><path d="M12.5 15 H27.5 M20 15 V27" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/></svg>
-      Tasqra
-    </div>
-    <div>© 2026 Tasqra · 목업(디자인 시안)</div>
-  </div>
-</footer>
 
 </body>
 </html>
