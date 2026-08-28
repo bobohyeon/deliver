@@ -1,0 +1,392 @@
+diff --git a/frontend/index.html b/frontend/index.html
+index f94d687..9bbeb1a 100644
+--- a/frontend/index.html
++++ b/frontend/index.html
+@@ -5,6 +5,9 @@
+     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+     <title>frontend</title>
++    <!-- Tailwind Play CDN: 빌드 파이프라인 없이 미리보기에서 즉시 클래스가 반영되도록 하는 임시 조치.
++         운영 배포 전에는 @tailwindcss/vite 또는 postcss 기반 정식 설치로 교체할 것. -->
++    <script src="https://cdn.tailwindcss.com"></script>
+   </head>
+   <body>
+     <div id="root"></div>
+diff --git a/frontend/src/components/landing/MainHero.jsx b/frontend/src/components/landing/MainHero.jsx
+new file mode 100644
+index 0000000..7a16e7f
+--- /dev/null
++++ b/frontend/src/components/landing/MainHero.jsx
+@@ -0,0 +1,232 @@
++// 시안(첨부 이미지) 1:1 카피용 메인 히어로 컴포넌트.
++// 헤더 + 히어로(좌: 텍스트/CTA/통계, 우: 문서→AI→결과 플로우 일러스트)를 한 파일에 담았다.
++// LandingPage.jsx 상단에서 <MainHero/> 로 불러와 쓴다.
++//
++// 아이콘은 lucide-react 대신 인라인 SVG로 자체 구현했다. 이 샌드박스의 네트워크가
++// npm 레지스트리 접근을 막아 lucide-react 설치가 불가능했기 때문(설치 시도 시 403).
++// 실제 개발 환경에서는 `npm install lucide-react` 로 설치한 뒤 아래 Icons 객체를
++// `import { ArrowDown, ArrowRight, ... } from 'lucide-react'` 로 교체해도 무방하다 —
++// props(className 등) 시그니처를 동일하게 맞춰두었다.
++import Icons from './heroIcons'
++
++const {
++  ArrowDown,
++  ArrowRight,
++  CheckCircle2,
++  Clock3,
++  FileText,
++  LayoutGrid,
++  ListChecks,
++  ShieldCheck,
++  Sparkles,
++  TrendingUp,
++} = Icons
++
++const NAV_ITEMS = ['제품소개', '기능', '요금제', '고객사']
++
++const STATS = [
++  { icon: CheckCircle2, label: '문서 분석 정확도', value: '98%' },
++  { icon: Clock3, label: '검토 시간 단축', value: '70%' },
++  { icon: TrendingUp, label: '누적 프로젝트', value: '10,000+' },
++  { icon: ShieldCheck, label: '보안 인증', value: 'ISO/ISMS-P' },
++]
++
++const FLOW_CARDS = [
++  {
++    icon: LayoutGrid,
++    tone: 'bg-violet-50 text-violet-600',
++    title: '프로젝트 생성',
++    desc: '요구사항 분석, 설계, 개발, 테스트, 배포까지 지원 구성',
++  },
++  {
++    icon: ListChecks,
++    tone: 'bg-blue-50 text-blue-600',
++    title: '태스크 및 일정 생성',
++    desc: 'WBS 기반 태스크와 일정을 자동으로 생성',
++  },
++  {
++    icon: Sparkles,
++    tone: 'bg-emerald-50 text-emerald-600',
++    title: '핵심 요약 제공',
++    desc: '핵심 키워드와 요약으로 문서 내용 파악',
++  },
++]
++
++function LogoMark({ className = 'h-8 w-8' }) {
++  return (
++    <svg viewBox="0 0 32 32" className={className} aria-hidden="true">
++      <defs>
++        <linearGradient id="hero-logo" x1="0" y1="0" x2="1" y2="1">
++          <stop offset="0" stopColor="#7fb3ff" />
++          <stop offset="1" stopColor="#3f5bd9" />
++        </linearGradient>
++      </defs>
++      <circle cx="16" cy="15" r="9.5" fill="url(#hero-logo)" />
++      <ellipse cx="16" cy="16" rx="14.5" ry="5.6" fill="none" stroke="#7ca6eb" strokeWidth="1.5" opacity=".9" transform="rotate(-22 16 16)" />
++      <path d="M11.4 11.2h9.2M16 11.2v9.6" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" />
++      <circle cx="26" cy="7" r="1.1" fill="#7ca6eb" />
++      <circle cx="6" cy="24" r=".8" fill="#7ca6eb" />
++    </svg>
++  )
++}
++
++function SiteHeader() {
++  return (
++    <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur">
++      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 md:h-20 md:px-8">
++        <div className="flex items-center gap-2">
++          <LogoMark />
++          <span className="text-lg font-bold text-slate-900 md:text-xl">Tasqra</span>
++        </div>
++
++        <nav className="hidden items-center gap-8 text-sm font-medium text-slate-600 md:flex">
++          {NAV_ITEMS.map(item => (
++            <a key={item} href="#" className="transition-colors hover:text-slate-900">
++              {item}
++            </a>
++          ))}
++        </nav>
++
++        <div className="flex items-center gap-2 md:gap-3">
++          <a
++            href="#"
++            className="hidden rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 sm:inline-block"
++          >
++            로그인
++          </a>
++          <a
++            href="#"
++            className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
++          >
++            무료로 시작하기
++          </a>
++        </div>
++      </div>
++    </header>
++  )
++}
++
++function StatItem({ icon: Icon, label, value }) {
++  return (
++    <div className="flex items-center gap-2.5">
++      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600">
++        <Icon className="h-4 w-4" />
++      </span>
++      <div className="leading-tight">
++        <dt className="text-[13px] text-slate-500">{label}</dt>
++        <dd className="text-base font-bold text-slate-900">{value}</dd>
++      </div>
++    </div>
++  )
++}
++
++function FlowCard({ icon: Icon, tone, title, desc }) {
++  return (
++    <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:p-4">
++      <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${tone}`}>
++        <Icon className="h-4 w-4" />
++      </div>
++      <p className="mt-2 text-[13px] font-bold text-slate-800">{title}</p>
++      <p className="mt-1 text-[11px] leading-snug text-slate-400">{desc}</p>
++    </div>
++  )
++}
++
++// 임시 배경 이미지(요구사항 4). 시안 자체는 사진 없는 화이트 배경이라 전면에 깔면
++// 원본과 달라지므로, 우측 일러스트 패널 뒤에 아주 낮은 불투명도로만 얹어 톤을 보강했다.
++// 출처: Alexandre Debiève, Unsplash (unsplash.com/photos/FO7JIlwjOtU) — 실제 배포 전 교체 권장.
++const HERO_BG_IMAGE =
++  'https://images.unsplash.com/photo-1518770660439-4636190af475?q=80&w=1600&auto=format&fit=crop'
++
++function FlowIllustration() {
++  return (
++    <div
++      className="relative mx-auto aspect-[4/3] w-full max-w-md overflow-hidden rounded-3xl bg-gradient-to-br from-slate-50 to-blue-50/60 p-4 md:max-w-lg md:p-8"
++      style={{
++        backgroundImage: `linear-gradient(to bottom right, rgba(248,250,252,0.94), rgba(239,246,255,0.9)), url(${HERO_BG_IMAGE})`,
++        backgroundSize: 'cover',
++        backgroundPosition: 'center',
++      }}
++    >
++      {/* 업로드 카드 */}
++      <div className="absolute left-2 top-2 w-36 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:left-4 md:top-4 md:w-44">
++        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
++          <FileText className="h-5 w-5" />
++        </div>
++        <p className="mt-2 text-xs font-bold text-slate-800">문서 드래그 &amp; 업로드</p>
++        <p className="mt-1 text-[11px] leading-snug text-slate-400">PDF, DOCX, HWP, XLS, PPT 등</p>
++        <ArrowDown className="mt-2 h-4 w-4 text-slate-300" />
++      </div>
++
++      {/* 연결선 */}
++      <svg className="absolute inset-0 h-full w-full" viewBox="0 0 400 300" fill="none" aria-hidden="true">
++        <path d="M195 165 L300 90" stroke="#c7d2fe" strokeWidth="1.5" />
++        <path d="M195 165 L300 165" stroke="#c7d2fe" strokeWidth="1.5" />
++        <path d="M195 165 L300 240" stroke="#c7d2fe" strokeWidth="1.5" />
++      </svg>
++
++      {/* 중앙 허브(T 로고) */}
++      <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
++        <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-blue-400 to-indigo-600 shadow-xl shadow-blue-500/30 md:h-24 md:w-24">
++          <span className="text-2xl font-bold text-white md:text-3xl">T</span>
++          <span className="absolute -inset-3 rounded-full border border-blue-200/70" />
++        </div>
++      </div>
++
++      {/* 우측 결과 카드 3개 */}
++      <div className="absolute right-1 top-1 flex w-36 flex-col gap-2.5 md:right-2 md:top-2 md:w-52 md:gap-4">
++        {FLOW_CARDS.map(card => <FlowCard key={card.title} {...card} />)}
++      </div>
++    </div>
++  )
++}
++
++export default function MainHero() {
++  return (
++    <div className="bg-white">
++      <SiteHeader />
++
++      <section className="relative overflow-hidden">
++        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(59,130,246,0.08),transparent_45%)]" />
++
++        <div className="relative mx-auto grid max-w-7xl grid-cols-1 items-center gap-12 px-4 py-12 md:grid-cols-2 md:gap-8 md:px-8 md:py-20">
++          <div>
++            <h1 className="text-4xl font-extrabold leading-[1.15] tracking-tight text-slate-900 md:text-5xl lg:text-[56px]">
++              복잡한 문서를
++              <br />
++              명확한 실행으로
++            </h1>
++
++            <p className="mt-5 max-w-md text-base leading-relaxed text-slate-500 md:text-lg">
++              AI가 문서의 핵심을 분석하고,
++              <br className="hidden md:block" />
++              프로젝트와 태스크로 전환해 실행을 지원합니다.
++            </p>
++
++            <div className="mt-8 flex flex-wrap items-center gap-3">
++              <a
++                href="#"
++                className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 transition-colors hover:bg-slate-800 md:text-base"
++              >
++                무료로 시작하기
++                <ArrowRight className="h-4 w-4" />
++              </a>
++              <a
++                href="#features"
++                className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-6 py-3.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 md:text-base"
++              >
++                기능 살펴보기
++              </a>
++            </div>
++
++            <dl className="mt-12 grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-4">
++              {STATS.map(stat => <StatItem key={stat.label} {...stat} />)}
++            </dl>
++          </div>
++
++          <FlowIllustration />
++        </div>
++      </section>
++    </div>
++  )
++}
+diff --git a/frontend/src/components/landing/heroIcons.jsx b/frontend/src/components/landing/heroIcons.jsx
+new file mode 100644
+index 0000000..4e331df
+--- /dev/null
++++ b/frontend/src/components/landing/heroIcons.jsx
+@@ -0,0 +1,112 @@
++// MainHero.jsx 전용 아이콘 세트.
++// lucide-react 패키지 없이도 프리뷰가 즉시 뜨도록 동일한 선 굵기(stroke=2)로
++// 인라인 SVG 아이콘을 직접 그렸다. Spring 비유: 외부 스타터(lucide-react)를
++// 못 받아오는 상황에서 같은 인터페이스(props: className)를 갖는 로컬 구현체를
++// 대신 주입한 것과 같다 — 나중에 패키지가 설치되면 이 파일만 지우고
++// import 문을 lucide-react로 바꾸면 된다.
++function Icon({ children, className = 'h-4 w-4' }) {
++  return (
++    <svg
++      viewBox="0 0 24 24"
++      fill="none"
++      stroke="currentColor"
++      strokeWidth="2"
++      strokeLinecap="round"
++      strokeLinejoin="round"
++      className={className}
++      aria-hidden="true"
++    >
++      {children}
++    </svg>
++  )
++}
++
++const ArrowDown = props => (
++  <Icon {...props}>
++    <path d="M12 5v14" />
++    <path d="m19 12-7 7-7-7" />
++  </Icon>
++)
++
++const ArrowRight = props => (
++  <Icon {...props}>
++    <path d="M5 12h14" />
++    <path d="m12 5 7 7-7 7" />
++  </Icon>
++)
++
++const CheckCircle2 = props => (
++  <Icon {...props}>
++    <path d="M21.801 10A10 10 0 1 1 17 3.335" />
++    <path d="m9 11 3 3L22 4" />
++  </Icon>
++)
++
++const Clock3 = props => (
++  <Icon {...props}>
++    <circle cx="12" cy="12" r="10" />
++    <path d="M12 6v6h6" />
++  </Icon>
++)
++
++const FileText = props => (
++  <Icon {...props}>
++    <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
++    <path d="M14 2v4a2 2 0 0 0 2 2h4" />
++    <path d="M10 9H8" />
++    <path d="M16 13H8" />
++    <path d="M16 17H8" />
++  </Icon>
++)
++
++const LayoutGrid = props => (
++  <Icon {...props}>
++    <rect x="3" y="3" width="7" height="7" rx="1" />
++    <rect x="14" y="3" width="7" height="7" rx="1" />
++    <rect x="14" y="14" width="7" height="7" rx="1" />
++    <rect x="3" y="14" width="7" height="7" rx="1" />
++  </Icon>
++)
++
++const ListChecks = props => (
++  <Icon {...props}>
++    <path d="m3 7 2 2 3-3" />
++    <path d="m3 17 2 2 3-3" />
++    <path d="M11 6h10" />
++    <path d="M11 12h10" />
++    <path d="M11 18h10" />
++  </Icon>
++)
++
++const ShieldCheck = props => (
++  <Icon {...props}>
++    <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
++    <path d="m9 12 2 2 4-4" />
++  </Icon>
++)
++
++const Sparkles = props => (
++  <Icon {...props}>
++    <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
++  </Icon>
++)
++
++const TrendingUp = props => (
++  <Icon {...props}>
++    <path d="M16 7h6v6" />
++    <path d="m22 7-8.5 8.5-5-5L2 17" />
++  </Icon>
++)
++
++export default {
++  ArrowDown,
++  ArrowRight,
++  CheckCircle2,
++  Clock3,
++  FileText,
++  LayoutGrid,
++  ListChecks,
++  ShieldCheck,
++  Sparkles,
++  TrendingUp,
++}
+diff --git a/frontend/src/pages/LandingPage.jsx b/frontend/src/pages/LandingPage.jsx
+index 41ec4f9..4c8dc93 100644
+--- a/frontend/src/pages/LandingPage.jsx
++++ b/frontend/src/pages/LandingPage.jsx
+@@ -1,13 +1,14 @@
+ import { Link } from 'react-router-dom'
+-import AppHeader from '../components/common/AppHeader'
+ import Logo from '../components/common/Logo'
++import MainHero from '../components/landing/MainHero'
+ import '../styles/landing.css'
+ 
+ const FEATURES = [['01','프로젝트 문서 관리','프로젝트별로 문서를 모으고 구성원의 접근 권한을 관리합니다.'],['02','OCR 검수','원본 위치와 추출 텍스트를 비교하고 수정해 결과를 검수합니다.'],['03','AI 액션 아이템','문서에서 할 일과 일정을 추출하고 승인 후 실제 작업으로 연결합니다.']]
+ 
+ export default function LandingPage({ user, onLogout, notify }) {
+-  return <div className="landing"><AppHeader user={user} onLogout={onLogout} notify={notify}/><main>
+-    <section className="hero"><p className="eyebrow">DOCUMENT TO PROJECT</p><h1>문서를 올리면<br/>프로젝트가 정리됩니다.</h1><p>OCR과 AI가 문서를 읽고, 함께 검수한 결과를 프로젝트의 실행 가능한 작업으로 연결합니다.</p><div><a className="primary" href="#features">기능 둘러보기</a><Link className="secondary" to={user ? '/projects' : '/login'} state={!user ? { loginRequired: true } : undefined}>{user ? '내 프로젝트 열기' : '작업 공간 열기'}</Link></div></section>
++  // MainHero 는 시안 이미지를 그대로 카피한 새 헤더+히어로(Tailwind)다.
++  // 기존 AppHeader/hero 섹션 대신 이걸 최상단에 배치했다.
++  return <div className="landing"><MainHero/><main>
+     <section id="features" className="feature-section"><div className="section-title"><p className="eyebrow">CORE FEATURES</p><h2>Tasqra에서 할 수 있는 일</h2></div><div className="feature-grid">{FEATURES.map(([number,title,description]) => <article key={number}><span>{number}</span><h3>{title}</h3><p>{description}</p></article>)}</div></section>
+     <section className="login-cta"><div><p className="eyebrow">PROJECT WORKSPACE</p><h2>{user ? `${user.name}님, 프로젝트 작업을 이어가세요.` : '프로젝트 작업을 시작하려면 로그인이 필요합니다.'}</h2><p>{user ? '참여 중인 프로젝트와 새 초대를 확인할 수 있습니다.' : '계정으로 로그인하거나 새 계정을 만든 뒤 문서 작업을 시작하세요.'}</p></div><div><Link className="primary" to={user ? '/projects' : '/login'} state={!user ? { loginRequired: true } : undefined}>{user ? '내 프로젝트' : '로그인하고 시작하기'}</Link>{!user && <Link className="secondary" to="/signup">회원가입</Link>}</div></section>
+   </main><footer><Logo/><span>문서 기반 프로젝트 작업 도구</span></footer></div>

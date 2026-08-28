@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<!--
+  Tasqra 메인 히어로 목업 (Tailwind CDN 버전)
+  - Tasqra 코드로 만든 실제 컴포넌트(frontend/src/components/landing/MainHero.jsx)를
+    npm install 없이 바로 확인할 수 있도록 정적 HTML로 옮긴 것.
+  - Tailwind는 Play CDN(script 태그)으로 불러온다 — 브라우저가 직접 클래스를 해석하므로
+    설치가 필요 없다. 더블클릭으로 바로 열린다.
+  - 사용자가 첨부한 시안 이미지(첫 화면: 로고/네비/CTA + "복잡한 문서를 명확한 실행으로" +
+    통계 4개 + 우측 문서→AI→결과 플로우)를 그대로 옮겼다.
+  - 실제 React 코드는 Tasqra 레포의 아래 파일에 있다:
+      frontend/src/components/landing/MainHero.jsx
+      frontend/src/components/landing/heroIcons.jsx (lucide-react 대체 아이콘)
+      frontend/src/pages/LandingPage.jsx (연결부)
+      frontend/index.html (Tailwind CDN 스크립트)
+    이 HTML은 그 React 컴포넌트와 마크업/클래스가 1:1로 대응한다.
+-->
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tasqra 메인 히어로 목업 (Tailwind)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-white">
+
+<div class="bg-white">
+  <!-- 헤더 -->
+  <header class="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur">
+    <div class="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 md:h-20 md:px-8">
+      <div class="flex items-center gap-2">
+        <svg viewBox="0 0 32 32" class="h-8 w-8" aria-hidden="true">
+          <defs>
+            <linearGradient id="hero-logo" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#7fb3ff" />
+              <stop offset="1" stop-color="#3f5bd9" />
+            </linearGradient>
+          </defs>
+          <circle cx="16" cy="15" r="9.5" fill="url(#hero-logo)" />
+          <ellipse cx="16" cy="16" rx="14.5" ry="5.6" fill="none" stroke="#7ca6eb" stroke-width="1.5" opacity=".9" transform="rotate(-22 16 16)" />
+          <path d="M11.4 11.2h9.2M16 11.2v9.6" stroke="#fff" stroke-width="2.4" stroke-linecap="round" />
+          <circle cx="26" cy="7" r="1.1" fill="#7ca6eb" />
+          <circle cx="6" cy="24" r=".8" fill="#7ca6eb" />
+        </svg>
+        <span class="text-lg font-bold text-slate-900 md:text-xl">Tasqra</span>
+      </div>
+
+      <nav class="hidden items-center gap-8 text-sm font-medium text-slate-600 md:flex">
+        <a href="#" class="transition-colors hover:text-slate-900">제품소개</a>
+        <a href="#" class="transition-colors hover:text-slate-900">기능</a>
+        <a href="#" class="transition-colors hover:text-slate-900">요금제</a>
+        <a href="#" class="transition-colors hover:text-slate-900">고객사</a>
+      </nav>
+
+      <div class="flex items-center gap-2 md:gap-3">
+        <a href="#" class="hidden rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 sm:inline-block">로그인</a>
+        <a href="#" class="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-800">무료로 시작하기</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- 히어로 -->
+  <section class="relative overflow-hidden">
+    <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(59,130,246,0.08),transparent_45%)]"></div>
+
+    <div class="relative mx-auto grid max-w-7xl grid-cols-1 items-center gap-12 px-4 py-12 md:grid-cols-2 md:gap-8 md:px-8 md:py-20">
+      <div>
+        <h1 class="text-4xl font-extrabold leading-[1.15] tracking-tight text-slate-900 md:text-5xl lg:text-[56px]">
+          복잡한 문서를<br>명확한 실행으로
+        </h1>
+
+        <p class="mt-5 max-w-md text-base leading-relaxed text-slate-500 md:text-lg">
+          AI가 문서의 핵심을 분석하고,<br class="hidden md:block">
+          프로젝트와 태스크로 전환해 실행을 지원합니다.
+        </p>
+
+        <div class="mt-8 flex flex-wrap items-center gap-3">
+          <a href="#" class="inline-flex items-center gap-2 rounded-full bg-slate-900 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 transition-colors hover:bg-slate-800 md:text-base">
+            무료로 시작하기
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+          </a>
+          <a href="#features" class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-6 py-3.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 md:text-base">
+            기능 살펴보기
+          </a>
+        </div>
+
+        <dl class="mt-12 grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-4">
+          <!-- 통계 1: 문서 분석 정확도 -->
+          <div class="flex items-center gap-2.5">
+            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></svg>
+            </span>
+            <div class="leading-tight">
+              <dt class="text-[13px] text-slate-500">문서 분석 정확도</dt>
+              <dd class="text-base font-bold text-slate-900">98%</dd>
+            </div>
+          </div>
+          <!-- 통계 2: 검토 시간 단축 -->
+          <div class="flex items-center gap-2.5">
+            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><circle cx="12" cy="12" r="10"/><path d="M12 6v6h6"/></svg>
+            </span>
+            <div class="leading-tight">
+              <dt class="text-[13px] text-slate-500">검토 시간 단축</dt>
+              <dd class="text-base font-bold text-slate-900">70%</dd>
+            </div>
+          </div>
+          <!-- 통계 3: 누적 프로젝트 -->
+          <div class="flex items-center gap-2.5">
+            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="M16 7h6v6"/><path d="m22 7-8.5 8.5-5-5L2 17"/></svg>
+            </span>
+            <div class="leading-tight">
+              <dt class="text-[13px] text-slate-500">누적 프로젝트</dt>
+              <dd class="text-base font-bold text-slate-900">10,000+</dd>
+            </div>
+          </div>
+          <!-- 통계 4: 보안 인증 -->
+          <div class="flex items-center gap-2.5">
+            <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>
+            </span>
+            <div class="leading-tight">
+              <dt class="text-[13px] text-slate-500">보안 인증</dt>
+              <dd class="text-base font-bold text-slate-900">ISO/ISMS-P</dd>
+            </div>
+          </div>
+        </dl>
+      </div>
+
+      <!-- 우측 플로우 일러스트 -->
+      <div class="relative mx-auto aspect-[4/3] w-full max-w-md overflow-hidden rounded-3xl bg-gradient-to-br from-slate-50 to-blue-50/60 p-4 md:max-w-lg md:p-8"
+           style="background-image:linear-gradient(to bottom right, rgba(248,250,252,0.94), rgba(239,246,255,0.9)), url('https://images.unsplash.com/photo-1518770660439-4636190af475?q=80&w=1600&auto=format&fit=crop'); background-size:cover; background-position:center;">
+
+        <!-- 업로드 카드 -->
+        <div class="absolute left-2 top-2 w-36 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:left-4 md:top-4 md:w-44">
+          <div class="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
+          </div>
+          <p class="mt-2 text-xs font-bold text-slate-800">문서 드래그 &amp; 업로드</p>
+          <p class="mt-1 text-[11px] leading-snug text-slate-400">PDF, DOCX, HWP, XLS, PPT 등</p>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mt-2 h-4 w-4 text-slate-300"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>
+        </div>
+
+        <!-- 연결선 -->
+        <svg class="absolute inset-0 h-full w-full" viewBox="0 0 400 300" fill="none" aria-hidden="true">
+          <path d="M195 165 L300 90" stroke="#c7d2fe" stroke-width="1.5" />
+          <path d="M195 165 L300 165" stroke="#c7d2fe" stroke-width="1.5" />
+          <path d="M195 165 L300 240" stroke="#c7d2fe" stroke-width="1.5" />
+        </svg>
+
+        <!-- 중앙 허브(T 로고) -->
+        <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+          <div class="relative flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-blue-400 to-indigo-600 shadow-xl shadow-blue-500/30 md:h-24 md:w-24">
+            <span class="text-2xl font-bold text-white md:text-3xl">T</span>
+            <span class="absolute -inset-3 rounded-full border border-blue-200/70"></span>
+          </div>
+        </div>
+
+        <!-- 우측 결과 카드 3개 -->
+        <div class="absolute right-1 top-1 flex w-36 flex-col gap-2.5 md:right-2 md:top-2 md:w-52 md:gap-4">
+          <div class="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:p-4">
+            <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50 text-violet-600">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+            </div>
+            <p class="mt-2 text-[13px] font-bold text-slate-800">프로젝트 생성</p>
+            <p class="mt-1 text-[11px] leading-snug text-slate-400">요구사항 분석, 설계, 개발, 테스트, 배포까지 지원 구성</p>
+          </div>
+          <div class="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:p-4">
+            <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="m3 7 2 2 3-3"/><path d="m3 17 2 2 3-3"/><path d="M11 6h10"/><path d="M11 12h10"/><path d="M11 18h10"/></svg>
+            </div>
+            <p class="mt-2 text-[13px] font-bold text-slate-800">태스크 및 일정 생성</p>
+            <p class="mt-1 text-[11px] leading-snug text-slate-400">WBS 기반 태스크와 일정을 자동으로 생성</p>
+          </div>
+          <div class="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:p-4">
+            <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-4 w-4"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg>
+            </div>
+            <p class="mt-2 text-[13px] font-bold text-slate-800">핵심 요약 제공</p>
+            <p class="mt-1 text-[11px] leading-snug text-slate-400">핵심 키워드와 요약으로 문서 내용 파악</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+</body>
+</html>
