@@ -1,10 +1,11 @@
 <!doctype html>
 <!--
-  Tasqra 메인 랜딩 히어로 v2
-  - 사용자가 직접 준 "tasqra-landing-section" 문서를 그대로 가져왔다(디자인 창작 없이 카피).
-    v1(내가 임의로 만든 Tailwind 버전)은 배경에 반도체 사진을 넣는 등 시안과 달라서 폐기.
-  - CSS만으로 그린 정적 HTML. 외부 CDN·웹폰트·이미지 요청이 전혀 없다 — 더블클릭으로
-    바로 열리고, 네트워크가 막힌 환경에서도 100% 동일하게 보인다.
+  Tasqra 메인 랜딩 혼합 목업
+  - 사용자 시안의 밝은 히어로와 result_2.jpg 일러스트를 중심으로 유지한다.
+  - 팀원 프로토타입의 안정적인 전체 비율, 신뢰 기능 스트립, 3단 설명 구조를 결합했다.
+  - 버튼·카드 호버, 히어로 진입, 스크롤 등장 애니메이션을 적용했고
+    prefers-reduced-motion 환경에서는 움직임을 제거한다.
+  - 외부 CDN·웹폰트 요청 없이 로컬에서 바로 열리는 단일 HTML이다.
 -->
 <html lang="ko">
 <head>
@@ -29,14 +30,12 @@
 
     * { box-sizing: border-box; }
 
-    html { color-scheme: light; }
+    html { color-scheme: light; scroll-behavior: smooth; }
 
     body {
       margin: 0;
       min-width: 320px;
-      background:
-        radial-gradient(circle at 78% 22%, rgba(147, 197, 253, .20), transparent 30%),
-        #f4f7fb;
+      background: #fff;
       color: var(--body);
       /* 한글 전용 폰트(맑은 고딕/Apple SD Gothic Neo/Noto Sans KR)를 시스템 UI 폰트보다
          앞에 둔다 — Segoe UI 등 일부 시스템 폰트는 한글 자리에 빈 사각형(notdef) 글리프를
@@ -52,21 +51,27 @@
     a:focus-visible { outline: 3px solid #93c5fd; outline-offset: 3px; }
 
     .page {
-      width: min(1240px, calc(100% - 24px));
+      width: min(1320px, 100%);
       margin: 0 auto;
+      overflow: hidden;
+      background: #fff;
     }
 
     .site {
-      padding: 0 20px 22px;
-      background: rgba(255, 255, 255, .96);
+      background: #fff;
     }
 
     .site-header {
       display: grid;
       grid-template-columns: 1fr auto 1fr;
       align-items: center;
-      min-height: 58px;
-      border-bottom: 1px solid #f1f5f9;
+      min-height: 70px;
+      padding: 0 clamp(24px, 4vw, 64px);
+      border-bottom: 1px solid #edf1f7;
+      background: rgba(255,255,255,.92);
+      backdrop-filter: blur(12px);
+      position: relative;
+      z-index: 20;
     }
 
     .brand {
@@ -97,23 +102,28 @@
     .nav {
       display: flex;
       align-items: center;
-      gap: 28px;
+      gap: 34px;
       color: #334155;
-      font-size: 12px;
+      font-size: 13px;
       font-weight: 600;
     }
 
+    .nav a { position: relative; padding: 8px 0; transition: color .2s ease; }
+    .nav a::after { content:""; position:absolute; left:0; right:100%; bottom:2px; height:2px; border-radius:2px; background:var(--blue); transition:right .22s ease; }
     .nav a:hover, .login:hover { color: var(--blue); }
+    .nav a:hover::after { right:0; }
 
     .header-actions {
       display: flex;
       align-items: center;
       justify-content: flex-end;
-      gap: 18px;
+      gap: 12px;
       color: #334155;
       font-size: 12px;
       font-weight: 600;
     }
+
+    .login { transition: color .2s ease; }
 
     .button {
       display: inline-flex;
@@ -129,29 +139,65 @@
       font-size: 12px;
       font-weight: 700;
       box-shadow: 0 7px 16px rgba(37, 99, 235, .15);
-      transition: transform .16s ease, background .16s ease;
+      transition: transform .2s ease, background .2s ease, box-shadow .2s ease, border-color .2s ease;
     }
 
-    .button svg { width: 13px; height: 13px; }
+    .button svg { width: 13px; height: 13px; transition: transform .2s ease; }
 
-    .button:hover { background: var(--blue-dark); transform: translateY(-1px); }
-    .button-small { min-height: 32px; padding-inline: 13px; font-size: 11px; box-shadow: none; }
+    .button:hover { background: var(--blue-dark); transform: translateY(-2px); box-shadow: 0 11px 24px rgba(37,99,235,.22); }
+    .button:hover svg { transform: translateX(3px); }
+    .button-small { min-height: 36px; padding-inline: 15px; font-size: 11px; box-shadow: none; }
     .button-outline { border-color: #cbd5e1; background: #fff; color: #334155; box-shadow: none; }
     .button-outline:hover { border-color: #93c5fd; background: var(--blue-50); color: var(--blue-dark); }
 
     .hero {
+      position: relative;
       display: grid;
-      grid-template-columns: minmax(300px, .74fr) minmax(0, 1.26fr);
+      grid-template-columns: minmax(360px, .82fr) minmax(0, 1.18fr);
       gap: 0;
       align-items: center;
-      padding: 12px 0 8px;
+      min-height: 540px;
+      padding: 34px clamp(24px, 4vw, 64px) 26px;
+      background:
+        radial-gradient(circle at 72% 42%, rgba(219,234,254,.78), transparent 27%),
+        linear-gradient(180deg, #fbfdff 0%, #fff 100%);
+      isolation: isolate;
+    }
+
+    .hero::before,
+    .hero::after {
+      content:"";
+      position:absolute;
+      z-index:-1;
+      border-radius:50%;
+      filter:blur(2px);
+      pointer-events:none;
+    }
+    .hero::before { width:260px; height:260px; right:13%; top:11%; border:1px solid rgba(147,197,253,.18); }
+    .hero::after { width:390px; height:390px; right:8%; top:0; border:1px solid rgba(191,219,254,.12); }
+
+    .hero-copy {
+      position: relative;
+      z-index: 3;
+      width: min(430px, 100%);
+      justify-self: end;
+      margin-right: -30px;
+      animation: copy-enter .65s cubic-bezier(.2,.8,.2,1) both;
+    }
+
+    .eyebrow {
+      margin: 0 0 12px;
+      color: var(--blue);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .14em;
     }
 
     .hero-copy h1 {
       margin: 0;
       color: var(--heading);
-      font-size: clamp(32px, 3.4vw, 44px);
-      line-height: 1.2;
+      font-size: clamp(36px, 3.65vw, 52px);
+      line-height: 1.16;
       /* letter-spacing -.01em 으로 줄여도 네모(tofu)가 그대로 남았다 — 자간 하나
          만의 문제가 아니라, 음수 자간 자체 + 이 글자 크기(40~58px) + 굵기 800의
          조합에서 브라우저 텍스트 셰이핑이 깨지는 것으로 보인다. 원인을 좁히기
@@ -163,49 +209,68 @@
 
     .hero-copy h1 strong { color: var(--blue); font-weight: inherit; }
 
-    .hero-copy p {
-      max-width: 420px;
-      margin: 10px 0 0;
+    .hero-copy p:not(.eyebrow) {
+      max-width: 410px;
+      margin: 14px 0 0;
       color: var(--body);
-      font-size: 13px;
-      line-height: 1.55;
+      font-size: 15px;
+      line-height: 1.7;
       letter-spacing: -.01em;
+      word-break: keep-all;
     }
 
     .hero-actions {
       display: flex;
-      gap: 8px;
-      margin-top: 15px;
+      gap: 9px;
+      margin-top: 22px;
     }
+
+    .hero-note {
+      display:flex;
+      flex-wrap:wrap;
+      gap:9px 16px;
+      margin-top:16px;
+      color:#64748b;
+      font-size:11px;
+      font-weight:600;
+    }
+    .hero-note span { display:inline-flex; align-items:center; gap:5px; }
+    .hero-note span::before { content:"✓"; color:var(--blue); font-weight:900; }
 
     .hub-image {
       position: relative;
-      height: 350px;
-      overflow: hidden;
+      height: 430px;
+      overflow: visible;
+      z-index: 2;
+      animation: visual-enter .75s .08s cubic-bezier(.2,.8,.2,1) both;
     }
 
     .hub-image img {
       position: absolute;
       top: 50%;
-      left: 50%;
-      width: min(680px, 110%);
+      left: 45%;
+      width: min(760px, 116%);
       max-width: none;
       height: auto;
       display: block;
       transform: translate(-50%, -50%);
+      filter: drop-shadow(0 24px 30px rgba(37,99,235,.06));
+      animation: image-float 7s 1s ease-in-out infinite;
+      transition: filter .35s ease;
     }
+    .hub-image:hover img { filter: drop-shadow(0 30px 38px rgba(37,99,235,.13)); }
 
     .features-section {
-      padding: 14px 0 20px;
-      border-top: 1px solid #f1f5f9;
+      padding: 38px clamp(24px, 4vw, 64px) 34px;
+      background:#fff;
     }
 
     .features-title {
-      margin: 0 0 11px;
+      margin: 0 0 16px;
       color: var(--heading);
-      font-size: 15px;
+      font-size: 19px;
       font-weight: 800;
-      letter-spacing: -.02em;
+      letter-spacing: -.025em;
     }
 
     .feature-chips {
@@ -221,12 +286,18 @@
       column-gap: 11px;
       row-gap: 3px;
       align-items: center;
-      min-height: 78px;
-      padding: 11px 14px;
+      min-height: 88px;
+      padding: 14px 16px;
       border: 1px solid var(--line);
-      border-radius: 10px;
+      border-radius: 12px;
       background: #fff;
       box-shadow: 0 6px 18px rgba(15, 23, 42, .04);
+      transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease;
+    }
+    .feature-chip:hover {
+      transform:translateY(-5px);
+      border-color:#b8caf2;
+      box-shadow:0 17px 34px rgba(37,99,235,.10);
     }
 
     .chip-icon {
@@ -238,14 +309,17 @@
       border-radius: 10px;
       background: var(--blue-100);
       color: var(--blue);
+      transition:transform .25s ease, background .25s ease;
     }
+
+    .feature-chip:hover .chip-icon { transform:scale(1.08) rotate(-4deg); background:#cfe1ff; }
 
     .chip-icon svg { width: 18px; height: 18px; }
 
     .feature-chip strong {
       align-self: end;
       color: var(--heading);
-      font-size: 12px;
+      font-size: 13px;
       font-weight: 700;
       white-space: nowrap;
     }
@@ -254,38 +328,134 @@
       align-self: start;
       margin: 0;
       color: var(--muted);
-      font-size: 10.5px;
-      line-height: 1.35;
+      font-size: 11px;
+      line-height: 1.4;
     }
 
-    @media (max-width: 860px) {
+    .trust-strip {
+      display:grid;
+      grid-template-columns:repeat(4,1fr);
+      border-block:1px solid #e7edf6;
+      background:linear-gradient(90deg,#fbfdff,#f7faff,#fbfdff);
+      padding:0 clamp(24px,4vw,64px);
+    }
+    .trust-item {
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:10px;
+      min-height:74px;
+      padding:16px 18px;
+      color:#334155;
+      font-size:12px;
+      font-weight:700;
+      border-right:1px solid #e7edf6;
+      transition:color .2s ease, background .2s ease;
+    }
+    .trust-item:first-child { border-left:1px solid #e7edf6; }
+    .trust-item:hover { color:var(--blue); background:#fff; }
+    .trust-icon {
+      display:grid;
+      place-items:center;
+      width:34px;
+      height:34px;
+      border-radius:10px;
+      background:#eaf2ff;
+      color:var(--blue);
+      transition:transform .25s ease;
+    }
+    .trust-item:hover .trust-icon { transform:translateY(-2px) scale(1.08); }
+    .trust-icon svg { width:17px; height:17px; }
+
+    .value-section {
+      padding:46px clamp(24px,4vw,64px) 58px;
+      background:#f7f9fd;
+    }
+    .section-heading { max-width:650px; margin-bottom:24px; }
+    .section-heading .eyebrow { margin-bottom:8px; }
+    .section-heading h2 { margin:0; color:var(--heading); font-size:clamp(25px,2.6vw,34px); line-height:1.3; letter-spacing:-.035em; }
+    .section-heading p { margin:10px 0 0; color:var(--muted); font-size:13px; line-height:1.7; }
+    .value-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
+    .value-card {
+      position:relative;
+      overflow:hidden;
+      min-height:190px;
+      padding:26px 25px;
+      border:1px solid var(--line);
+      border-radius:16px;
+      background:#fff;
+      box-shadow:0 5px 18px rgba(15,23,42,.035);
+      transition:transform .28s ease, box-shadow .28s ease, border-color .28s ease;
+    }
+    .value-card::after {
+      content:"";
+      position:absolute;
+      width:110px;
+      height:110px;
+      right:-55px;
+      bottom:-55px;
+      border-radius:50%;
+      background:rgba(219,234,254,.5);
+      transition:transform .35s ease;
+    }
+    .value-card:hover { transform:translateY(-7px); border-color:#b8caf2; box-shadow:0 22px 42px rgba(37,99,235,.10); }
+    .value-card:hover::after { transform:scale(1.45); }
+    .value-number { display:grid; place-items:center; width:34px; height:34px; border-radius:10px; background:var(--blue); color:#fff; font-size:11px; font-weight:800; box-shadow:0 8px 18px rgba(37,99,235,.2); }
+    .value-card h3 { position:relative; z-index:1; margin:32px 0 9px; color:var(--heading); font-size:18px; letter-spacing:-.025em; }
+    .value-card p { position:relative; z-index:1; margin:0; color:var(--muted); font-size:12.5px; line-height:1.7; word-break:keep-all; }
+
+    .motion-ready .reveal { opacity:0; transform:translateY(24px); }
+    .motion-ready .reveal.is-visible { opacity:1; transform:translateY(0); transition:opacity .6s ease, transform .6s cubic-bezier(.2,.8,.2,1); }
+    .motion-ready .reveal.is-visible .feature-chip,
+    .motion-ready .reveal.is-visible .value-card { animation:card-enter .5s cubic-bezier(.2,.8,.2,1) backwards; }
+    .motion-ready .reveal.is-visible .feature-chip:nth-child(2),
+    .motion-ready .reveal.is-visible .value-card:nth-child(2) { animation-delay:.07s; }
+    .motion-ready .reveal.is-visible .feature-chip:nth-child(3),
+    .motion-ready .reveal.is-visible .value-card:nth-child(3) { animation-delay:.14s; }
+    .motion-ready .reveal.is-visible .feature-chip:nth-child(4) { animation-delay:.21s; }
+
+    @keyframes copy-enter { from { opacity:0; transform:translateX(-22px); } to { opacity:1; transform:translateX(0); } }
+    @keyframes visual-enter { from { opacity:0; transform:translateX(24px); } to { opacity:1; transform:translateX(0); } }
+    @keyframes image-float { 0%,100% { transform:translate(-50%,-50%); } 50% { transform:translate(-50%,calc(-50% - 7px)); } }
+    @keyframes card-enter { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+
+    @media (max-width: 900px) {
       .site-header { grid-template-columns: 1fr auto; }
       .nav { display: none; }
-      .hero { grid-template-columns: 1fr; gap: 0; }
-      .hero-copy { padding-top: 22px; text-align: center; }
-      .hero-copy p { margin-inline: auto; }
-      .hero-actions { justify-content: center; margin-inline: auto; }
-      .hub-image { height: 360px; }
-      .hub-image img { width: min(620px, 115%); }
+      .hero { grid-template-columns: 1fr; gap: 0; min-height:auto; padding-top:48px; }
+      .hero-copy { width:min(620px,100%); justify-self:center; margin-right:0; text-align:center; }
+      .hero-copy p:not(.eyebrow) { margin-inline:auto; }
+      .hero-actions, .hero-note { justify-content:center; }
+      .hub-image { height:450px; }
+      .hub-image img { left:50%; width:min(720px,108%); }
       .feature-chips { grid-template-columns: repeat(2, 1fr); }
+      .trust-strip { grid-template-columns:repeat(2,1fr); }
+      .trust-item:nth-child(2) { border-right:0; }
+      .trust-item:nth-child(-n+2) { border-bottom:1px solid #e7edf6; }
     }
 
-    @media (max-width: 600px) {
-      .page { width: min(100% - 16px, 1240px); margin-block: 8px; }
-      .site { padding: 0 12px 18px; }
+    @media (max-width: 640px) {
+      .site-header { min-height:62px; padding-inline:18px; }
       .header-actions .login { display: none; }
-      .hero { padding-top: 18px; }
-      .hero-copy { padding-top: 0; text-align: left; }
-      .hero-copy h1 { font-size: clamp(30px, 9.5vw, 38px); }
-      .hero-copy p { margin-inline: 0; }
-      .hero-actions { display: grid; margin-inline: 0; }
-      .hub-image { height: 330px; }
-      .hub-image img { width: 560px; }
-      .feature-chips { grid-template-columns: 1fr; }
+      .hero { padding:34px 18px 18px; }
+      .hero-copy { text-align:left; }
+      .hero-copy h1 { font-size:clamp(32px,9.6vw,43px); }
+      .hero-copy p:not(.eyebrow) { margin-inline:0; font-size:14px; }
+      .hero-actions { display:grid; justify-content:stretch; }
+      .hero-note { justify-content:flex-start; display:grid; grid-template-columns:1fr 1fr; }
+      .hub-image { height:350px; }
+      .hub-image img { width:580px; }
+      .features-section, .value-section { padding-inline:18px; }
+      .feature-chips, .value-grid, .trust-strip { grid-template-columns: 1fr; }
+      .trust-item { justify-content:flex-start; border-right:0; border-bottom:1px solid #e7edf6; }
+      .trust-item:first-child { border-left:0; }
+      .trust-item:last-child { border-bottom:0; }
+      .value-card { min-height:165px; }
     }
 
     @media (prefers-reduced-motion: reduce) {
-      *, *::before, *::after { transition-duration: .01ms !important; }
+      *, *::before, *::after { animation:none !important; transition-duration:.01ms !important; scroll-behavior:auto !important; }
+      .motion-ready .reveal { opacity:1; transform:none; }
     }
   </style>
 </head>
@@ -299,10 +469,9 @@
           </a>
 
           <nav class="nav" aria-label="주요 메뉴">
+            <a href="#about">제품 소개</a>
             <a href="#features">기능</a>
-            <a href="#pricing">요금제</a>
-            <a href="#customers">고객사</a>
-            <a href="#resources">리소스⌄</a>
+            <a href="#how-it-works">작동 방식</a>
           </nav>
 
           <div class="header-actions">
@@ -313,15 +482,21 @@
           </div>
         </header>
 
-        <div class="hero">
+        <div class="hero" id="about">
           <div class="hero-copy">
+            <p class="eyebrow">DOCUMENT INTELLIGENCE WORKSPACE</p>
             <h1>복잡한 문서를<br>명확한 <strong>실행으로</strong></h1>
             <p>AI가 문서의 핵심을 분석하고,<br>프로젝트와 태스크로 전환해 실행까지 지원합니다.</p>
             <div class="hero-actions">
               <a class="button" href="#start">무료로 시작하기
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
               </a>
-              <a class="button button-outline" href="#features">기능 알아보기</a>
+              <a class="button button-outline" href="#how-it-works">작동 방식 보기</a>
+            </div>
+            <div class="hero-note" aria-label="주요 장점">
+              <span>원문 근거 연결</span>
+              <span>프로젝트별 권한</span>
+              <span>검토 이력 기록</span>
             </div>
           </div>
 
@@ -332,7 +507,14 @@
           </div>
         </div>
 
-        <section class="features-section" id="features">
+        <section class="trust-strip reveal" aria-label="신뢰 기능">
+          <div class="trust-item"><span class="trust-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1.1 1"/><path d="M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7l1.1-1"/></svg></span><span>원문 근거 연결</span></div>
+          <div class="trust-item"><span class="trust-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="m9 15 2 2 4-5"/></svg></span><span>OCR 결과 직접 검수</span></div>
+          <div class="trust-item"><span class="trust-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3 2.7-5 6-5s6 2 6 5"/><circle cx="17" cy="9" r="2.4"/><path d="M16 15c2.5 0 5 1.6 5 5"/></svg></span><span>프로젝트별 팀 권한</span></div>
+          <div class="trust-item"><span class="trust-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><span>검토 이력 기록</span></div>
+        </section>
+
+        <section class="features-section reveal" id="features">
           <h2 class="features-title">Tasqra의 핵심 기능</h2>
           <div class="feature-chips">
             <div class="feature-chip">
@@ -365,7 +547,48 @@
             </div>
           </div>
         </section>
+
+        <section class="value-section reveal" id="how-it-works">
+          <div class="section-heading">
+            <p class="eyebrow">ONE CONNECTED WORKFLOW</p>
+            <h2>문서를 읽는 순간부터 실행까지,<br>하나의 흐름으로 연결합니다.</h2>
+            <p>OCR 검수부터 AI 분석, 태스크 관리와 산출물 생성까지 끊김 없이 이어집니다.</p>
+          </div>
+          <div class="value-grid">
+            <article class="value-card">
+              <span class="value-number">01</span>
+              <h3>문서를 정확하게 읽고</h3>
+              <p>PDF, 이미지, DOCX, HWPX 문서의 텍스트를 추출하고 원문과 나란히 검수합니다.</p>
+            </article>
+            <article class="value-card">
+              <span class="value-number">02</span>
+              <h3>핵심을 구조화하고</h3>
+              <p>AI 분석 결과에서 핵심 요약, 요구사항, 금액과 일정을 프로젝트 정보로 정리합니다.</p>
+            </article>
+            <article class="value-card">
+              <span class="value-number">03</span>
+              <h3>실행까지 연결합니다</h3>
+              <p>승인된 항목을 태스크로 관리하고 검토 결과를 다양한 형식의 산출물로 만듭니다.</p>
+            </article>
+          </div>
+        </section>
       </div>
   </main>
+  <script>
+    document.documentElement.classList.add('motion-ready')
+    const revealElements = document.querySelectorAll('.reveal')
+    if ('IntersectionObserver' in window) {
+      const revealObserver = new IntersectionObserver((entries, observer) => {
+        entries.forEach(entry => {
+          if (!entry.isIntersecting) return
+          entry.target.classList.add('is-visible')
+          observer.unobserve(entry.target)
+        })
+      }, { threshold: 0.14 })
+      revealElements.forEach(element => revealObserver.observe(element))
+    } else {
+      revealElements.forEach(element => element.classList.add('is-visible'))
+    }
+  </script>
 </body>
 </html>
