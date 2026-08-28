@@ -75,18 +75,17 @@
     }
 
     .brand-mark {
-      position: relative;
       display: grid;
       place-items: center;
-      width: 34px;
-      height: 36px;
-      background: var(--blue);
-      clip-path: polygon(25% 5%, 75% 5%, 100% 50%, 75% 95%, 25% 95%, 0 50%);
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+      background: linear-gradient(145deg, #4f8bfb, #2563eb);
       color: #fff;
-      font-size: 17px;
-      font-weight: 900;
-      font-style: italic;
-      text-indent: -2px;
+      font-size: 16px;
+      font-weight: 800;
+      font-style: normal;
+      font-family: Arial, "Helvetica Neue", sans-serif;
     }
 
     .nav {
@@ -246,41 +245,58 @@
       font-weight: 700;
     }
 
+    /* 중앙 허브 아이콘: 바깥(옅게 퍼지는 글로우 2겹) → 흰 원(halo) → 45도 회전한
+       둥근 사각형(스퀄클) 그라디언트 다이아몬드 → 안에서 다시 -45도 되돌려 세운 굵은 T.
+       사용자가 지적한 "로고가 다르다"는 정확히 이 부분(예전엔 이탤릭 T + 육각형)이었다. */
     .core {
       position: relative;
       z-index: 2;
       display: grid;
       place-items: center;
-      width: 136px;
-      height: 136px;
-      border: 1px solid #93c5fd;
-      border-radius: 50%;
-      background: rgba(255, 255, 255, .9);
-      box-shadow:
-        0 0 0 16px rgba(219, 234, 254, .65),
-        0 0 0 32px rgba(239, 246, 255, .72),
-        0 20px 45px rgba(37, 99, 235, .17);
+      width: 210px;
+      height: 210px;
     }
 
-    .core::before {
-      content: "";
+    .core-glow {
       position: absolute;
-      inset: 23px;
-      border-radius: 24px;
-      background: linear-gradient(145deg, #3b82f6, #2563eb);
-      box-shadow: 0 12px 26px rgba(37, 99, 235, .25);
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(96, 165, 250, .38), rgba(96, 165, 250, 0) 70%);
+    }
+
+    .core-glow-outer { width: 210px; height: 210px; opacity: .55; }
+    .core-glow-inner { width: 148px; height: 148px; opacity: .7; }
+
+    .core-halo {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      place-items: center;
+      width: 108px;
+      height: 108px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 18px 40px rgba(37, 99, 235, .18), 0 0 0 1px rgba(219, 234, 254, .7);
+    }
+
+    .core-diamond {
+      display: grid;
+      place-items: center;
+      width: 62px;
+      height: 62px;
+      border-radius: 16px;
+      background: linear-gradient(145deg, #4f8bfb, #2563eb);
+      box-shadow: 0 12px 22px rgba(37, 99, 235, .35);
       transform: rotate(45deg);
     }
 
-    .core span {
-      position: relative;
-      z-index: 1;
+    .core-letter {
+      transform: rotate(-45deg);
       color: #fff;
-      font-size: 50px;
-      font-weight: 900;
-      font-style: italic;
+      font-size: 26px;
+      font-weight: 800;
+      font-style: normal;
+      font-family: Arial, "Helvetica Neue", sans-serif;
       line-height: 1;
-      text-indent: -5px;
     }
 
     .results {
@@ -457,7 +473,13 @@
 
             <div class="arrow" aria-hidden="true">→</div>
 
-            <div class="core" aria-hidden="true"><span>T</span></div>
+            <div class="core" aria-hidden="true">
+              <span class="core-glow core-glow-outer"></span>
+              <span class="core-glow core-glow-inner"></span>
+              <span class="core-halo">
+                <span class="core-diamond"><span class="core-letter">T</span></span>
+              </span>
+            </div>
 
             <div class="results">
               <article class="result-card">
