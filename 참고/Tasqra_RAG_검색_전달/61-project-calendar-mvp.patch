@@ -1,0 +1,642 @@
+diff --git a/backend/app/api/routes/dashboard_router.py b/backend/app/api/routes/dashboard_router.py
+index 981f461..b3f991e 100644
+--- a/backend/app/api/routes/dashboard_router.py
++++ b/backend/app/api/routes/dashboard_router.py
+@@ -1,6 +1,5 @@
+ # =============================================================================
+-# 이 파일의 책임: 프로젝트 핵심 현황 조회 엔드포인트다(DSH-001).
+-#   GET /api/projects/{project_id}/dashboard 하나뿐이다.
++# 이 파일의 책임: 프로젝트 핵심 현황과 프로젝트 캘린더 조회 엔드포인트다.
+ # 다른 파일과의 관계: services/dashboard_service.py 를 부르고
+ #   schemas/dashboard.py 를 돌려준다.
+ # Spring 비교: @RestController + @GetMapping 이다. ProjectAccess 는 인터셉터가
+@@ -24,10 +23,12 @@
+ #   되는 값이라 엔드포인트 전체를 잠그면 과하다.
+ # =============================================================================
+ 
+-from fastapi import APIRouter, Depends, Query
++from datetime import date
++
++from fastapi import APIRouter, Depends, HTTPException, Query
+ 
+ from app.dependencies import ProjectAccess, get_dashboard_service, get_project_access
+-from app.schemas.dashboard import DashboardResponse
++from app.schemas.dashboard import DashboardCalendarResponse, DashboardResponse
+ from app.services.dashboard_service import DashboardService
+ 
+ router = APIRouter(prefix="/api/projects/{project_id}", tags=["dashboard"])
+@@ -45,3 +46,19 @@ def get_dashboard(
+         project_id=access.project.id,
+         recent_limit=recent_limit,
+     )
++
++
++@router.get("/dashboard/calendar", response_model=DashboardCalendarResponse)
++def get_dashboard_calendar(
++    from_: date = Query(alias="from", description="달력 조회 시작일"),
++    to: date = Query(description="달력 조회 종료일"),
++    access: ProjectAccess = Depends(get_project_access),
++    service: DashboardService = Depends(get_dashboard_service),
++) -> DashboardCalendarResponse:
++    if from_ > to:
++        raise HTTPException(status_code=422, detail="조회 시작일은 종료일보다 늦을 수 없습니다.")
++    return service.get_calendar(
++        project_id=access.project.id,
++        starts_on=from_,
++        ends_on=to,
++    )
+diff --git a/backend/app/repositories/dashboard_repository.py b/backend/app/repositories/dashboard_repository.py
+index 1166969..ffa5650 100644
+--- a/backend/app/repositories/dashboard_repository.py
++++ b/backend/app/repositories/dashboard_repository.py
+@@ -1,10 +1,8 @@
+ # =============================================================================
+-# 이 파일의 책임: 대시보드(DSH-001)가 쓸 집계 조회를 담는다. 세기만 하고 판단은
+-#   하지 않는다 — 상태 여러 개를 "처리 중" 으로 묶는 것은
+-#   services/dashboard_service.py 가 한다.
+-# 다른 파일과의 관계: models/document.py 의 Document 와 models/amount.py 의
+-#   AmountItem 을 읽는다. dependencies.py 가 세션을 넣어 만들고
+-#   services/dashboard_service.py 가 쓴다.
++# 이 파일의 책임: 대시보드 집계와 프로젝트 캘린더 조회를 담는다. 집계는 세기만
++#   하고 판단은 services/dashboard_service.py에 두며, 캘린더는 날짜 범위만 거른다.
++# 다른 파일과의 관계: Document·AmountItem·Task·ScheduleItem을 읽는다.
++#   dependencies.py가 세션을 넣어 만들고 dashboard_service.py가 쓴다.
+ # Spring 비교: @Repository 다. group by 로 상태별 건수를 한 번에 받아오는 것은
+ #   JPQL 의 프로젝션 집계 쿼리에 해당한다.
+ #
+@@ -27,11 +25,14 @@
+ 
+ from __future__ import annotations
+ 
+-from sqlalchemy import Select, func, select
++from datetime import date
++
++from sqlalchemy import Select, and_, func, or_, select
+ from sqlalchemy.orm import Session
+ 
+ from app.models.amount import AmountItem
+ from app.models.document import Document
++from app.models.schedule import ScheduleItem
+ from app.models.task import Task
+ 
+ # 승인 대기로 셀 상태. amount_items.decision 의 값이다.
+@@ -126,3 +127,50 @@ class DashboardRepository:
+             .where(Task.project_id == project_id, Task.status != "DONE")
+         )
+         return int(self._db.execute(stmt).scalar_one())
++
++    def list_calendar_tasks(
++        self, *, project_id: int, starts_on: date, ends_on: date
++    ) -> list[Task]:
++        """조회 구간에 마감일이 있는 태스크. 수기·AI 출처와 상태를 가리지 않는다."""
++        stmt: Select = (
++            select(Task)
++            .where(
++                Task.project_id == project_id,
++                Task.due_on >= starts_on,
++                Task.due_on <= ends_on,
++            )
++            .order_by(Task.due_on, Task.id)
++        )
++        return list(self._db.execute(stmt).scalars())
++
++    def list_calendar_schedule_items(
++        self, *, project_id: int, starts_on: date, ends_on: date
++    ) -> list[ScheduleItem]:
++        """조회 구간과 겹치는, 사람이 승인 또는 수정 승인한 일정만 반환한다."""
++        in_range = or_(
++            and_(
++                ScheduleItem.kind == "PERIOD",
++                ScheduleItem.starts_on <= ends_on,
++                ScheduleItem.ends_on >= starts_on,
++            ),
++            and_(
++                ScheduleItem.kind.in_(("MILESTONE", "MEETING")),
++                ScheduleItem.starts_on >= starts_on,
++                ScheduleItem.starts_on <= ends_on,
++            ),
++            and_(
++                ScheduleItem.kind == "DEADLINE",
++                ScheduleItem.ends_on >= starts_on,
++                ScheduleItem.ends_on <= ends_on,
++            ),
++        )
++        stmt: Select = (
++            select(ScheduleItem)
++            .where(
++                ScheduleItem.project_id == project_id,
++                ScheduleItem.decision.in_(("APPROVED", "EDITED")),
++                in_range,
++            )
++            .order_by(ScheduleItem.starts_on, ScheduleItem.ends_on, ScheduleItem.id)
++        )
++        return list(self._db.execute(stmt).scalars())
+diff --git a/backend/app/schemas/dashboard.py b/backend/app/schemas/dashboard.py
+index 77e88c6..e888049 100644
+--- a/backend/app/schemas/dashboard.py
++++ b/backend/app/schemas/dashboard.py
+@@ -1,6 +1,6 @@
+ # =============================================================================
+-# 이 파일의 책임: 프로젝트 핵심 현황(DSH-001) 응답 계약이다. 대시보드가 보여줄
+-#   지표와 최근 문서 목록의 모양을 정한다.
++# 이 파일의 책임: 프로젝트 핵심 현황(DSH-001)과 프로젝트 캘린더 응답 계약이다.
++#   대시보드 지표, 최근 문서, 태스크 마감·승인 일정 항목의 모양을 정한다.
+ # 다른 파일과의 관계: services/dashboard_service.py 가 이 모델을 채워 돌려주고
+ #   api/routes/dashboard_router.py 가 response_model 로 쓴다. 최근 문서 항목은
+ #   models/document.py 의 Document 에서 그대로 만든다(from_attributes).
+@@ -20,7 +20,7 @@
+ 
+ from __future__ import annotations
+ 
+-from datetime import datetime
++from datetime import date, datetime
+ 
+ from pydantic import BaseModel, ConfigDict, Field
+ 
+@@ -79,6 +79,23 @@ class DashboardRecentDocument(BaseModel):
+     created_at: datetime
+ 
+ 
++class DashboardCalendarEvent(BaseModel):
++    """달력 한 칸에 표시할 태스크 마감 또는 승인된 일정."""
++
++    id: str
++    item_type: str
++    source_id: int
++    title: str
++    kind: str
++    starts_on: date | None
++    ends_on: date | None
++    status: str | None = None
++
++
++class DashboardCalendarResponse(BaseModel):
++    items: list[DashboardCalendarEvent] = Field(default_factory=list)
++
++
+ class DashboardResponse(BaseModel):
+     documents: DashboardDocumentCounts
+     # OCR 검수가 필요한 문서 수. review_status 가 PENDING 또는 IN_PROGRESS 다.
+diff --git a/backend/app/services/dashboard_service.py b/backend/app/services/dashboard_service.py
+index 3cfb095..538c894 100644
+--- a/backend/app/services/dashboard_service.py
++++ b/backend/app/services/dashboard_service.py
+@@ -1,7 +1,6 @@
+ # =============================================================================
+-# 이 파일의 책임: 프로젝트 핵심 현황(DSH-001)을 만든다. 리포지토리가 세어 준
+-#   상태 분포를 화면이 쓰는 묶음(처리 중 · 완료 · 실패)으로 접고, 문서 유형
+-#   분포를 보여줄 순서로 정렬하고, 응답 스키마로 바꾼다.
++# 이 파일의 책임: 프로젝트 핵심 현황(DSH-001)과 프로젝트 캘린더 조회 결과를
++#   만든다. 집계 상태를 화면 묶음으로 접고, 태스크와 일정을 공통 DTO로 합친다.
+ # 다른 파일과의 관계: repositories/dashboard_repository.py 로 조회하고 응답 계약은
+ #   schemas/dashboard.py 다. api/routes/dashboard_router.py 가 부른다.
+ # Spring 비교: @Service 다. 상태 묶기 규칙이 이 계층에 있는 것은
+@@ -26,10 +25,13 @@
+ from __future__ import annotations
+ 
+ import logging
++from datetime import date
+ 
+ from app.models.enums import DocumentStatus, ReviewStatus
+ from app.repositories.dashboard_repository import DashboardRepository
+ from app.schemas.dashboard import (
++    DashboardCalendarEvent,
++    DashboardCalendarResponse,
+     DashboardDocumentCounts,
+     DashboardDocumentTypeCount,
+     DashboardRecentDocument,
+@@ -106,6 +108,50 @@ class DashboardService:
+             ],
+         )
+ 
++    def get_calendar(
++        self, *, project_id: int, starts_on: date, ends_on: date
++    ) -> DashboardCalendarResponse:
++        """태스크 마감과 승인된 일정을 월간 달력용 공통 계약으로 합친다."""
++        tasks = self._dashboard.list_calendar_tasks(
++            project_id=project_id, starts_on=starts_on, ends_on=ends_on
++        )
++        schedules = self._dashboard.list_calendar_schedule_items(
++            project_id=project_id, starts_on=starts_on, ends_on=ends_on
++        )
++        items = [
++            DashboardCalendarEvent(
++                id=f"task:{task.id}",
++                item_type="TASK",
++                source_id=task.id,
++                title=task.title,
++                kind="TASK_DUE",
++                starts_on=task.due_on,
++                ends_on=task.due_on,
++                status=task.status,
++            )
++            for task in tasks
++        ]
++        items.extend(
++            DashboardCalendarEvent(
++                id=f"schedule:{schedule.id}",
++                item_type="SCHEDULE",
++                source_id=schedule.id,
++                title=schedule.title,
++                kind=schedule.kind,
++                starts_on=schedule.starts_on,
++                ends_on=schedule.ends_on,
++            )
++            for schedule in schedules
++        )
++        items.sort(
++            key=lambda item: (
++                item.starts_on or item.ends_on or date.max,
++                item.item_type,
++                item.source_id,
++            )
++        )
++        return DashboardCalendarResponse(items=items)
++
+ 
+ # --- 집계 (순수 함수) --------------------------------------------------------
+ #
+diff --git a/frontend/src/api/dashboard.js b/frontend/src/api/dashboard.js
+index 4ba8274..4af8726 100644
+--- a/frontend/src/api/dashboard.js
++++ b/frontend/src/api/dashboard.js
+@@ -1,6 +1,6 @@
+ // =============================================================================
+-// 이 파일의 책임: 프로젝트 핵심 현황 API(DSH-001) 호출을 감싼다.
+-//   화면(DashboardView)은 axios 나 경로를 모르고 이 함수만 부른다.
++// 이 파일의 책임: 프로젝트 핵심 현황과 프로젝트 캘린더 API 호출을 감싼다.
++//   화면은 axios나 URL 계약을 모르고 이 파일의 함수만 부른다.
+ // 다른 파일과의 관계: api/http.js 의 공통 인스턴스를 쓴다 — 토큰 첨부와 401
+ //   재발급이 거기 인터셉터에 있다. 응답 필드 이름은 서버와 같은 snake_case
+ //   그대로 둔다(프로젝트 합의).
+@@ -33,3 +33,11 @@ export async function getDashboard(projectId, { recentLimit = 5 } = {}) {
+   })
+   return data
+ }
++
++// 태스크 마감과 승인된 일정의 통합 월간 조회. from/to는 달력 그리드의 양 끝이다.
++export async function getDashboardCalendar(projectId, { from, to }) {
++  const { data } = await http.get(`/api/projects/${projectId}/dashboard/calendar`, {
++    params: { from, to },
++  })
++  return data
++}
+diff --git a/frontend/src/features/board/BoardView.jsx b/frontend/src/features/board/BoardView.jsx
+index cc42fee..61fe50c 100644
+--- a/frontend/src/features/board/BoardView.jsx
++++ b/frontend/src/features/board/BoardView.jsx
+@@ -1,5 +1,13 @@
+-import { useState } from 'react'
++// =============================================================================
++// 이 파일의 책임: 프로젝트 태스크를 상태별 보드와 기존 상세 편집 흐름으로 보여준다.
++// 다른 파일과의 관계: api/task.js로 CRUD하고, 대시보드 캘린더의 task_id를 받아
++//   해당 태스크의 기존 TaskDialog를 연다.
++// Spring 비교: 태스크 목록 Controller와 편집 View를 합친 화면 컴포넌트다.
++// =============================================================================
++
++import { useEffect, useRef, useState } from 'react'
+ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
++import { useSearchParams } from 'react-router-dom'
+ import { createTask, deleteTask, listTaskActivity, listTasks, updateTask } from '../../api/task'
+ import PageHeading from '../../components/common/PageHeading'
+ import { splitAutoNote } from '../../utils/taskNote'
+@@ -10,6 +18,8 @@ const TYPE_LABELS = { DEVELOPMENT: '개발', DESIGN: '디자인', INFRA: '인프
+ 
+ export default function BoardView({ projectId, members, canEdit, notify }) {
+   const queryClient = useQueryClient()
++  const [searchParams, setSearchParams] = useSearchParams()
++  const openedTaskIdRef = useRef(null)
+   const tasksKey = ['projects', projectId, 'tasks']
+   const activityKey = ['projects', projectId, 'task-activity']
+   const tasksQuery = useQuery({ queryKey: tasksKey, queryFn: () => listTasks(projectId) })
+@@ -24,7 +34,7 @@ export default function BoardView({ projectId, members, canEdit, notify }) {
+       queryClient.setQueryData(tasksKey, current => editingTask?.id ? current?.map(task => task.id === saved.id ? saved : task) : [saved, ...(current ?? [])])
+       notify('success', editingTask?.id ? '태스크 수정 완료' : '태스크 생성 완료', `${saved.title} 태스크를 저장했습니다.`)
+       queryClient.invalidateQueries({ queryKey: activityKey })
+-      setEditingTask(null)
++      closeEditingTask()
+     },
+     onError: error => notify('error', '태스크 저장 실패', error.message),
+   })
+@@ -58,6 +68,23 @@ export default function BoardView({ projectId, members, canEdit, notify }) {
+   })
+   const tasks = tasksQuery.data ?? []
+ 
++  useEffect(() => {
++    const requestedTaskId = Number(searchParams.get('task_id'))
++    if (!tasksQuery.isSuccess || !Number.isInteger(requestedTaskId) || openedTaskIdRef.current === requestedTaskId) return
++    const requestedTask = tasks.find(task => task.id === requestedTaskId)
++    if (!requestedTask) return
++    openedTaskIdRef.current = requestedTaskId
++    setEditingTask(requestedTask)
++  }, [searchParams, tasks, tasksQuery.isSuccess])
++
++  function closeEditingTask() {
++    setEditingTask(null)
++    if (!searchParams.has('task_id')) return
++    const next = new URLSearchParams(searchParams)
++    next.delete('task_id')
++    setSearchParams(next, { replace: true })
++  }
++
+   function startDragging(event, task) {
+     if (!canEdit || statusMutation.isPending) { event.preventDefault(); return }
+     event.dataTransfer.effectAllowed = 'move'
+@@ -82,7 +109,7 @@ export default function BoardView({ projectId, members, canEdit, notify }) {
+       const activeDrop = canEdit && draggingTaskId && dragOverStatus === status
+       return <section key={status} className={`task-column task-column-${status.toLowerCase()}${activeDrop ? ' is-drag-over' : ''}`} onDragOver={event => { if (canEdit) { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; setDragOverStatus(status) } }} onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget)) setDragOverStatus(null) }} onDrop={event => dropTask(event, status)}><header><div><h2>{label}</h2><span>{columnTasks.length}</span></div></header>{columnTasks.length ? <div className='task-card-list'>{columnTasks.map(task => <TaskCard key={task.id} task={task} canEdit={canEdit} dragging={draggingTaskId === task.id} onDragStart={event => startDragging(event, task)} onDragEnd={() => { setDraggingTaskId(null); setDragOverStatus(null) }} onEdit={() => setEditingTask(task)} onDelete={() => setDeletingTask(task)}/>)}</div> : <p className='task-column-empty'>{activeDrop ? '여기에 놓아 상태를 변경합니다.' : '등록된 태스크가 없습니다.'}</p>}</section>
+     })}</div>}
+-    {editingTask && <TaskDialog task={editingTask} members={members} pending={saveMutation.isPending} onClose={() => setEditingTask(null)} onSubmit={values => saveMutation.mutate(values)}/>}
++    {editingTask && <TaskDialog task={editingTask} members={members} readOnly={!canEdit} pending={saveMutation.isPending} onClose={closeEditingTask} onSubmit={values => saveMutation.mutate(values)}/>}
+     {deletingTask && <DeleteDialog task={deletingTask} pending={deleteMutation.isPending} onClose={() => setDeletingTask(null)} onDelete={() => deleteMutation.mutate(deletingTask)}/>}
+     {activityOpen && <ActivityDialog projectId={projectId} onClose={() => setActivityOpen(false)}/>}
+   </>
+@@ -109,7 +136,7 @@ function TaskDescription({ text }) {
+   </>
+ }
+ 
+-function TaskDialog({ task, members, pending, onClose, onSubmit }) {
++function TaskDialog({ task, members, readOnly, pending, onClose, onSubmit }) {
+   const now = new Date()
+   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+   const [title, setTitle] = useState(task.title ?? '')
+@@ -121,10 +148,20 @@ function TaskDialog({ task, members, pending, onClose, onSubmit }) {
+   const [titleError, setTitleError] = useState('')
+   function submit(event) {
+     event.preventDefault()
++    if (readOnly) return
+     if (!title.trim()) { setTitleError('태스크 제목을 입력해 주세요.'); return }
+     onSubmit({ title: title.trim(), description: description.trim() || null, type, status, assignee_id: assigneeId ? Number(assigneeId) : null, due_on: dueOn || null })
+   }
+-  return <div className='dialog-backdrop' onMouseDown={event => event.target === event.currentTarget && !pending && onClose()}><form className='project-dialog task-dialog' onSubmit={submit} role='dialog' aria-modal='true' aria-labelledby='task-dialog-title'><header><div><p className='eyebrow'>ACTION TASK</p><h2 id='task-dialog-title'>{task.id ? '태스크 수정' : '새 태스크 만들기'}</h2></div><button type='button' className='dialog-close' onClick={onClose} disabled={pending}>×</button></header><label>제목<input autoFocus value={title} maxLength='300' aria-invalid={Boolean(titleError)} onChange={event => { setTitle(event.target.value); setTitleError('') }}/>{titleError && <small className='field-error'>{titleError}</small>}</label><label>설명<textarea rows='4' value={description} onChange={event => setDescription(event.target.value)}/></label><div className='task-dialog-grid'><label>유형<select value={type} onChange={event => setType(event.target.value)}>{Object.entries(TYPE_LABELS).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><label>상태<select value={status} onChange={event => setStatus(event.target.value)}>{COLUMNS.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label></div><div className='task-dialog-grid'><label>담당자<select value={assigneeId} onChange={event => setAssigneeId(event.target.value)}><option value=''>담당자 미정</option>{members.map(member => <option key={member.user_id} value={member.user_id}>{member.name}</option>)}</select></label><label>마감일<input type='date' min={today} value={dueOn} onChange={event => setDueOn(event.target.value)}/></label></div><footer><button type='button' onClick={onClose} disabled={pending}>취소</button><button className='primary' disabled={pending}>{pending ? '저장 중...' : '저장'}</button></footer></form></div>
++  return <div className='dialog-backdrop' onMouseDown={event => event.target === event.currentTarget && !pending && onClose()}>
++    <form className='project-dialog task-dialog' onSubmit={submit} role='dialog' aria-modal='true' aria-labelledby='task-dialog-title'>
++      <header><div><p className='eyebrow'>ACTION TASK</p><h2 id='task-dialog-title'>{readOnly ? '태스크 상세' : task.id ? '태스크 수정' : '새 태스크 만들기'}</h2></div><button type='button' className='dialog-close' onClick={onClose} disabled={pending}>×</button></header>
++      <label>제목<input autoFocus={!readOnly} disabled={readOnly} value={title} maxLength='300' aria-invalid={Boolean(titleError)} onChange={event => { setTitle(event.target.value); setTitleError('') }}/>{titleError && <small className='field-error'>{titleError}</small>}</label>
++      <label>설명<textarea disabled={readOnly} rows='4' value={description} onChange={event => setDescription(event.target.value)}/></label>
++      <div className='task-dialog-grid'><label>유형<select disabled={readOnly} value={type} onChange={event => setType(event.target.value)}>{Object.entries(TYPE_LABELS).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><label>상태<select disabled={readOnly} value={status} onChange={event => setStatus(event.target.value)}>{COLUMNS.map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label></div>
++      <div className='task-dialog-grid'><label>담당자<select disabled={readOnly} value={assigneeId} onChange={event => setAssigneeId(event.target.value)}><option value=''>담당자 미정</option>{members.map(member => <option key={member.user_id} value={member.user_id}>{member.name}</option>)}</select></label><label>마감일<input disabled={readOnly} type='date' min={today} value={dueOn} onChange={event => setDueOn(event.target.value)}/></label></div>
++      <footer><button type='button' onClick={onClose} disabled={pending}>{readOnly ? '닫기' : '취소'}</button>{!readOnly && <button className='primary' disabled={pending}>{pending ? '저장 중...' : '저장'}</button>}</footer>
++    </form>
++  </div>
+ }
+ 
+ function DeleteDialog({ task, pending, onClose, onDelete }) {
+diff --git a/frontend/src/features/dashboard/DashboardView.jsx b/frontend/src/features/dashboard/DashboardView.jsx
+index 3d491e9..290edde 100644
+--- a/frontend/src/features/dashboard/DashboardView.jsx
++++ b/frontend/src/features/dashboard/DashboardView.jsx
+@@ -1,7 +1,6 @@
+ // =============================================================================
+-// 이 파일의 책임: 프로젝트 핵심 현황 화면이다(DSH-001). 지표 카드 · 문서 유형
+-//   분포 · OCR 검수 필요 목록 · 최근 문서를 보여주고, 각 항목에서 관련 화면으로
+-//   이동시킨다.
++// 이 파일의 책임: 프로젝트 핵심 현황 화면이다(DSH-001). 지표 카드 · 프로젝트
++//   캘린더 · 문서 유형 분포 · OCR 검수 필요 목록 · 최근 문서를 보여준다.
+ // 다른 파일과의 관계: api/dashboard.js 로 집계를 받는다. OCR 검수 목록 항목만
+ //   상위(WorkspacePage → useWorkspaceData)가 넘겨준 documents 를 쓴다.
+ //   표기는 utils/documentStatus.js · utils/documentType.js 를 쓴다.
+@@ -22,6 +21,7 @@
+ import { useQuery } from '@tanstack/react-query'
+ import { useNavigate } from 'react-router-dom'
+ import { getDashboard } from '../../api/dashboard'
++import ProjectCalendar from './ProjectCalendar'
+ import { listTasks } from '../../api/task'
+ import PageHeading from '../../components/common/PageHeading'
+ import { getDocumentStatus, getReviewStatus } from '../../utils/documentStatus'
+@@ -90,6 +90,8 @@ export default function DashboardView({ projectId, documents }) {
+       <ActionTaskPanel tasks={tasksQuery.data ?? []} loading={tasksQuery.isPending} onOpenBoard={() => navigate(`/projects/${projectId}/board`)}/>
+     </div>
+ 
++    <ProjectCalendar projectId={projectId}/>
++
+     <div className='dashboard-distribution-grid'><DocumentTypePanel types={data?.document_types} total={counts?.total} loaded={Boolean(data)} onOpenType={goDocumentsByType}/><ProcessingStatusPanel counts={counts} loaded={Boolean(data)} onOpen={goDocuments}/></div>
+ 
+     <section className='panel dashboard-recent-panel'>
+diff --git a/frontend/src/features/dashboard/ProjectCalendar.jsx b/frontend/src/features/dashboard/ProjectCalendar.jsx
+new file mode 100644
+index 0000000..5adc1b1
+--- /dev/null
++++ b/frontend/src/features/dashboard/ProjectCalendar.jsx
+@@ -0,0 +1,154 @@
++// =============================================================================
++// 이 파일의 책임: 프로젝트 태스크 마감과 승인된 일정을 합친 월간 달력을 그린다.
++// 다른 파일과의 관계: api/dashboard.js의 통합 조회를 쓰고, DashboardView 안에
++//   배치된다. 태스크는 기존 보드 상세 흐름으로 보내고 일정은 이 화면에서 본다.
++// Spring 비교: 서버 DTO를 달력 뷰 모델로 표현하는 MVC View에 해당한다.
++// =============================================================================
++
++import { useMemo, useState } from 'react'
++import { useQuery } from '@tanstack/react-query'
++import { useNavigate } from 'react-router-dom'
++import { getDashboardCalendar } from '../../api/dashboard'
++
++const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토']
++const KIND_LABELS = {
++  TASK_DUE: '태스크 마감',
++  MEETING: '회의',
++  MILESTONE: '주요 시점',
++  DEADLINE: '외부 기한',
++  PERIOD: '기간',
++}
++const TASK_STATUS_LABELS = { TODO: '할 일', IN_PROGRESS: '진행 중', DONE: '완료' }
++
++export default function ProjectCalendar({ projectId }) {
++  const navigate = useNavigate()
++  const [month, setMonth] = useState(() => startOfMonth(new Date()))
++  const [selectedDate, setSelectedDate] = useState(() => toDateKey(new Date()))
++  const [selectedEvent, setSelectedEvent] = useState(null)
++  const days = useMemo(() => calendarDays(month), [month])
++  const from = toDateKey(days[0])
++  const to = toDateKey(days.at(-1))
++  const calendarQuery = useQuery({
++    queryKey: ['projects', projectId, 'calendar', from, to],
++    queryFn: () => getDashboardCalendar(projectId, { from, to }),
++  })
++  const items = calendarQuery.data?.items ?? []
++  const selectedItems = items.filter(item => occursOn(item, selectedDate))
++  const monthStart = toDateKey(startOfMonth(month))
++  const monthEnd = toDateKey(new Date(month.getFullYear(), month.getMonth() + 1, 0))
++  const hasMonthItems = items.some(item => overlaps(item, monthStart, monthEnd))
++
++  function moveMonth(offset) {
++    const next = new Date(month.getFullYear(), month.getMonth() + offset, 1)
++    setMonth(next)
++    setSelectedDate(toDateKey(next))
++    setSelectedEvent(null)
++  }
++  function goToday() {
++    const today = new Date()
++    setMonth(startOfMonth(today))
++    setSelectedDate(toDateKey(today))
++    setSelectedEvent(null)
++  }
++  function selectDate(dateKey) {
++    setSelectedDate(dateKey)
++    setSelectedEvent(null)
++  }
++  function openItem(item, dateKey = selectedDate) {
++    if (item.item_type === 'TASK') {
++      navigate(`/projects/${projectId}/board?task_id=${item.source_id}`)
++      return
++    }
++    setSelectedDate(dateKey)
++    setSelectedEvent(item)
++  }
++
++  return <section className='panel project-calendar' aria-labelledby='project-calendar-title'>
++    <div className='project-calendar__head'>
++      <div><h2 id='project-calendar-title'>프로젝트 캘린더</h2><p>태스크 마감과 승인된 주요 일정을 함께 봅니다.</p></div>
++      <div className='project-calendar__controls'>
++        <button type='button' onClick={() => moveMonth(-1)} aria-label='이전 달'>‹</button>
++        <strong aria-live='polite'>{month.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long' })}</strong>
++        <button type='button' onClick={() => moveMonth(1)} aria-label='다음 달'>›</button>
++        <button type='button' className='project-calendar__today' onClick={goToday}>오늘</button>
++      </div>
++    </div>
++
++    {calendarQuery.isError && <div className='project-calendar__notice' role='alert'><span><strong>캘린더를 불러오지 못했습니다.</strong><small>{calendarQuery.error?.message}</small></span><button type='button' onClick={() => calendarQuery.refetch()}>다시 시도</button></div>}
++
++    <div className='project-calendar__layout'>
++      <div className='project-calendar__month' aria-busy={calendarQuery.isPending}>
++        <div className='project-calendar__weekdays' aria-hidden='true'>{WEEKDAYS.map(day => <span key={day}>{day}</span>)}</div>
++        <div className='project-calendar__grid'>
++          {days.map(day => {
++            const dateKey = toDateKey(day)
++            const dayItems = items.filter(item => occursOn(item, dateKey))
++            const outside = day.getMonth() !== month.getMonth()
++            const selected = dateKey === selectedDate
++            const today = dateKey === toDateKey(new Date())
++            return <div className={`project-calendar__day${outside ? ' is-outside' : ''}${selected ? ' is-selected' : ''}${today ? ' is-today' : ''}`} key={dateKey}>
++              <button type='button' className='project-calendar__date' aria-pressed={selected} onClick={() => selectDate(dateKey)}><span>{day.getDate()}</span>{today && <small>오늘</small>}</button>
++              <div className='project-calendar__events'>
++                {dayItems.slice(0, 3).map(item => <button type='button' className={`project-calendar__event is-${item.item_type.toLowerCase()}`} title={item.title} onClick={() => openItem(item, dateKey)} key={item.id}><span>{KIND_LABELS[item.kind] ?? item.kind}</span><b>{item.title}</b></button>)}
++                {dayItems.length > 3 && <button type='button' className='project-calendar__more' onClick={() => selectDate(dateKey)}>+{dayItems.length - 3}개 더 보기</button>}
++              </div>
++            </div>
++          })}
++        </div>
++        {calendarQuery.isPending && <div className='project-calendar__loading' role='status'>캘린더를 불러오는 중입니다.</div>}
++        {calendarQuery.isSuccess && !hasMonthItems && <p className='project-calendar__month-empty'>이 달에 표시할 태스크 마감이나 승인된 일정이 없습니다.</p>}
++      </div>
++
++      <aside className='project-calendar__detail' aria-label='선택한 날짜의 항목'>
++        <header><span>{formatDate(selectedDate)}</span><strong>{selectedItems.length}개 항목</strong></header>
++        {selectedItems.length > 0
++          ? <ul>{selectedItems.map(item => <li key={item.id}><button type='button' className={selectedEvent?.id === item.id ? 'is-active' : ''} onClick={() => openItem(item)}><span>{item.item_type === 'TASK' ? '태스크' : '일정'} · {KIND_LABELS[item.kind] ?? item.kind}</span><strong>{item.title}</strong><small>{item.item_type === 'TASK' ? TASK_STATUS_LABELS[item.status] ?? item.status : formatEventDate(item)}</small></button></li>)}</ul>
++          : <div className='project-calendar__empty'><strong>이 날짜에는 항목이 없습니다.</strong><p>마감일이 있는 태스크나 승인된 일정이 생기면 자동으로 표시됩니다.</p></div>}
++        {selectedEvent && <div className='project-calendar__schedule-detail'>
++          <span>일정 · {KIND_LABELS[selectedEvent.kind] ?? selectedEvent.kind}</span>
++          <h3>{selectedEvent.title}</h3>
++          <dl><div><dt>날짜</dt><dd>{formatEventDate(selectedEvent)}</dd></div><div><dt>상태</dt><dd>승인 완료</dd></div></dl>
++        </div>}
++      </aside>
++    </div>
++  </section>
++}
++
++function startOfMonth(value) {
++  return new Date(value.getFullYear(), value.getMonth(), 1)
++}
++
++function calendarDays(month) {
++  const first = startOfMonth(month)
++  const firstCell = new Date(first.getFullYear(), first.getMonth(), 1 - first.getDay())
++  return Array.from({ length: 42 }, (_, index) => new Date(firstCell.getFullYear(), firstCell.getMonth(), firstCell.getDate() + index))
++}
++
++function toDateKey(value) {
++  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`
++}
++
++function eventPrimaryDate(item) {
++  return item.kind === 'DEADLINE' ? item.ends_on : item.starts_on
++}
++
++function occursOn(item, dateKey) {
++  if (item.kind === 'PERIOD') return Boolean(item.starts_on && item.ends_on && item.starts_on <= dateKey && dateKey <= item.ends_on)
++  return eventPrimaryDate(item) === dateKey
++}
++
++function overlaps(item, startsOn, endsOn) {
++  if (item.kind === 'PERIOD') return Boolean(item.starts_on && item.ends_on && item.starts_on <= endsOn && item.ends_on >= startsOn)
++  const date = eventPrimaryDate(item)
++  return Boolean(date && startsOn <= date && date <= endsOn)
++}
++
++function formatDate(dateKey) {
++  const [year, month, day] = dateKey.split('-').map(Number)
++  return new Date(year, month - 1, day).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })
++}
++
++function formatEventDate(item) {
++  if (item.kind === 'PERIOD') return `${item.starts_on} ~ ${item.ends_on}`
++  return eventPrimaryDate(item) ?? '날짜 미정'
++}
+diff --git a/frontend/src/styles/workspace.css b/frontend/src/styles/workspace.css
+index 561b172..dabba03 100644
+--- a/frontend/src/styles/workspace.css
++++ b/frontend/src/styles/workspace.css
+@@ -178,3 +178,62 @@
+   }
+   .workspace-content { margin-left: 280px; }
+ }
++
++/* 프로젝트 캘린더: 태스크 마감과 승인된 일정의 읽기 전용 월간 조회 */
++.project-calendar { margin-top: 18px; }
++.project-calendar__head { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 18px; }
++.project-calendar__head h2 { margin: 0; color: #202b3e; font-size: 20px; }
++.project-calendar__head p { margin: 6px 0 0; color: #758197; font-size: 13px; }
++.project-calendar__controls { display: flex; align-items: center; gap: 8px; }
++.project-calendar__controls button { min-width: 36px; min-height: 36px; border: 1px solid #d2d9e7; border-radius: 8px; background: #fff; color: #3f4b60; font: inherit; font-weight: 750; cursor: pointer; }
++.project-calendar__controls strong { min-width: 108px; color: #202b3e; text-align: center; }
++.project-calendar__controls .project-calendar__today { padding: 0 12px; color: #4a43ae; }
++.project-calendar__controls button:hover, .project-calendar__controls button:focus-visible { border-color: #756de8; background: #f5f4ff; }
++.project-calendar__notice { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 14px; padding: 13px 15px; border: 1px solid #e8c9c9; border-radius: 10px; background: #fdf6f6; }
++.project-calendar__notice span, .project-calendar__notice small { display: block; }
++.project-calendar__notice small { margin-top: 4px; color: #7d6a6a; }
++.project-calendar__notice button { padding: 8px 11px; border: 1px solid #d9bcbc; border-radius: 8px; background: #fff; color: #8a3d3d; font-weight: 750; cursor: pointer; }
++.project-calendar__layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; align-items: start; }
++.project-calendar__month { position: relative; min-width: 0; overflow-x: auto; }
++.project-calendar__weekdays, .project-calendar__grid { min-width: 720px; }
++.project-calendar__weekdays { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border: 1px solid #dce3ee; border-bottom: 0; border-radius: 10px 10px 0 0; background: #f7f8fc; }
++.project-calendar__weekdays span { padding: 9px; color: #65748a; font-size: 12px; font-weight: 800; text-align: center; }
++.project-calendar__grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-top: 1px solid #dce3ee; border-left: 1px solid #dce3ee; }
++.project-calendar__day { min-height: 124px; padding: 7px; border-right: 1px solid #dce3ee; border-bottom: 1px solid #dce3ee; background: #fff; }
++.project-calendar__day.is-outside { background: #f8f9fc; }
++.project-calendar__day.is-selected { box-shadow: inset 0 0 0 2px #5d55c7; }
++.project-calendar__date { display: flex; width: 100%; min-height: 28px; padding: 0 2px; align-items: center; justify-content: space-between; border: 0; background: transparent; color: #36435a; font: inherit; font-weight: 750; cursor: pointer; }
++.project-calendar__date small { color: #5148c8; font-size: 10px; }
++.project-calendar__day.is-outside .project-calendar__date { color: #9ba5b4; }
++.project-calendar__events { display: grid; gap: 4px; margin-top: 4px; }
++.project-calendar__event, .project-calendar__more { width: 100%; min-width: 0; padding: 5px 6px; overflow: hidden; border: 1px solid #d9dfeb; border-radius: 6px; background: #f7f8fc; color: #445168; text-align: left; cursor: pointer; }
++.project-calendar__event span { display: block; color: #65748a; font-size: 9px; font-weight: 850; }
++.project-calendar__event b { display: block; margin-top: 2px; overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
++.project-calendar__event.is-task { border-left: 3px solid #5148c8; background: #f5f4ff; }
++.project-calendar__event.is-schedule { border-left: 3px solid #65748a; background: #f5f7fa; }
++.project-calendar__more { border: 0; background: transparent; color: #5d55c7; font-size: 10px; font-weight: 750; text-align: center; }
++.project-calendar__loading, .project-calendar__month-empty { margin: 12px 0 0; padding: 12px; border: 1px dashed #cbd4e2; border-radius: 9px; color: #69778b; font-size: 13px; text-align: center; }
++.project-calendar__detail { min-height: 360px; padding: 16px; border: 1px solid #dce3ee; border-radius: 12px; background: #fafbfe; }
++.project-calendar__detail > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid #e2e7ef; }
++.project-calendar__detail > header span { color: #202b3e; font-weight: 800; }
++.project-calendar__detail > header strong { color: #65748a; font-size: 12px; }
++.project-calendar__detail ul { display: grid; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
++.project-calendar__detail li button { width: 100%; padding: 11px; border: 1px solid #dce3ee; border-radius: 9px; background: #fff; text-align: left; cursor: pointer; }
++.project-calendar__detail li button:hover, .project-calendar__detail li button:focus-visible, .project-calendar__detail li button.is-active { border-color: #756de8; background: #f5f4ff; }
++.project-calendar__detail li span, .project-calendar__detail li strong, .project-calendar__detail li small { display: block; }
++.project-calendar__detail li span { color: #65748a; font-size: 10px; font-weight: 800; }
++.project-calendar__detail li strong { margin-top: 5px; color: #273247; }
++.project-calendar__detail li small { margin-top: 6px; color: #758197; }
++.project-calendar__empty { display: grid; min-height: 250px; place-items: center; align-content: center; text-align: center; }
++.project-calendar__empty strong { color: #36435a; }
++.project-calendar__empty p { margin: 8px 0 0; color: #758197; font-size: 12px; line-height: 1.6; }
++.project-calendar__schedule-detail { margin-top: 14px; padding: 14px; border-top: 3px solid #65748a; border-radius: 9px; background: #fff; }
++.project-calendar__schedule-detail > span { color: #65748a; font-size: 11px; font-weight: 800; }
++.project-calendar__schedule-detail h3 { margin: 7px 0 12px; color: #202b3e; font-size: 16px; }
++.project-calendar__schedule-detail dl, .project-calendar__schedule-detail dl div { margin: 0; }
++.project-calendar__schedule-detail dl { display: grid; gap: 7px; }
++.project-calendar__schedule-detail dl div { display: grid; grid-template-columns: 54px 1fr; gap: 8px; font-size: 12px; }
++.project-calendar__schedule-detail dt { color: #758197; }
++.project-calendar__schedule-detail dd { margin: 0; color: #36435a; font-weight: 700; }
++@media (max-width: 1100px) { .project-calendar__layout { grid-template-columns: 1fr; } .project-calendar__detail { min-height: 240px; } }
++@media (max-width: 680px) { .project-calendar__head { align-items: flex-start; flex-direction: column; } .project-calendar__controls { width: 100%; flex-wrap: wrap; } .project-calendar__controls strong { flex: 1; } .project-calendar__controls .project-calendar__today { width: 100%; } .project-calendar__notice { align-items: flex-start; flex-direction: column; } .project-calendar__notice button { width: 100%; } }
