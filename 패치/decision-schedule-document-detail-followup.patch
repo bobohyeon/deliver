@@ -1,0 +1,477 @@
+diff --git a/backend/app/api/routes/decision_schedule_router.py b/backend/app/api/routes/decision_schedule_router.py
+index cb87486..06b3e1a 100644
+--- a/backend/app/api/routes/decision_schedule_router.py
++++ b/backend/app/api/routes/decision_schedule_router.py
+@@ -33,29 +33,38 @@ router = APIRouter(prefix="/api/projects/{project_id}", tags=["decision-schedule
+ @router.get("/decisions", response_model=DecisionListResponse)
+ def list_decisions(
+     limit: int = Query(200, ge=1, le=500),
++    document_id: int | None = Query(None, ge=1, description="특정 문서의 결정사항만 조회"),
+     access: ProjectAccess = Depends(get_project_access),
+     service: DecisionScheduleReviewService = Depends(get_decision_schedule_review_service),
+ ) -> DecisionListResponse:
+     """승인 또는 수정 승인된 결정사항만 돌려준다."""
+-    return service.list_decisions(access.project.id, APPROVED_DECISIONS, limit)
++    return service.list_decisions(
++        access.project.id, APPROVED_DECISIONS, limit, document_id
++    )
+ 
+ 
+ @router.get("/decisions/pending", response_model=DecisionListResponse)
+ def list_pending_decisions(
+     limit: int = Query(200, ge=1, le=500),
++    document_id: int | None = Query(None, ge=1, description="특정 문서의 항목만 조회"),
+     access: ProjectAccess = Depends(get_project_access),
+     service: DecisionScheduleReviewService = Depends(get_decision_schedule_review_service),
+ ) -> DecisionListResponse:
+-    return service.list_decisions(access.project.id, ("PENDING",), limit)
++    return service.list_decisions(
++        access.project.id, ("PENDING",), limit, document_id
++    )
+ 
+ 
+ @router.get("/decisions/rejected", response_model=DecisionListResponse)
+ def list_rejected_decisions(
+     limit: int = Query(200, ge=1, le=500),
++    document_id: int | None = Query(None, ge=1, description="특정 문서의 항목만 조회"),
+     access: ProjectAccess = Depends(get_project_access),
+     service: DecisionScheduleReviewService = Depends(get_decision_schedule_review_service),
+ ) -> DecisionListResponse:
+-    return service.list_decisions(access.project.id, ("REJECTED",), limit)
++    return service.list_decisions(
++        access.project.id, ("REJECTED",), limit, document_id
++    )
+ 
+ 
+ @router.patch("/decisions/{item_id}", response_model=DecisionRow)
+@@ -103,29 +112,38 @@ def cancel_decision(
+ @router.get("/schedule-items", response_model=ScheduleItemListResponse)
+ def list_schedule_items(
+     limit: int = Query(200, ge=1, le=500),
++    document_id: int | None = Query(None, ge=1, description="특정 문서의 항목만 조회"),
+     access: ProjectAccess = Depends(get_project_access),
+     service: DecisionScheduleReviewService = Depends(get_decision_schedule_review_service),
+ ) -> ScheduleItemListResponse:
+     """승인 또는 수정 승인된 일정·기한만 돌려준다."""
+-    return service.list_schedule_items(access.project.id, APPROVED_DECISIONS, limit)
++    return service.list_schedule_items(
++        access.project.id, APPROVED_DECISIONS, limit, document_id
++    )
+ 
+ 
+ @router.get("/schedule-items/pending", response_model=ScheduleItemListResponse)
+ def list_pending_schedule_items(
+     limit: int = Query(200, ge=1, le=500),
++    document_id: int | None = Query(None, ge=1, description="특정 문서의 항목만 조회"),
+     access: ProjectAccess = Depends(get_project_access),
+     service: DecisionScheduleReviewService = Depends(get_decision_schedule_review_service),
+ ) -> ScheduleItemListResponse:
+-    return service.list_schedule_items(access.project.id, ("PENDING",), limit)
++    return service.list_schedule_items(
++        access.project.id, ("PENDING",), limit, document_id
++    )
+ 
+ 
+ @router.get("/schedule-items/rejected", response_model=ScheduleItemListResponse)
+ def list_rejected_schedule_items(
+     limit: int = Query(200, ge=1, le=500),
++    document_id: int | None = Query(None, ge=1, description="특정 문서의 항목만 조회"),
+     access: ProjectAccess = Depends(get_project_access),
+     service: DecisionScheduleReviewService = Depends(get_decision_schedule_review_service),
+ ) -> ScheduleItemListResponse:
+-    return service.list_schedule_items(access.project.id, ("REJECTED",), limit)
++    return service.list_schedule_items(
++        access.project.id, ("REJECTED",), limit, document_id
++    )
+ 
+ 
+ @router.patch("/schedule-items/{item_id}", response_model=ScheduleItemRow)
+diff --git a/backend/app/repositories/decision_schedule_repository.py b/backend/app/repositories/decision_schedule_repository.py
+index a4586d6..c315641 100644
+--- a/backend/app/repositories/decision_schedule_repository.py
++++ b/backend/app/repositories/decision_schedule_repository.py
+@@ -81,12 +81,18 @@ class DecisionScheduleRepository:
+         return (row[0], row[1], row[2]) if row else None
+ 
+     def list_decisions(
+-        self, project_id: int, decisions: tuple[str, ...], limit: int
++        self,
++        project_id: int,
++        decisions: tuple[str, ...],
++        limit: int,
++        document_id: int | None = None,
+     ) -> tuple[list[tuple[Decision, str | None, int | None]], int]:
+-        filters = (
++        filters = [
+             Decision.project_id == project_id,
+             Decision.decision.in_(decisions),
+-        )
++        ]
++        if document_id is not None:
++            filters.append(Decision.document_id == document_id)
+         total = int(
+             self._db.scalar(select(func.count(Decision.id)).where(*filters)) or 0
+         )
+@@ -109,12 +115,18 @@ class DecisionScheduleRepository:
+         )
+ 
+     def list_schedule_items(
+-        self, project_id: int, decisions: tuple[str, ...], limit: int
++        self,
++        project_id: int,
++        decisions: tuple[str, ...],
++        limit: int,
++        document_id: int | None = None,
+     ) -> tuple[list[tuple[ScheduleItem, str | None, int | None]], int]:
+-        filters = (
++        filters = [
+             ScheduleItem.project_id == project_id,
+             ScheduleItem.decision.in_(decisions),
+-        )
++        ]
++        if document_id is not None:
++            filters.append(ScheduleItem.document_id == document_id)
+         total = int(
+             self._db.scalar(select(func.count(ScheduleItem.id)).where(*filters)) or 0
+         )
+diff --git a/backend/app/services/decision_schedule_review_service.py b/backend/app/services/decision_schedule_review_service.py
+index 00e2e02..9cafdd2 100644
+--- a/backend/app/services/decision_schedule_review_service.py
++++ b/backend/app/services/decision_schedule_review_service.py
+@@ -32,9 +32,15 @@ class DecisionScheduleReviewService:
+         self._repository = repository
+ 
+     def list_decisions(
+-        self, project_id: int, decisions: tuple[str, ...], limit: int
++        self,
++        project_id: int,
++        decisions: tuple[str, ...],
++        limit: int,
++        document_id: int | None = None,
+     ) -> DecisionListResponse:
+-        rows, total = self._repository.list_decisions(project_id, decisions, limit)
++        rows, total = self._repository.list_decisions(
++            project_id, decisions, limit, document_id
++        )
+         items = [self._decision_row(*row) for row in rows]
+         return DecisionListResponse(
+             items=items,
+@@ -46,9 +52,15 @@ class DecisionScheduleReviewService:
+         )
+ 
+     def list_schedule_items(
+-        self, project_id: int, decisions: tuple[str, ...], limit: int
++        self,
++        project_id: int,
++        decisions: tuple[str, ...],
++        limit: int,
++        document_id: int | None = None,
+     ) -> ScheduleItemListResponse:
+-        rows, total = self._repository.list_schedule_items(project_id, decisions, limit)
++        rows, total = self._repository.list_schedule_items(
++            project_id, decisions, limit, document_id
++        )
+         items = [self._schedule_row(*row) for row in rows]
+         return ScheduleItemListResponse(
+             items=items,
+@@ -102,6 +114,10 @@ class DecisionScheduleReviewService:
+     def cancel_decision(self, project_id: int, item_id: int) -> DecisionRow:
+         item, filename, current_revision = self._get_decision(project_id, item_id)
+         with transactional(self._db):
++            if item.decision == "REJECTED":
++                filename, current_revision = self._lock_current_source(
++                    project_id, item, filename, current_revision
++                )
+             self._cancel(item)
+         return self._decision_row(item, filename, current_revision)
+ 
+@@ -118,6 +134,10 @@ class DecisionScheduleReviewService:
+     def cancel_schedule_item(self, project_id: int, item_id: int) -> ScheduleItemRow:
+         item, filename, current_revision = self._get_schedule_item(project_id, item_id)
+         with transactional(self._db):
++            if item.decision == "REJECTED":
++                filename, current_revision = self._lock_current_source(
++                    project_id, item, filename, current_revision
++                )
+             self._cancel(item)
+         return self._schedule_row(item, filename, current_revision)
+ 
+diff --git a/frontend/src/api/decisionSchedule.js b/frontend/src/api/decisionSchedule.js
+index 906ecbf..ecd910f 100644
+--- a/frontend/src/api/decisionSchedule.js
++++ b/frontend/src/api/decisionSchedule.js
+@@ -1,16 +1,18 @@
+ // =============================================================================
+-// 이 파일의 책임: 결정사항·일정 제안의 목록과 승인·수정·거절·취소 API를 감싼다.
+-// 다른 파일과의 관계: DecisionScheduleReviewView가 호출하고 http.js가 인증·공통
+-//   오류 형식을 처리한다. 서버 응답의 snake_case는 그대로 유지한다.
++// 이 파일의 책임: 결정사항·일정 제안의 문서별 목록과 승인·수정·거절·취소 API를 감싼다.
++// 다른 파일과의 관계: 문서 상세 분석 탭의 DecisionScheduleReviewPanel이 호출하고
++//   http.js가 인증·공통 오류 형식을 처리한다. snake_case 응답은 그대로 유지한다.
+ // Spring 비교: RestTemplate/WebClient를 감싼 화면 전용 Gateway다.
+ // =============================================================================
+ 
+ import { http } from './http'
+ 
+-async function getList(projectId, resource, state, limit = 200) {
++async function getList(projectId, resource, state, { limit = 200, documentId } = {}) {
+   const suffix = state ? `/${state}` : ''
++  const params = { limit }
++  if (documentId !== undefined && documentId !== null) params.document_id = documentId
+   const { data } = await http.get(`/api/projects/${projectId}/${resource}${suffix}`, {
+-    params: { limit },
++    params,
+   })
+   return data
+ }
+@@ -31,11 +33,11 @@ async function patchItem(projectId, resource, itemId, changes) {
+ }
+ 
+ export const getDecisions = (projectId, options) =>
+-  getList(projectId, 'decisions', '', options?.limit)
++  getList(projectId, 'decisions', '', options)
+ export const getPendingDecisions = (projectId, options) =>
+-  getList(projectId, 'decisions', 'pending', options?.limit)
++  getList(projectId, 'decisions', 'pending', options)
+ export const getRejectedDecisions = (projectId, options) =>
+-  getList(projectId, 'decisions', 'rejected', options?.limit)
++  getList(projectId, 'decisions', 'rejected', options)
+ export const approveDecision = (projectId, itemId) =>
+   postAction(projectId, 'decisions', itemId, 'approve')
+ export const rejectDecision = (projectId, itemId) =>
+@@ -46,11 +48,11 @@ export const updateDecision = (projectId, itemId, changes) =>
+   patchItem(projectId, 'decisions', itemId, changes)
+ 
+ export const getScheduleItems = (projectId, options) =>
+-  getList(projectId, 'schedule-items', '', options?.limit)
++  getList(projectId, 'schedule-items', '', options)
+ export const getPendingScheduleItems = (projectId, options) =>
+-  getList(projectId, 'schedule-items', 'pending', options?.limit)
++  getList(projectId, 'schedule-items', 'pending', options)
+ export const getRejectedScheduleItems = (projectId, options) =>
+-  getList(projectId, 'schedule-items', 'rejected', options?.limit)
++  getList(projectId, 'schedule-items', 'rejected', options)
+ export const approveScheduleItem = (projectId, itemId) =>
+   postAction(projectId, 'schedule-items', itemId, 'approve')
+ export const rejectScheduleItem = (projectId, itemId) =>
+diff --git a/frontend/src/features/decision-schedule/DecisionScheduleReviewView.css b/frontend/src/features/decision-schedule/DecisionScheduleReviewView.css
+index 8ef4a8f..60fd693 100644
+--- a/frontend/src/features/decision-schedule/DecisionScheduleReviewView.css
++++ b/frontend/src/features/decision-schedule/DecisionScheduleReviewView.css
+@@ -1,7 +1,12 @@
+-/* 결정·일정 검토 화면. 흑백 무채색만 사용해 상태는 문구·선·채움으로 구분한다. */
+-.review-readonly { margin: 0 0 16px; padding: 12px 14px; border: 1px solid #b8b8b8; background: #f5f5f5; color: #333; }
+-.review-resource-list { display: grid; gap: 20px; }
+-.review-resource { padding: 0; overflow: hidden; border: 1px solid #d1d1d1; background: #fff; }
++/* 문서 상세 분석 탭의 결정·일정 검토 패널. 기존 상세 카드 위계에 맞춘다. */
++.decision-schedule-panel { display: grid; gap: 14px; margin-top: 24px; }
++.decision-schedule-panel__heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding: 18px 20px; border: 1px solid #d1d1d1; border-bottom: 2px solid #111; background: #fff; }
++.decision-schedule-panel__heading span { color: #666; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
++.decision-schedule-panel__heading h2 { margin: 5px 0 0; color: #111; font-size: 18px; }
++.decision-schedule-panel__heading p { margin: 7px 0 0; color: #555; }
++.decision-schedule-panel__heading > strong { padding: 4px 8px; border: 1px solid #999; border-radius: 999px; color: #333; font-size: 11px; white-space: nowrap; }
++.review-resource-list { display: grid; gap: 14px; }
++.detail-card.review-resource { padding: 0; overflow: hidden; border: 1px solid #d1d1d1; background: #fff; }
+ .review-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 20px 22px; border-bottom: 2px solid #111; }
+ .review-heading h2, .review-group h3, .review-edit h4 { margin: 0; color: #111; }
+ .review-heading p { margin: 6px 0 0; color: #555; }
+@@ -39,7 +44,7 @@
+ .review-edit p { margin: 0; color: #555; font-size: 12px; }
+ .review-edit > div { display: flex; gap: 8px; }
+ @media (max-width: 760px) {
+-  .review-heading, .review-card, .review-group-heading { align-items: stretch; flex-direction: column; }
++  .decision-schedule-panel__heading, .review-heading, .review-card, .review-group-heading { align-items: stretch; flex-direction: column; }
+   .review-heading dl { justify-content: flex-start; }
+   .review-heading dl div { text-align: left; }
+   .review-actions { width: 100%; }
+diff --git a/frontend/src/features/decision-schedule/DecisionScheduleReviewView.jsx b/frontend/src/features/decision-schedule/DecisionScheduleReviewView.jsx
+index b9a9be1..6cba22a 100644
+--- a/frontend/src/features/decision-schedule/DecisionScheduleReviewView.jsx
++++ b/frontend/src/features/decision-schedule/DecisionScheduleReviewView.jsx
+@@ -1,8 +1,9 @@
+ // =============================================================================
+-// 이 파일의 책임: 결정사항·일정 제안의 승인 대기, 승인됨, 거절함을 한 화면에서 검토한다.
+-// 다른 파일과의 관계: api/decisionSchedule.js를 React Query로 호출하고, 변경 뒤
+-//   대시보드와 산출물 미리보기 query까지 무효화해 count/list를 다시 받는다.
+-// Spring 비교: 서버 DTO를 표시하고 Controller API를 호출하는 MVC View 계층이다.
++// 이 파일의 책임: 문서 상세의 분석 결과 탭 안에서 그 문서의 결정사항·일정을 검토한다.
++// 다른 파일과의 관계: api/decisionSchedule.js를 문서 ID로 조회하고, 상태 변경 뒤
++//   문서별 검토 목록·대시보드·산출물 미리보기 query를 무효화한다.
++// Spring 비교: 문서 상세 Controller가 조립하는 하위 View이며, 서버 DTO를 표시하고
++//   결정사항·일정 Controller API를 호출한다.
+ // =============================================================================
+ 
+ import { useState } from 'react'
+@@ -24,7 +25,6 @@ import {
+   updateScheduleItem,
+ } from '../../api/decisionSchedule'
+ import ConfirmDialog from '../../components/common/ConfirmDialog'
+-import PageHeading from '../../components/common/PageHeading'
+ import './DecisionScheduleReviewView.css'
+ 
+ const DECISION_LABELS = {
+@@ -63,53 +63,59 @@ const RESOURCES = [
+   },
+ ]
+ 
+-export default function DecisionScheduleReviewView({ projectId, canEdit, notify }) {
+-  return <>
+-    <PageHeading
+-      eyebrow='REVIEW'
+-      title='결정·일정'
+-      description='승인하거나 수정 승인한 항목만 산출물에 반영됩니다.'
+-    />
+-    {!canEdit && <p className='review-readonly'>VIEWER는 내용을 볼 수 있지만 승인 상태를 바꿀 수 없습니다.</p>}
++export default function DecisionScheduleReviewPanel({ projectId, documentId, canEdit, notify }) {
++  return <section className='decision-schedule-panel' aria-label='이 문서에서 추출한 결정사항과 일정'>
++    <header className='decision-schedule-panel__heading'>
++      <div>
++        <span>AI 추출 결과</span>
++        <h2>결정사항·일정 검토</h2>
++        <p>이 문서에서 추출한 항목입니다. 승인하거나 수정 승인한 항목만 산출물에 반영됩니다.</p>
++      </div>
++      {!canEdit && <strong>읽기 전용</strong>}
++    </header>
+     <div className='review-resource-list'>
+       {RESOURCES.map(resource => <ReviewSection
+         key={resource.key}
+         resource={resource}
+         projectId={projectId}
++        documentId={documentId}
+         canEdit={canEdit}
+         notify={notify}
+       />)}
+     </div>
+-  </>
++  </section>
+ }
+ 
+-function ReviewSection({ resource, projectId, canEdit, notify }) {
++function ReviewSection({ resource, projectId, documentId, canEdit, notify }) {
+   const queryClient = useQueryClient()
+   const [editing, setEditing] = useState(null)
+   const [rejectTarget, setRejectTarget] = useState(null)
+   const [rejectedOpen, setRejectedOpen] = useState(false)
+   const baseKey = `${resource.key}-review`
+   const approvedQuery = useQuery({
+-    queryKey: ['projects', projectId, baseKey, 'approved'],
+-    queryFn: () => resource.getApproved(projectId),
++    queryKey: ['projects', projectId, 'documents', documentId, baseKey, 'approved'],
++    queryFn: () => resource.getApproved(projectId, { documentId }),
+     retry: false,
+   })
+   const pendingQuery = useQuery({
+-    queryKey: ['projects', projectId, baseKey, 'pending'],
+-    queryFn: () => resource.getPending(projectId),
++    queryKey: ['projects', projectId, 'documents', documentId, baseKey, 'pending'],
++    queryFn: () => resource.getPending(projectId, { documentId }),
+     retry: false,
+   })
+   const rejectedQuery = useQuery({
+-    queryKey: ['projects', projectId, baseKey, 'rejected'],
+-    queryFn: () => resource.getRejected(projectId),
++    queryKey: ['projects', projectId, 'documents', documentId, baseKey, 'rejected'],
++    queryFn: () => resource.getRejected(projectId, { documentId }),
+     retry: false,
+   })
+ 
+   const invalidate = () => {
+-    queryClient.invalidateQueries({ queryKey: ['projects', projectId, baseKey] })
+-    queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'dashboard'] })
+-    queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'deliverable-preview'] })
+-    queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'deliverable-content'] })
++    const workspaceProjectId = Number(projectId)
++    queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'documents', documentId, baseKey] })
++    queryClient.invalidateQueries({ queryKey: ['projects', workspaceProjectId, 'dashboard'] })
++    queryClient.invalidateQueries({ queryKey: ['projects', workspaceProjectId, 'deliverable-preview'] })
++    if (resource.key === 'schedule') {
++      queryClient.invalidateQueries({ queryKey: ['projects', workspaceProjectId, 'calendar'] })
++    }
+   }
+ 
+   const actionMutation = useMutation({
+@@ -143,7 +149,7 @@ function ReviewSection({ resource, projectId, canEdit, notify }) {
+   const rejectedRows = rejectedQuery.data?.items ?? []
+   const busyId = actionMutation.isPending ? actionMutation.variables?.row.id : null
+ 
+-  return <section className='panel review-resource' aria-label={resource.title}>
++  return <section className='detail-card review-resource' aria-label={resource.title}>
+     <div className='review-heading'>
+       <div><h2>{resource.title}</h2><p>{resource.description}</p></div>
+       <dl>
+diff --git a/frontend/src/features/projects/ProjectSidebar.jsx b/frontend/src/features/projects/ProjectSidebar.jsx
+index 24a4a5a..6943266 100644
+--- a/frontend/src/features/projects/ProjectSidebar.jsx
++++ b/frontend/src/features/projects/ProjectSidebar.jsx
+@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
+ //   · TABS = 주소로 들어왔을 때 허용되는 곳 (없으면 대시보드로 되돌린다)
+ // 한쪽만 고치면 **에러 없이** 어긋난다 — 여기만 넣으면 눌러도 대시보드로
+ // 튕기고, TABS 에만 넣으면 주소를 직접 쳐야 들어갈 수 있다.
+-const PROJECT_MENUS = [['dashboard','dashboard','대시보드'],['documents','document','문서'],['search','search','검색'],['board','board','보드'],['amounts','amount','금액'],['decisions','decision','결정·일정'],['deliverables','deliverable','산출물'],['settings','settings','설정']]
++const PROJECT_MENUS = [['dashboard','dashboard','대시보드'],['documents','document','문서'],['search','search','검색'],['board','board','보드'],['amounts','amount','금액'],['deliverables','deliverable','산출물'],['settings','settings','설정']]
+ 
+ export default function ProjectSidebar({ projects, activeProjectId, activeTab, onSelect, onNavigateTab, onCreate }) {
+   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('tasqra-rail-collapsed') === '1')
+@@ -34,7 +34,6 @@ function Icon({ name }) {
+   if(name==='deliverable') return <svg {...common}><path d="M3 16V9m4.7 7V4.5M12.3 16v-5M17 16V7"/></svg>
+   // 금액은 원화 기호(₩)로 둔다 — 동전·지폐 그림은 16px 에서 뭉개진다.
+   if(name==='amount') return <svg {...common}><path d="M5.6 5l2.4 5 2-3.4 2 3.4 2.4-5"/><path d="M3.6 11.4h12.8M3.6 14h12.8"/></svg>
+-  if(name==='decision') return <svg {...common}><path d="M4 3.5h12v13H4z"/><path d="m6.5 9 2 2 5-5M6.5 14h7"/></svg>
+   if(name==='board') return <svg {...common}><rect x="2.5" y="3" width="4.5" height="14" rx="1.2"/><rect x="8.7" y="3" width="4.5" height="9" rx="1.2"/><rect x="14.9" y="3" width="2.6" height="12" rx="1.2"/></svg>
+   if(name==='settings') return <svg {...common}><circle cx="10" cy="10" r="2.6"/><path d="M10 2.6v2M10 15.4v2M2.6 10h2M15.4 10h2M4.8 4.8l1.4 1.4M13.8 13.8l1.4 1.4M15.2 4.8l-1.4 1.4M6.2 13.8l-1.4 1.4"/></svg>
+   return <svg {...common}><path d="M12 5l-5 5 5 5"/></svg>
+diff --git a/frontend/src/pages/DocumentDetailPage.jsx b/frontend/src/pages/DocumentDetailPage.jsx
+index 9ef227c..8af1d67 100644
+--- a/frontend/src/pages/DocumentDetailPage.jsx
++++ b/frontend/src/pages/DocumentDetailPage.jsx
+@@ -19,6 +19,7 @@ import DocumentContentTab from '../features/document-detail/DocumentContentTab'
+ import DocumentHeader from '../features/document-detail/DocumentHeader'
+ import DocumentHistoryTab from '../features/document-detail/DocumentHistoryTab'
+ import DocumentReviewTab from '../features/document-detail/DocumentReviewTab'
++import DecisionScheduleReviewPanel from '../features/decision-schedule/DecisionScheduleReviewView'
+ import ProjectSidebar from '../features/projects/ProjectSidebar'
+ import { useProjectsQuery } from '../hooks/useProjectsQuery'
+ import '../styles/document-detail-page.css'
+@@ -84,7 +85,10 @@ export default function DocumentDetailPage({ user, onLogout, notify }) {
+         {jobQuery.error && <p role="alert">분석 상태 조회 실패: {jobQuery.error.message}</p>}
+         {activeTab === 'content' && <DocumentContentTab document={document}/>}
+         {activeTab === 'review' && <DocumentReviewTab document={document} onOpenReview={() => navigate(`/projects/${projectId}/documents/${documentId}/review`, { state: { documentListUrl } })}/>}
+-        {activeTab === 'analysis' && <DocumentAnalysisTab document={document} canAnalyze={canEdit} analyzing={analyzeMutation.isPending || analysisRunning} onAnalyze={() => analyzeMutation.mutate()} downloading={summaryDownloadMutation.isPending} onDownload={() => summaryDownloadMutation.mutate()}/>}
++        {activeTab === 'analysis' && <>
++          <DocumentAnalysisTab document={document} canAnalyze={canEdit} analyzing={analyzeMutation.isPending || analysisRunning} onAnalyze={() => analyzeMutation.mutate()} downloading={summaryDownloadMutation.isPending} onDownload={() => summaryDownloadMutation.mutate()}/>
++          <DecisionScheduleReviewPanel projectId={projectId} documentId={documentId} canEdit={canEdit} notify={notify}/>
++        </>}
+         {activeTab === 'history' && <DocumentHistoryTab projectId={projectId} document={document}/>}
+       </main>
+     </div></div>
+diff --git a/frontend/src/pages/WorkspacePage.jsx b/frontend/src/pages/WorkspacePage.jsx
+index 9c3095a..658b12a 100644
+--- a/frontend/src/pages/WorkspacePage.jsx
++++ b/frontend/src/pages/WorkspacePage.jsx
+@@ -16,7 +16,6 @@ import BoardView from '../features/board/BoardView'
+ import AmountSummaryView from '../features/amount/AmountSummaryView'
+ import DashboardView from '../features/dashboard/DashboardView'
+ import DeliverablesView from '../features/deliverables/DeliverablesView'
+-import DecisionScheduleReviewView from '../features/decision-schedule/DecisionScheduleReviewView'
+ import DocumentsView from '../features/documents/DocumentsView'
+ import DocumentUploadModal from '../features/documents/DocumentUploadModal'
+ import MembersView from '../features/members/MembersView'
+@@ -39,7 +38,7 @@ import '../styles/workspace.css'
+ // PROJECT_MENUS 다. 거기가 사이드바에서 눌러 들어가는 목록이고, 이 배열은
+ // 주소로 들어왔을 때 허용하는 목록이다(없으면 대시보드로 되돌린다).
+ // 셋 중 하나를 빠뜨리면 에러 없이 어긋난다.
+-const TABS = [['dashboard','대시보드'],['documents','문서'],['search','검색'],['board','보드'],['amounts','금액'],['decisions','결정·일정'],['deliverables','산출물'],['settings','설정']]
++const TABS = [['dashboard','대시보드'],['documents','문서'],['search','검색'],['board','보드'],['amounts','금액'],['deliverables','산출물'],['settings','설정']]
+ const DOCUMENT_STATES = new Set(['PROCESSING', 'REVIEW_REQUIRED', 'COMPLETED', 'FAILED'])
+ 
+ export default function WorkspacePage({ user, onLogout, notify }) {
+@@ -184,9 +183,6 @@ function TabContent({ tab, project, data, documentType, documentState, onDocumen
+   // 문서가 21건 이상이면 조용히 틀린다(대시보드에서 겪은 것과 같은 함정).
+   // notify 는 만들기가 아직 준비 중임을 알리는 데 쓴다.
+   if (tab === 'deliverables') return <DeliverablesView projectId={project.id} notify={notify}/>
+-  // 결정·일정 검토도 자체 API 목록을 쓴다. 승인·수정 결과는 산출물 조회가
+-  // APPROVED·EDITED만 다시 세므로 화면에서 별도로 count를 계산하지 않는다.
+-  if (tab === 'decisions') return <DecisionScheduleReviewView projectId={project.id} canEdit={canEdit} notify={notify}/>
+   // 금액도 워크스페이스 데이터를 쓰지 않는다. 합계는 서버가 내므로(AMT-002-2)
+   // 화면에 넘어온 문서 목록으로 다시 세거나 더하지 않는다.
+   if (tab === 'amounts') return <AmountSummaryView projectId={project.id} notify={notify}/>
