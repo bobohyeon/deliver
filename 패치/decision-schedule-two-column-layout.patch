@@ -1,0 +1,57 @@
+diff --git a/frontend/src/pages/DocumentDetailPage.jsx b/frontend/src/pages/DocumentDetailPage.jsx
+index f6ec8f4..02124ab 100644
+--- a/frontend/src/pages/DocumentDetailPage.jsx
++++ b/frontend/src/pages/DocumentDetailPage.jsx
+@@ -85,10 +85,10 @@ export default function DocumentDetailPage({ user, onLogout, notify }) {
+         {jobQuery.error && <p role="alert">분석 상태 조회 실패: {jobQuery.error.message}</p>}
+         {activeTab === 'content' && <DocumentContentTab document={document}/>}
+         {activeTab === 'review' && <DocumentReviewTab document={document} onOpenReview={() => navigate(`/projects/${projectId}/documents/${documentId}/review`, { state: { documentListUrl } })}/>}
+-        {activeTab === 'analysis' && <>
++        {activeTab === 'analysis' && <div className="document-analysis-layout">
+           <DocumentAnalysisTab document={document} canAnalyze={canEdit} analyzing={analyzeMutation.isPending || analysisRunning} onAnalyze={() => analyzeMutation.mutate()} downloading={summaryDownloadMutation.isPending} onDownload={() => summaryDownloadMutation.mutate()}/>
+           <DecisionScheduleReviewPanel projectId={projectId} documentId={documentId} canEdit={canEdit} notify={notify}/>
+-        </>}
++        </div>}
+         {activeTab === 'history' && <DocumentHistoryTab projectId={projectId} document={document}/>}
+       </main>
+     </div></div>
+diff --git a/frontend/src/styles/document-detail-updates.css b/frontend/src/styles/document-detail-updates.css
+index ebe809e..f256d1f 100644
+--- a/frontend/src/styles/document-detail-updates.css
++++ b/frontend/src/styles/document-detail-updates.css
+@@ -133,3 +133,35 @@
+ @media (max-width: 760px) { .document-header-statuses { width: 100%; } .document-page-actions { align-items: stretch; } }
+ .document-processing-error { color: #b32f40 !important; font-weight: 650; }
+ .document-page-actions .retry-processing { border-color: #8ba2dc; background: #edf2ff; color: #3654a5; font-weight: 750; }
++
++
++/* 분석 결과는 목업처럼 기존 요약·분류와 추출 액션 아이템을 나란히 배치한다. */
++.document-analysis-layout {
++  display: grid;
++  grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr);
++  align-items: start;
++  gap: 16px;
++}
++
++.document-analysis-layout > * {
++  min-width: 0;
++}
++
++.document-analysis-layout > .decision-schedule-panel {
++  margin-top: 0;
++}
++
++.document-analysis-layout .analysis-results,
++.document-analysis-layout .review-card-main {
++  overflow-wrap: anywhere;
++}
++
++@media (max-width: 1340px) {
++  .document-analysis-layout {
++    grid-template-columns: minmax(0, 1fr);
++  }
++
++  .document-analysis-layout > .decision-schedule-panel {
++    margin-top: 24px;
++  }
++}
