@@ -1,0 +1,12 @@
+diff --git a/frontend/src/features/documents/DocumentsView.css b/frontend/src/features/documents/DocumentsView.css
+--- a/frontend/src/features/documents/DocumentsView.css
++++ b/frontend/src/features/documents/DocumentsView.css
+@@ -73,7 +73,7 @@
+ 
+ /* 문서 상태·다음 행동을 우선 배치하는 목록 보완 */
+ .panel-head > div > p { margin: 4px 0 0; color: #758197; font-size: 13px; }
+-.document-list .document-row { position: relative; display: grid; grid-template-columns: minmax(0, 2fr) 220px 190px 220px; gap: 14px; align-items: center; padding: 14px 16px; }
++.document-list .document-row { position: relative; display: grid; grid-template-columns: minmax(0, 2fr) 220px 190px 240px; gap: 14px; align-items: center; padding: 14px 16px; }
+ .document-main-action { display: flex; min-width: 0; align-items: center; gap: 11px; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+ .document-main-action:hover strong, .document-main-action:focus-visible strong { color: #5148c8; text-decoration: underline; text-underline-offset: 3px; }
+ .document-primary-copy { min-width: 0; }
