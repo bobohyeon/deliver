@@ -7,7 +7,8 @@
 - 기준 커밋: `32eabfc4caf4582f173887d71a59fe4dfbb4e360`
 - 최초 패치: `frontend-redesign-portfolio-dashboard.patch`
 - 1차 교정 전체 패치: `frontend-redesign-portfolio-dashboard-v2.patch`
-- 최신 후속 교정 전체 패치: `frontend-redesign-portfolio-dashboard-v3.patch`
+- 2차 교정 전체 패치: `frontend-redesign-portfolio-dashboard-v3.patch`
+- 최신 후속 교정 전체 패치: `frontend-redesign-portfolio-dashboard-v4.patch`
 
 ## v2 포함 내용
 
@@ -30,4 +31,13 @@
 - 문서 목록의 `추가 문서가 있나요?` 안내 섹션 제거
 - 문서 유형 8종과 미분류 배지에 서로 다른 색 적용
 
-이미 v2 패치를 적용한 작업 트리에서는 v2를 역적용한 뒤 v3 전체 패치를 적용한다. 팀 레포의 커밋과 푸시는 사용자가 검증 후 직접 수행한다.
+## v4 추가 교정
+
+- 901~1180px 구간에서 깨지던 문서 목록과 전체 프로젝트 대시보드 배치를 단계별 반응형 구조로 교정
+- 모바일 문서 카드에서도 문서 유형·상태·상세/검수 액션을 계속 표시
+- 어두운 사이드바의 `전체 프로젝트` hover 배경·글자 대비 교정
+- 상단 헤더를 현재 위치 breadcrumb, 기능 도구, 사용자 영역으로 재구성하고 900px 이하 메뉴를 drawer로 통일
+- 프론트의 `처리 완료`와 `추출 완료` 집계를 `추출 완료` 한 범주로 통합
+- 문서 유형 수정 직후 산출물 미리보기 캐시를 갱신해 최신 한국어 유형명이 반영되도록 교정
+
+이미 v3 패치를 적용한 작업 트리에서는 v3를 역적용한 뒤 v4 전체 패치를 적용한다. 팀 레포의 커밋과 푸시는 사용자가 검증 후 직접 수행한다.
