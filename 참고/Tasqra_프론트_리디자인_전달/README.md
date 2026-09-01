@@ -6,7 +6,8 @@
 - 대상 브랜치: `fix/document-type-user-correction`
 - 기준 커밋: `32eabfc4caf4582f173887d71a59fe4dfbb4e360`
 - 최초 패치: `frontend-redesign-portfolio-dashboard.patch`
-- 교정 반영 전체 패치: `frontend-redesign-portfolio-dashboard-v2.patch`
+- 1차 교정 전체 패치: `frontend-redesign-portfolio-dashboard-v2.patch`
+- 최신 후속 교정 전체 패치: `frontend-redesign-portfolio-dashboard-v3.patch`
 
 ## v2 포함 내용
 
@@ -20,4 +21,13 @@
 - 신규 문서 유형 8종 및 레거시 `BILLING` → `ETC` 읽기 호환
 - 프로젝트 수에 비례하던 대시보드 요청을 단일 포트폴리오 집계 API로 변경
 
-이미 최초 패치를 적용한 작업 트리에서는 최초 패치를 역적용한 뒤 v2 전체 패치를 적용한다. 팀 레포의 커밋과 푸시는 사용자가 검증 후 직접 수행한다.
+## v3 추가 교정
+
+- LLM 개요 생성 중인 산출물 미리보기에 원형 로딩 표시와 예상 대기 안내 추가
+- 산출물 표의 문서 유형을 `RFP`·`REPORT` 코드 대신 한국어 카테고리명으로 표시
+- 전역 프로젝트 목록에 `진행 중`·`보관됨` 상태 토글과 상태별 색 적용
+- 메인 대시보드와 사이드바의 프로젝트명 크기를 2px 확대
+- 문서 목록의 `추가 문서가 있나요?` 안내 섹션 제거
+- 문서 유형 8종과 미분류 배지에 서로 다른 색 적용
+
+이미 v2 패치를 적용한 작업 트리에서는 v2를 역적용한 뒤 v3 전체 패치를 적용한다. 팀 레포의 커밋과 푸시는 사용자가 검증 후 직접 수행한다.
