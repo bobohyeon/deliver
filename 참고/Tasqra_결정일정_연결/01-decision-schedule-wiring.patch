@@ -1,0 +1,1388 @@
+diff --git a/backend/app/ai/client_protocol.py b/backend/app/ai/client_protocol.py
+index 2483551..c34db0d 100644
+--- a/backend/app/ai/client_protocol.py
++++ b/backend/app/ai/client_protocol.py
+@@ -74,6 +74,13 @@ class AIClientProtocol(Protocol):
+     # 판별하지 않아도 되도록 클라이언트 자신이 들고 있는다.
+     provider: str
+ 
++    # 이 클라이언트가 부르는 모델 이름. provider 와 같은 이유로 클라이언트가
++    # 들고 있는다 — 분석기가 구현체를 isinstance 로 캐묻지 않아도 되게 한다.
++    # ⚠️ 응답의 model 필드(AIResult.model_name)가 우선이다. 이 값은 **한 번도
++    #   호출하지 않은 분석**의 기록용이다(예: 문서에 날짜가 없어 모델을 부를
++    #   이유가 없었던 경우). analyses.model_name 이 NOT NULL 이라 필요하다.
++    model_name: str
++
+     # 편의 메서드. 구현체는 generate_with_meta()를 호출해
+     # .text만 반환하는 방식으로 만들어 로직 중복을 피한다.
+     async def generate(self, prompt: AIRequest) -> str:
+diff --git a/backend/app/ai/fake_client.py b/backend/app/ai/fake_client.py
+index 101ffb7..fb61f12 100644
+--- a/backend/app/ai/fake_client.py
++++ b/backend/app/ai/fake_client.py
+@@ -21,6 +21,7 @@ FAKE_DELAY_SECONDS = 0.1
+ 
+ class FakeAIClient(AIClientProtocol):
+     provider = "fake"
++    model_name = FAKE_MODEL_NAME
+ 
+     async def generate(self, prompt: AIRequest) -> str:
+         result = await self.generate_with_meta(prompt)
+@@ -33,7 +34,11 @@ class FakeAIClient(AIClientProtocol):
+ 
+         # 실제 분석으로 오인하지 않도록 fake임을 문장에도 표시한다.
+         data = json.loads(prompt.user)
+-        if 'selected_ids' in prompt.system:
++        if prompt.prompt_version.startswith("decision"):
++            payload = {"decisions": []}
++        elif prompt.prompt_version.startswith("schedule"):
++            payload = {"items": []}
++        elif 'selected_ids' in prompt.system:
+             payload = {"selected_ids": [data["records"][0]["id"]]}
+         elif 'facts' in prompt.system:
+             quote = data.get("document", "").strip()[:120]
+diff --git a/backend/app/ai/local_client.py b/backend/app/ai/local_client.py
+index 12e6162..251fd06 100644
+--- a/backend/app/ai/local_client.py
++++ b/backend/app/ai/local_client.py
+@@ -23,7 +23,7 @@ class LocalAIClient(AIClientProtocol):
+     # model 을 주면 그것을 쓰고, 없으면 settings.AI_MODEL 로 떨어진다.
+     # 요약과 분류가 서로 다른 모델을 쓰기 위한 것이다(config.py 주석 참고).
+     def __init__(self, settings: Settings, model: str | None = None) -> None:
+-        self._model = model or settings.AI_MODEL
++        self._model = self.model_name = model or settings.AI_MODEL
+         self._client = AsyncOpenAI(
+             base_url=settings.AI_BASE_URL,
+             max_retries=0,
+diff --git a/backend/app/ai/openai_client.py b/backend/app/ai/openai_client.py
+index 9a8d642..1518160 100644
+--- a/backend/app/ai/openai_client.py
++++ b/backend/app/ai/openai_client.py
+@@ -25,7 +25,7 @@ class OpenAIClient(AIClientProtocol):
+     # local_client.py 와 같은 이유로 model 을 받는다(config.py 주석 참고).
+     # 안 주면 settings.AI_MODEL 로 떨어진다.
+     def __init__(self, settings: Settings, model: str | None = None) -> None:
+-        self._model = model or settings.AI_MODEL
++        self._model = self.model_name = model or settings.AI_MODEL
+         self._client = AsyncOpenAI(api_key=settings.API_KEY, max_retries=0)
+ 
+     async def generate(self, prompt: AIRequest) -> str:
+diff --git a/backend/app/analyzers/date_finder.py b/backend/app/analyzers/date_finder.py
+new file mode 100644
+index 0000000..7fd506b
+--- /dev/null
++++ b/backend/app/analyzers/date_finder.py
+@@ -0,0 +1,107 @@
++"""원문에서 날짜를 찾는다. LLM 을 쓰지 않는다.
++
++왜 파이썬이 찾는가: 3B 모델은 날짜를 **제목에 적고 날짜 필드는 비워둔다.**
++실측했다 — `date` 타입으로 강제해도, 원문 그대로 받는 문자열로 바꿔도
++채워진 항목이 0/4 와 0/3 이었다. 형식 변환 문제가 아니라 필드를 나눠 채우는
++것 자체를 못 한다.
++
++정규식은 이 일을 완벽하게 한다. 조달청 재공고서에서 10개를 전부 찾았고,
++추출기가 뱉는 `2026.   07.   20` 처럼 공백이 낀 것도 잡는다.
++
++그래서 역할을 나눈다:
++    파이썬  날짜를 찾는다          -> 누락도 환각도 없다
++    모델    무엇의 날짜인지 고른다  -> 3B 가 잘하는 분류 문제
++"""
++from __future__ import annotations
++
++import re
++from dataclasses import dataclass
++from datetime import date
++
++# 공공 문서에 실제로 나오는 형태. 추출기가 공백을 여러 칸 뱉으므로 사이를 허용한다.
++_PATTERNS = (
++    re.compile(r"(\d{4})\s*[./\-]\s*(\d{1,2})\s*[./\-]\s*(\d{1,2})"),
++    re.compile(r"(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일"),
++)
++# 앞쪽을 넉넉히 본다 — 「제안서평가일시: 2026/07/20」처럼 **날짜 앞에** 무슨
++# 날짜인지가 적히기 때문이다. 뒤쪽은 시각과 「~까지」 정도만 필요하다.
++BEFORE, AFTER = 120, 40
++
++# 날짜 **바로 앞**의 「이름:」. 공공 서식은 이 모양이 지배적이다.
++#     ○ 납품기한: 2026/12/10
++#     ·  평가위원질의종료일시   :   2026.   07.   20.
++# 모델은 이 이름을 자주 바꿔 쓴다(「제출시작일시」→「제출 마감」). 여기서 잡히면
++# 그것이 정답이므로 모델에게 짐작시키지 않는다.
++_LABEL = re.compile(
++    r"(?:^|[\n○●◦·∙*■□▪▶〉>\-–—)])\s*"   # 글머리표·닫는 괄호 또는 줄 시작
++    r"(?P<label>[^\n:：]{2,40}?)"           # 이름 (콜론·줄바꿈 없이 2~40자)
++    r"\s*[:：]\s*$"                         # 콜론으로 끝난다
++)
++# 이름처럼 보이지만 아닌 것. 「1) 입찰의 일시 및 장소」 같은 목차 번호가 섞인다.
++_NOT_LABEL = re.compile(r"[.。]\s|다\s*$|습니다|바랍니다")
++
++
++def _label_before(context: str, raw: str) -> str | None:
++    at = context.find(raw)
++    if at < 0:
++        return None
++    found = _LABEL.search(context[:at])
++    if not found:
++        return None
++    label = re.sub(r"\s+", " ", found.group("label")).strip()
++    # context 가 문장 중간에서 잘리면 글머리표가 앞에 남는다(「- 제출기한」).
++    # 화면에 그대로 뜨므로 걷어낸다.
++    label = re.sub(r"^[\s○●◦·∙*■□▪▶〉>\-–—.·]+", "", label).strip()
++    # 문장이 딸려 들어오면 이름이 아니다. 짧게 잘라 쓰느니 모델에게 맡긴다.
++    if not label or _NOT_LABEL.search(label):
++        return None
++    return label
++
++
++@dataclass(frozen=True)
++class FoundDate:
++    id: str          # "d1" — 모델이 이 id 로만 날짜를 가리킬 수 있다
++    at: int          # 원문 위치
++    raw: str         # 원문에 적힌 그대로 ("2026.   07.   20")
++    value: date
++    context: str     # 앞뒤를 잘라낸 문맥
++    label: str | None = None   # 콜론 앞에서 잡은 이름. 없으면 모델이 정한다
++
++    def as_prompt_record(self) -> dict:
++        # ⚠️ label 은 **모델에게 보내지 않는다.** 힌트로 줘 봤더니 오히려 나빠졌다
++        #   (제목에 날짜를 넣거나, 한 가지 이름으로 무너졌다). 모델은 context 만
++        #   보고 판단하게 두고, label 이 있으면 파이썬이 결과를 덮어쓴다.
++        #   schedule_analyzer._build() 를 보라.
++        return {"id": self.id, "date": self.value.isoformat(), "context": self.context}
++
++
++def find_dates(text: str, *, limit: int = 60) -> list[FoundDate]:
++    """원문 순서대로 날짜를 준다. 겹치는 match 는 앞선 것만 남긴다.
++
++    ⚠️ limit 을 두는 이유: 표·이력이 많은 문서는 날짜가 수백 개 나온다. 그대로
++    프롬프트에 실으면 예산을 넘긴다. 넘치면 **앞에서부터** 자른다 — 공고문·
++    과업지시서는 중요한 일정이 앞에 모여 있다.
++    """
++    matches = []
++    for pattern in _PATTERNS:
++        for found in pattern.finditer(text):
++            year, month, day = (int(g) for g in found.groups())
++            try:
++                value = date(year, month, day)
++            except ValueError:
++                continue          # 2026/13/45 같은 것은 날짜가 아니다
++            matches.append((found.start(), found.end(), found.group(0), value))
++
++    matches.sort()
++    dates: list[FoundDate] = []
++    last_end = -1
++    for start, end, raw, value in matches:
++        if start < last_end:
++            continue              # 앞선 match 와 겹친다
++        last_end = end
++        context = text[max(0, start - BEFORE):end + AFTER].replace("\n", " ")
++        dates.append(FoundDate(f"d{len(dates) + 1}", start, raw, value, context,
++                               _label_before(context, raw)))
++        if len(dates) >= limit:
++            break
++    return dates
+diff --git a/backend/app/analyzers/extraction_analyzer.py b/backend/app/analyzers/extraction_analyzer.py
+new file mode 100644
+index 0000000..7f17cfc
+--- /dev/null
++++ b/backend/app/analyzers/extraction_analyzer.py
+@@ -0,0 +1,66 @@
++"""문서 전체를 구간으로 나눠 결정사항을 뽑고 중복을 합친다.
++
++왜 구간을 나누는가: category_analyzer 는 앞·중간·뒤 표본만 본다(sample_input).
++분류는 그것으로 충분하지만 **추출은 아니다** — 표본에 안 들어간 구간의 결정은
++그냥 없어지고, 빠뜨린 것을 사람이 알아챌 방법도 없다. 그래서 summary_analyzer
++처럼 전체를 덮는다.
++
++왜 요약처럼 근거 인용을 요구하지 않는가: 결정사항은 사람이 승인하기 전까지
++PENDING 제안으로만 남는다(DecisionScheduleWriter). 승인 화면이 곧 검증이므로
++원문 대조를 파이프라인에서 강제하지 않는다. 대신 confidence 를 받아 정렬한다.
++
++⚠️ 일정은 이 방식을 쓰지 않는다. schedule_analyzer.py 를 보라 — 3B 모델이
++   날짜 필드를 못 채워서 날짜 찾기를 파이썬으로 옮겼다.
++"""
++from app.analyzers.output_schemas import DecisionsOutput
++from app.analyzers.prompt_input import PromptBudget, split_document
++from app.analyzers.prompts import DECISION_PROMPT_VERSION, build_decision_prompt
++from app.analyzers.protocol import AnalyzeResult
++from app.analyzers.runner import Runner
++from app.core.config import settings
++
++
++class DecisionAnalyzer:
++    prompt_version = DECISION_PROMPT_VERSION
++    stage_label = "결정사항 추출"
++    field = "decisions"
++
++    def __init__(self, ai_client, config=None):
++        self._ai_client = ai_client
++        self._settings = config or settings
++
++    async def analyze(self, text: str, *, progress=None) -> AnalyzeResult:
++        budget = PromptBudget(self._settings)
++        runner = Runner(self._ai_client, self._settings, budget, progress)
++        chunks = split_document(text, budget, build_decision_prompt,
++            overlap=self._settings.AI_CHUNK_OVERLAP_CHARS, max_chunks=self._settings.AI_MAX_CHUNKS)
++
++        found, seen, empty_chunks = [], {}, []
++        for i, chunk in enumerate(chunks):
++            stage = f"{self.stage_label} {i + 1}/{len(chunks)}"
++            runner.progress(stage, i, len(chunks))
++            parsed = await runner.call(
++                build_decision_prompt(chunk.text, chunk.start, chunk.end),
++                DecisionsOutput, stage=stage)
++            if not parsed.decisions:
++                empty_chunks.append(i + 1)
++            for item in parsed.decisions:
++                # 구간이 앞뒤로 겹치므로 경계의 결정은 두 번 나온다. 같은 결정을
++                # 두 구간이 다르게 요약할 수 있어 제목만으로는 못 합친다 —
++                # 날짜와 상태까지 같아야 같은 것으로 본다.
++                key = (item.title.strip(), item.status, item.decided_on)
++                at = seen.get(key)
++                if at is None:
++                    seen[key] = len(found)
++                    found.append(item)
++                elif (item.confidence or 0) > (found[at].confidence or 0):
++                    # 경계에 걸친 항목은 문맥을 더 많이 본 쪽이 대개 확신이 높다.
++                    found[at] = item
++            runner.progress(stage, i + 1, len(chunks))
++
++        return AnalyzeResult(
++            result={self.field: [item.model_dump(mode="json") for item in found],
++                    "chunk_count": len(chunks), "empty_chunks": empty_chunks,
++                    "call_count": runner.calls},
++            provider=self._ai_client.provider, prompt_version=self.prompt_version,
++            **runner.metadata())
+diff --git a/backend/app/analyzers/output_schemas.py b/backend/app/analyzers/output_schemas.py
+index fd500dc..5d5a665 100644
+--- a/backend/app/analyzers/output_schemas.py
++++ b/backend/app/analyzers/output_schemas.py
+@@ -3,6 +3,8 @@ from typing import Annotated, Literal
+ 
+ from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+ 
++from app.schemas.extraction import DecisionExtraction, ScheduleKind
++
+ NonEmpty = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+ CategoryCode = Literal["RFP", "PROPOSAL", "COST_SHEET", "CONTRACT", "CONTRACT_CHANGE", "REPORT", "MEETING_NOTES", "ETC"]
+ 
+@@ -39,3 +41,45 @@ class SelectionOutput(StrictOutput):
+ 
+ class GroundedSummaryOutput(SummaryOutput):
+     evidence_ids: list[NonEmpty] = Field(min_length=1)
++
++
++# =============================================================================
++# 결정사항 · 일정 추출
++#
++# 항목 자체는 schemas/extraction.py 의 DTO 를 **그대로 쓴다.** 날짜 순서 검증
++# (starts_on <= ends_on)과 confidence 범위가 거기 있고, DecisionScheduleWriter 가
++# 받는 타입도 그것이다. 여기서 다시 정의하면 두 벌이 되어 갈라진다.
++#
++# ⚠️ 감싸는 객체가 따로 필요한 이유: DTO 쪽 List 모델은 최상위가 **배열**인데
++#   response_format 은 객체를 요구한다(json_object 는 배열 루트를 거절하고,
++#   strict json_schema 도 객체 루트를 전제한다). FactsOutput 과 같은 모양이다.
++#
++# 한 구간에서 뽑는 개수를 제한한다. 상한이 없으면 모델이 문장마다 항목을 만들어
++# 목록이 원문만큼 길어진다.
++# =============================================================================
++
++class DecisionsOutput(StrictOutput):
++    decisions: list[DecisionExtraction] = Field(max_length=8)
++
++
++# =============================================================================
++# 일정 라벨링 — 모델은 날짜를 **쓰지 않고 고른다**
++#
++# 3B 모델은 날짜를 제목에 적고 날짜 필드를 비워둔다(실측 0/4, 0/3). 그래서
++# 날짜 찾기는 date_finder.py 가 정규식으로 하고, 모델에게는 그 목록에서
++# **id 로 고르게** 한다. GroundedSummaryOutput 의 evidence_ids 와 같은 방식이다.
++#
++# 이렇게 하면 모델이 없는 날짜를 만들 수 없다 — 고를 수 있는 것이 목록뿐이다.
++# =============================================================================
++
++class DatedItem(StrictOutput):
++    # 하나면 그 날짜 자체, 둘이면 시작과 끝이다(PERIOD).
++    date_ids: list[NonEmpty] = Field(min_length=1, max_length=2)
++    title: NonEmpty = Field(max_length=300)
++    kind: ScheduleKind
++    confidence: float | None = Field(default=None, ge=0, le=1)
++    reason: NonEmpty = Field(max_length=300)
++
++
++class DatedItemsOutput(StrictOutput):
++    items: list[DatedItem] = Field(max_length=20)
+diff --git a/backend/app/analyzers/prompts.py b/backend/app/analyzers/prompts.py
+index 8a416ec..7ea0387 100644
+--- a/backend/app/analyzers/prompts.py
++++ b/backend/app/analyzers/prompts.py
+@@ -5,6 +5,8 @@ from app.ai.client_protocol import AIRequest
+ SUMMARY_PROMPT_VERSION = "summary-v2"
+ CATEGORY_PROMPT_VERSION = "category-v2"
+ OVERVIEW_PROMPT_VERSION = "overview-v2"
++DECISION_PROMPT_VERSION = "decision-v1"
++SCHEDULE_PROMPT_VERSION = "schedule-v1"
+ 
+ # AI 분류 정책 8종. 기존 document_type의 BILLING 데이터는 덮어쓰지 않는다.
+ CATEGORY_DESCRIPTIONS = {
+@@ -74,6 +76,72 @@ records는 문서 전체에서 선택된 근거이며 전부가 아닙니다.
+ 출력: {"summary":"300자 이내 요약","evidence_ids":["기존 id"]}
+ """
+ 
++# 결정사항·일정은 **사람이 승인하기 전까지 제안(PENDING)** 으로만 남는다. 그래서
++# 「빠뜨리지 않기」보다 「없는 것을 만들지 않기」가 중요하다 — 빠진 것은 사람이
++# 채우면 되지만, 지어낸 것은 승인 화면에서 하나씩 걸러내야 한다.
++EXTRACTION_RULES = """
++긴 문서의 한 구간입니다. 이 구간에 **실제로 적힌 것만** 뽑으세요.
++없으면 빈 배열이 정답입니다. 개수를 채우려고 만들지 마세요.
++reason 은 그렇게 판단한 근거를 원문에 기대어 한국어 한 문장으로 쓰세요.
++confidence 는 0~1 이며, 원문에 분명히 적혀 있으면 0.8 이상, 추론이 섞이면
++0.5 이하로 쓰세요. 판단이 어려우면 아예 넣지 마세요(null).
++날짜는 반드시 YYYY-MM-DD 형식입니다. 연도가 없으면 날짜를 넣지 말고 null 로
++두세요 — 올해로 짐작하지 마세요. 「2026. 07. 20.」은 2026-07-20 입니다.
++"""
++
++DECISION_SYSTEM_PROMPT = COMMON + EXTRACTION_RULES + """
++문서에서 **결정사항**을 뽑으세요. 결정사항은 「무엇을 하기로 정했는가」입니다.
++  DECIDED  이미 정해진 것 (확정·낙찰·승인·선정)
++  PENDING  정해질 예정이거나 검토 중인 것
++  REVERSED 앞서 정한 것을 뒤집거나 취소한 것
++
++⚠️ 다음은 결정사항이 **아닙니다.** 뽑지 마세요.
++  · 법령·규정의 일반 조항 (「국가계약법 제5조에 따른다」)
++  · 입찰 유의사항·청렴계약 조항 같은 모든 공고에 붙는 상투 문구
++  · 앞으로 지켜야 할 의무·자격 요건 (그것은 과업이지 결정이 아닙니다)
++  · 단순한 사실 서술 (금액·기간이 적혀 있다는 것만으로는 결정이 아닙니다)
++
++title 은 결정 내용을 300자 이내 한 줄로, content 는 조건·예외가 있으면 적고
++없으면 null 입니다. decided_on 은 그 결정이 내려진 날짜이며 모르면 null 입니다.
++출력: {"decisions":[{"title":"...","content":null,"status":"DECIDED","decided_on":null,"confidence":0.9,"reason":"..."}]}
++"""
++
++# ⚠️ 이 프롬프트는 모델에게 날짜를 **쓰라고 하지 않는다. 고르라고 한다.**
++#   3B 모델은 날짜를 제목에 적고 날짜 필드를 비워둔다(실측 0/4). 그래서 날짜는
++#   date_finder.py 가 정규식으로 찾아 id 를 붙여 넘기고, 모델은 그중 무엇이
++#   일정인지만 판단한다. 모델이 고를 수 있는 것은 목록에 있는 id 뿐이다.
++SCHEDULE_SYSTEM_PROMPT = COMMON + """
++dates 는 문서에서 찾아낸 날짜 목록입니다. 각 항목의 context 는 그 날짜의 앞뒤
++원문이고, 【 】 안이 그 날짜입니다. **무엇의 날짜인지 판단해서 고르세요.**
++날짜를 직접 쓰지 말고 id 로 가리키세요.
++
++  MILESTONE 중간 지점 (착수·중간보고·검수·선임)
++  DEADLINE  넘기면 안 되는 시점. **「기한」·「마감」·「까지」가 붙으면 여기입니다**
++            (납품기한·제출기한·제출마감일시·등록마감·종료일시)
++  MEETING   모여서 하는 일 (평가·발표·회의·설명회·개찰·현장공개회)
++  PERIOD    시작과 끝이 있는 구간 (과업기간·계약기간·연구기간·접수기간)
++
++date_ids 에는 보통 id 하나를 넣습니다. **PERIOD 일 때만 둘**을 넣으세요
++(시작, 끝 순서). 「2026/07/13 10:00 ~ 2026/07/15 10:00」처럼 한 문맥에 두 날짜가
++범위로 묶여 있거나, 「2021년 3월 25일부터 8월 20일까지」처럼 한 기간을 말할 때입니다.
++
++■ title 은 그 날짜가 무엇인지 짧은 이름으로 쓰세요(「제안서 평가 일시」).
++  context 에 이름이 적혀 있으면 그것을 쓰고, 없으면 문맥으로 판단하세요.
++  ⚠️ 이름을 **바꾸거나 짐작하지 마세요.** 「제출시작일시」를 「제출 마감」으로
++    쓰면 틀린 일정이 됩니다. 시작과 마감은 다른 날입니다.
++  ⚠️ 원문 문장이나 날짜 자체를 title 에 넣지 마세요. title 은 이름입니다.
++
++⚠️ 「기한」·「마감」·「일시」가 붙은 날짜는 **빠짐없이 고르세요.** 그것이 사람이
++  달력에서 보려는 것입니다. 납품기한을 빠뜨리면 이 기능은 쓸모가 없습니다.
++⚠️ 일정이 아닌 날짜는 고르지 마세요. 공고일·작성일·법령 제정일·사업명에 들어간
++  연도·서식의 예시 날짜 같은 것입니다. 고르지 않은 날짜는 그냥 버려집니다.
++⚠️ 같은 날짜가 여러 번 나오면 각각 다른 id 입니다. 문맥이 다르면 따로 고르세요.
++
++confidence 는 0~1 이며 context 에 이름이 분명하면 0.8 이상, 짐작이면 0.5 이하,
++판단이 어려우면 null 입니다. reason 은 한국어 한 문장입니다.
++출력: {"items":[{"date_ids":["d3"],"title":"제안서 제출 마감","kind":"DEADLINE","confidence":0.9,"reason":"..."}]}
++"""
++
+ DELIVERABLE_OVERVIEW_SYSTEM_PROMPT = COMMON + """
+ 한국어로 산출물의 개요만 작성하세요. 건수·기간·대표 항목·금액의 범위와 의미를 유지하세요.
+ 2~4문장, 공백 포함 250자 이내입니다. 자료가 적으면 더 적은 문장을 허용합니다.
+@@ -99,3 +167,13 @@ def build_category_prompt(text: str, **metadata) -> AIRequest:
+ 
+ def build_deliverable_overview_prompt(digest: str, **metadata) -> AIRequest:
+     return request(DELIVERABLE_OVERVIEW_SYSTEM_PROMPT, {"materials": digest, **metadata}, OVERVIEW_PROMPT_VERSION)
++
++
++def build_decision_prompt(text: str, start: int, end: int) -> AIRequest:
++    return request(DECISION_SYSTEM_PROMPT, {"document": text, "start": start, "end": end},
++                   DECISION_PROMPT_VERSION)
++
++
++def build_schedule_prompt(dates: list[dict]) -> AIRequest:
++    """dates 는 date_finder.FoundDate.as_prompt_record() 목록이다."""
++    return request(SCHEDULE_SYSTEM_PROMPT, {"dates": dates}, SCHEDULE_PROMPT_VERSION)
+diff --git a/backend/app/analyzers/schedule_analyzer.py b/backend/app/analyzers/schedule_analyzer.py
+new file mode 100644
+index 0000000..f6adc49
+--- /dev/null
++++ b/backend/app/analyzers/schedule_analyzer.py
+@@ -0,0 +1,183 @@
++"""일정 추출. 날짜는 파이썬이 찾고 모델은 무엇의 날짜인지만 고른다.
++
++왜 이렇게 나눴는가 (실측):
++
++    모델에게 전부 시켰을 때        날짜가 채워진 항목 0/4
++    필드를 원문 문자열로 바꿨을 때  날짜가 채워진 항목 0/3
++    정규식으로 찾았을 때            10/10, 문맥까지 온전
++
++3B 모델은 날짜를 제목에 적고 날짜 필드를 비워둔다. 형식 변환 문제가 아니라
++필드를 나눠 채우는 것 자체를 못 한다. 그래서 찾기를 넘겨받았다.
++
++부수 효과가 크다 — 모델은 목록에 있는 id 만 고를 수 있으므로 **없는 날짜를
++만들 수 없다.** 요약의 evidence_ids 와 같은 방식이다.
++"""
++import re
++
++from app.analyzers.date_finder import find_dates
++from app.analyzers.output_schemas import DatedItemsOutput
++from app.analyzers.prompt_input import PromptBudget
++from app.analyzers.prompts import SCHEDULE_PROMPT_VERSION, build_schedule_prompt
++from app.analyzers.protocol import AnalyzeResult
++from app.analyzers.runner import Runner
++from app.core.config import settings
++from app.schemas.extraction import ScheduleItemExtraction, ScheduleKind
++
++
++# 이름에서 종류를 읽는 규칙. **순서가 곧 우선순위다.**
++#
++# 왜 규칙인가: kind 는 화면 라벨이 아니라 **어느 날짜 컬럼이 의미를 갖는지**를
++# 정한다(models/schedule.py 머리말). 틀리면 항목이 달력에서 조용히 사라진다.
++# 그런데 모델은 여기서 오락가락한다 — 같은 문서를 두 번 돌리면 MILESTONE 과
++# DEADLINE 이 바뀌고, 분류 모델은 아예 한 값으로 무너졌다.
++#
++# 공공 문서의 이름은 종류를 그 안에 담고 있다(「납품기한」·「제안서평가일시」).
++# 기계가 읽을 수 있는 것을 모델에게 짐작시키지 않는다 — 날짜를 정규식으로
++# 옮긴 것과 같은 이유다.
++_KIND_RULES = (
++    # 「기간」이 가장 강하다. 「제출기간」은 마감이 아니라 구간이다.
++    (re.compile(r"기간"), ScheduleKind.PERIOD),
++    # 끝나는 시점. 「평가위원질의종료일시」처럼 평가가 섞여 있어도 종료가 이긴다.
++    (re.compile(r"기한|마감|종료|까지|납품일"), ScheduleKind.DEADLINE),
++    # 모여서 하는 일. 「온라인평가 시작일시」는 평가가 시작을 이긴다.
++    (re.compile(r"평가|개찰|회의|심사|발표|설명회|공개회|면담|협상"), ScheduleKind.MEETING),
++    (re.compile(r"착수|개시|시작|준공|검수|선임|완료|체결"), ScheduleKind.MILESTONE),
++)
++
++
++def kind_from_label(label: str | None) -> ScheduleKind | None:
++    """이름에서 종류를 읽는다. 못 읽으면 None — 그때는 모델의 판단을 쓴다."""
++    if not label:
++        return None
++    for pattern, kind in _KIND_RULES:
++        if pattern.search(label):
++            return kind
++    return None
++
++
++class ScheduleAnalyzer:
++    def __init__(self, ai_client, config=None):
++        self._ai_client = ai_client
++        self._settings = config or settings
++
++    async def analyze(self, text: str, *, progress=None) -> AnalyzeResult:
++        budget = PromptBudget(self._settings)
++        runner = Runner(self._ai_client, self._settings, budget, progress)
++        dates = find_dates(text)
++
++        if not dates:
++            # 날짜가 없는 문서다. 모델을 부를 이유가 없다 — 부르면 없는 일정을
++            # 지어낼 기회만 준다. 호출 0회로 끝내되 그 사실을 남긴다.
++            return AnalyzeResult(
++                result={"schedule_items": [], "date_count": 0, "labeled_count": 0,
++                        "call_count": 0},
++                provider=self._ai_client.provider, prompt_version=SCHEDULE_PROMPT_VERSION,
++                model_name=self._ai_client.model_name, latency_ms=0)
++
++        groups = self._split_by_budget(dates, budget)
++        items: list[ScheduleItemExtraction] = []
++        labeled = 0
++        for i, group in enumerate(groups):
++            stage = f"일정 라벨링 {i + 1}/{len(groups)}" if len(groups) > 1 else "일정 라벨링"
++            runner.progress(stage, i, len(groups))
++            allowed = {found.id: found for found in group}
++
++            def verify(parsed, allowed=allowed):
++                for item in parsed.items:
++                    if not set(item.date_ids) <= allowed.keys():
++                        raise ValueError("unknown date id")
++                    if len(set(item.date_ids)) != len(item.date_ids):
++                        raise ValueError("duplicated date id")
++
++            parsed = await runner.call(
++                build_schedule_prompt([found.as_prompt_record() for found in group]),
++                DatedItemsOutput, validate=verify, stage=stage)
++            for item in parsed.items:
++                built = self._build(item, allowed)
++                if built is not None:
++                    items.append(built)
++                    labeled += len(item.date_ids)
++            runner.progress(stage, i + 1, len(groups))
++
++        # 원문 순서가 아니라 **날짜 순서**로 준다. 화면에서 그대로 일정이 된다.
++        items.sort(key=lambda item: (item.starts_on or item.ends_on, item.title))
++        return AnalyzeResult(
++            result={"schedule_items": [item.model_dump(mode="json") for item in items],
++                    # 찾은 날짜 중 몇 개가 일정이 됐는지. 이 비율이 낮으면
++                    # 프롬프트가 문맥을 못 읽고 있다는 신호다.
++                    "date_count": len(dates), "labeled_count": labeled,
++                    "call_count": runner.calls},
++            provider=self._ai_client.provider, prompt_version=SCHEDULE_PROMPT_VERSION,
++            **runner.metadata())
++
++    def _split_by_budget(self, dates, budget):
++        """날짜가 많은 문서는 목록을 나눠 보낸다. 한 묶음이 예산을 넘지 않게."""
++        groups, group = [], []
++        for found in dates:
++            candidate = group + [found]
++            if group and not budget.fits(
++                    build_schedule_prompt([f.as_prompt_record() for f in candidate])):
++                groups.append(group)
++                group = [found]
++            else:
++                group = candidate
++        if group:
++            groups.append(group)
++        return groups
++
++    @staticmethod
++    def _title(item, picked_dates) -> str:
++        """원문에서 이름을 떼어낼 수 있었으면 모델의 제목 대신 그것을 쓴다.
++
++        모델은 이름을 자주 바꾼다 — 「제출시작일시」를 「제출 마감」으로 쓰면
++        사람이 날짜를 착각한다. 정규식이 콜론 앞에서 잡아낸 이름은 원문 그대로라
++        짐작이 섞이지 않는다. 잡히지 않는 문서(산문·표)에서만 모델 것을 쓴다.
++
++        ⚠️ 힌트로 넘겨 모델이 쓰게 하는 방법은 시험했다가 접었다. 제목에 날짜를
++          넣거나 한 가지 이름으로 무너졌다. 기계가 아는 것은 기계가 쓴다.
++        """
++        labels = [found.label for found in picked_dates if found.label]
++        return labels[0] if labels else item.title
++
++    @staticmethod
++    def _build(item, allowed) -> ScheduleItemExtraction | None:
++        """고른 id 를 실제 날짜로 바꾼다. 모델이 아니라 여기서 날짜가 정해진다."""
++        chosen = [allowed[i] for i in item.date_ids]
++        title = ScheduleAnalyzer._title(item, chosen)
++        picked = sorted(found.value for found in chosen)
++        # 이름에서 종류를 읽을 수 있으면 그것이 이긴다. 못 읽을 때만 모델을 쓴다.
++        labels = [found.label for found in chosen if found.label]
++        kind = kind_from_label(labels[0] if labels else None) or item.kind
++
++        if kind is ScheduleKind.PERIOD and picked[0] == picked[-1]:
++            # 기간이라면서 시작과 끝이 같은 날이다. 하나만 골랐거나, 서로 다른
++            # id 두 개가 **같은 날짜**를 가리킨 경우다(같은 날에 시작·종료
++            # 시각이 따로 적힌 문서에서 실제로 나온다).
++            #
++            # ⚠️ 개수만 보면 안 된다. 그대로 담으면 달력이 그날 하루를 「기간」
++            #   으로 칠하는데, 원문에 없던 뜻이다. 마감으로 낮춰 담는다.
++            kind = ScheduleKind.DEADLINE
++
++        if kind is ScheduleKind.PERIOD:
++            return ScheduleItemExtraction(
++                title=title, kind=kind, starts_on=picked[0], ends_on=picked[-1],
++                confidence=item.confidence, reason=item.reason)
++
++        # ⚠️ 한 시점을 **kind 가 지정하는 컬럼**에 담아야 한다. models/schedule.py
++        #   머리말이 정한 규칙이다:
++        #       MILESTONE · MEETING  starts_on 만 의미가 있다
++        #       DEADLINE             ends_on 만 의미가 있다
++        #   틀리면 조용히 사라진다. ScheduleItem.due_date 도 프런트의
++        #   eventPrimaryDate() 도 kind 를 보고 컬럼을 고르므로, MEETING 을
++        #   ends_on 에 담으면 **달력에 아예 뜨지 않는다.**
++        #
++        #   반대로 양쪽에 같은 날짜를 넣어 안전하게 가는 것도 안 된다. CHECK 는
++        #   통과하지만 「하루짜리 기간」이라는 없던 뜻이 생긴다.
++        when = picked[-1]        # 둘을 골랐으면 늦은 쪽을 그 시점으로 본다
++        if kind is ScheduleKind.DEADLINE:
++            starts_on, ends_on = None, when
++        else:
++            starts_on, ends_on = when, None
++        return ScheduleItemExtraction(
++            title=title, kind=kind, starts_on=starts_on, ends_on=ends_on,
++            confidence=item.confidence, reason=item.reason)
+diff --git a/backend/app/dependencies.py b/backend/app/dependencies.py
+index 30dd90e..dbfa51d 100644
+--- a/backend/app/dependencies.py
++++ b/backend/app/dependencies.py
+@@ -25,7 +25,9 @@ from app.ai.fake_client import FakeAIClient
+ from app.ai.local_client import LocalAIClient
+ from app.ai.openai_client import OpenAIClient
+ from app.analyzers.category_analyzer import CategoryAnalyzer
++from app.analyzers.extraction_analyzer import DecisionAnalyzer
+ from app.analyzers.protocol import Analyzer
++from app.analyzers.schedule_analyzer import ScheduleAnalyzer
+ from app.analyzers.summary_analyzer import SummaryAnalyzer
+ from app.core.config import settings
+ from app.core.error_codes import ErrorCode
+@@ -69,6 +71,7 @@ from app.services.chunking_service import ChunkingService
+ from app.services.dashboard_service import DashboardService
+ from app.services.deliverable_service import DeliverableService
+ from app.services.decision_schedule_review_service import DecisionScheduleReviewService
++from app.services.decision_schedule_writer import DecisionScheduleWriter
+ from app.services.extraction_service import ExtractionService
+ from app.services.search_service import SearchService
+ from app.services.document_service import DocumentService
+@@ -188,6 +191,8 @@ def get_analyzer_registry() -> dict[str, Analyzer]:
+     registry: dict[str, Analyzer] = {
+         "summary": SummaryAnalyzer(get_ai_client(settings.AI_MODEL_SUMMARY or None)),
+         "category": CategoryAnalyzer(get_ai_client(settings.AI_MODEL_CATEGORY or None)),
++        "decision": DecisionAnalyzer(get_ai_client()),
++        "schedule": ScheduleAnalyzer(get_ai_client()),
+     }
+     return registry
+ 
+@@ -394,13 +399,21 @@ def get_analysis_service(
+     db: Session = Depends(get_db),
+     document_repository: DocumentRepository = Depends(get_document_repository),
+     analysis_repository: AnalysisRepository = Depends(get_analysis_repository),
++    decision_schedule_repository: DecisionScheduleRepository = Depends(
++        get_decision_schedule_repository
++    ),
+     analyzer_registry: dict[str, Analyzer] = Depends(get_analyzer_registry),
+ ) -> AnalysisService:
++    decision_schedule_writer = DecisionScheduleWriter(
++        analysis_repository,
++        decision_schedule_repository,
++    )
+     return AnalysisService(
+         db=db,
+         document_repository=document_repository,
+         analysis_repository=analysis_repository,
+         analyzer_registry=analyzer_registry,
++        decision_schedule_writer=decision_schedule_writer,
+     )
+ 
+ 
+diff --git a/backend/app/repositories/decision_schedule_repository.py b/backend/app/repositories/decision_schedule_repository.py
+index c315641..6b0ef9f 100644
+--- a/backend/app/repositories/decision_schedule_repository.py
++++ b/backend/app/repositories/decision_schedule_repository.py
+@@ -24,6 +24,14 @@ class DecisionScheduleRepository:
+             self._db.flush()
+         return rows
+ 
++    def delete_pending_decisions(self, project_id: int, document_id: int) -> int:
++        """재분석 전 아직 검토하지 않은 이전 결정 제안만 대체한다."""
++        return self._db.query(Decision).filter(
++            Decision.project_id == project_id,
++            Decision.document_id == document_id,
++            Decision.decision == "PENDING",
++        ).delete(synchronize_session=False)
++
+     def add_schedule_items(
+         self, rows: list[ScheduleItem]
+     ) -> list[ScheduleItem]:
+@@ -32,6 +40,16 @@ class DecisionScheduleRepository:
+             self._db.flush()
+         return rows
+ 
++    def delete_pending_schedule_items(
++        self, project_id: int, document_id: int
++    ) -> int:
++        """재분석 전 아직 검토하지 않은 이전 일정 제안만 대체한다."""
++        return self._db.query(ScheduleItem).filter(
++            ScheduleItem.project_id == project_id,
++            ScheduleItem.document_id == document_id,
++            ScheduleItem.decision == "PENDING",
++        ).delete(synchronize_session=False)
++
+     def lock_document(
+         self, project_id: int, document_id: int
+     ) -> tuple[str, int] | None:
+@@ -63,6 +81,14 @@ class DecisionScheduleRepository:
+         row = self._db.execute(stmt).one_or_none()
+         return (row[0], row[1], row[2]) if row else None
+ 
++    def get_decision_for_update(
++        self, project_id: int, item_id: int
++    ) -> Decision | None:
++        return self._db.query(Decision).filter(
++            Decision.project_id == project_id,
++            Decision.id == item_id,
++        ).with_for_update().one_or_none()
++
+     def get_schedule_item(
+         self, project_id: int, item_id: int
+     ) -> tuple[ScheduleItem, str | None, int | None] | None:
+@@ -80,6 +106,14 @@ class DecisionScheduleRepository:
+         row = self._db.execute(stmt).one_or_none()
+         return (row[0], row[1], row[2]) if row else None
+ 
++    def get_schedule_item_for_update(
++        self, project_id: int, item_id: int
++    ) -> ScheduleItem | None:
++        return self._db.query(ScheduleItem).filter(
++            ScheduleItem.project_id == project_id,
++            ScheduleItem.id == item_id,
++        ).with_for_update().one_or_none()
++
+     def list_decisions(
+         self,
+         project_id: int,
+diff --git a/backend/app/services/analysis_service.py b/backend/app/services/analysis_service.py
+index 95b06ba..44c2d05 100644
+--- a/backend/app/services/analysis_service.py
++++ b/backend/app/services/analysis_service.py
+@@ -2,21 +2,36 @@
+ # 다른 파일과의 관계: AnalysisJobService가 잠근 Document와 분석 결과를 넘기면 같은 트랜잭션에 반영한다.
+ # Spring 비교: 분석 결과 저장과 자동 분류 정책을 묶는 @Service 계층이다.
+ 
++import json
++
++from app.analyzers.extraction_parser import (
++    parse_decision_extractions,
++    parse_schedule_item_extractions,
++)
+ from app.core.error_codes import ErrorCode
+ from app.core.exceptions import BusinessError
+ from app.core.transaction import transactional
+ from app.models.document import Analysis
+ from app.models.enums import DocumentTypeSource
++from app.services.decision_schedule_writer import DecisionScheduleWriter
+ 
+-DEFAULT_ANALYZER_TYPES = ["summary", "category"]
++DEFAULT_ANALYZER_TYPES = ["summary", "category", "decision", "schedule"]
+ 
+ 
+ class AnalysisService:
+-    def __init__(self, db, document_repository, analysis_repository, analyzer_registry):
++    def __init__(
++        self,
++        db,
++        document_repository,
++        analysis_repository,
++        analyzer_registry,
++        decision_schedule_writer: DecisionScheduleWriter | None = None,
++    ):
+         self._db = db
+         self._document_repository = document_repository
+         self._analysis_repository = analysis_repository
+         self._analyzer_registry = analyzer_registry
++        self._decision_schedule_writer = decision_schedule_writer
+ 
+     def validate_types(self, analyzer_types):
+         types = list(dict.fromkeys(analyzer_types or DEFAULT_ANALYZER_TYPES))
+@@ -51,13 +66,51 @@ class AnalysisService:
+ 
+     def save_results(self, document, revision, results):
+         self._apply_ai_document_type(document, results)
+-        return [self._analysis_repository.create(Analysis(
+-            document_id=document.id, analyzer_type=name, result_json=result.result,
+-            provider=result.provider, model_name=result.model_name,
+-            prompt_version=result.prompt_version, tokens_in=result.tokens_in,
+-            tokens_out=result.tokens_out, latency_ms=result.latency_ms,
+-            source_text_revision=revision,
+-        )) for name, result in results]
++        saved = []
++        for name, result in results:
++            if name == "decision":
++                writer = self._require_decision_schedule_writer()
++                extractions = parse_decision_extractions(
++                    json.dumps(result.result.get("decisions", []), ensure_ascii=False)
++                )
++                analysis, _ = writer.write_decisions(
++                    project_id=document.project_id,
++                    document_id=document.id,
++                    source_text_revision=revision,
++                    source_ocr_revision=document.ocr_revision,
++                    analyzer_type=name,
++                    result=result,
++                    extractions=extractions,
++                )
++            elif name == "schedule":
++                writer = self._require_decision_schedule_writer()
++                extractions = parse_schedule_item_extractions(
++                    json.dumps(result.result.get("schedule_items", []), ensure_ascii=False)
++                )
++                analysis, _ = writer.write_schedule_items(
++                    project_id=document.project_id,
++                    document_id=document.id,
++                    source_text_revision=revision,
++                    source_ocr_revision=document.ocr_revision,
++                    analyzer_type=name,
++                    result=result,
++                    extractions=extractions,
++                )
++            else:
++                analysis = self._analysis_repository.create(Analysis(
++                    document_id=document.id, analyzer_type=name, result_json=result.result,
++                    provider=result.provider, model_name=result.model_name,
++                    prompt_version=result.prompt_version, tokens_in=result.tokens_in,
++                    tokens_out=result.tokens_out, latency_ms=result.latency_ms,
++                    source_text_revision=revision,
++                ))
++            saved.append(analysis)
++        return saved
++
++    def _require_decision_schedule_writer(self) -> DecisionScheduleWriter:
++        if self._decision_schedule_writer is None:
++            raise RuntimeError("결정·일정 분석 결과 저장기가 연결되지 않았습니다.")
++        return self._decision_schedule_writer
+ 
+     async def analyze_document(self, project_id, document_id, analyzer_types):
+         """직접 호출용. HTTP 경로는 AnalysisJobService가 워커에 등록한다."""
+diff --git a/backend/app/services/decision_schedule_review_service.py b/backend/app/services/decision_schedule_review_service.py
+index 9cafdd2..ac7bd1a 100644
+--- a/backend/app/services/decision_schedule_review_service.py
++++ b/backend/app/services/decision_schedule_review_service.py
+@@ -74,12 +74,11 @@ class DecisionScheduleReviewService:
+     def update_decision(
+         self, project_id: int, item_id: int, user_id: int, values: dict
+     ) -> DecisionRow:
+-        found = self._get_decision(project_id, item_id)
+-        item, filename, current_revision = found
+         with transactional(self._db):
+-            filename, current_revision = self._lock_current_source(
+-                project_id, item, filename, current_revision
++            item, filename, current_revision = self._lock_decision(
++                project_id, item_id
+             )
++            self._ensure_current(item.source_text_revision, current_revision)
+             for field in ("title", "content", "status", "decided_on"):
+                 if field in values:
+                     setattr(item, field, values[field])
+@@ -89,16 +88,15 @@ class DecisionScheduleReviewService:
+     def update_schedule_item(
+         self, project_id: int, item_id: int, user_id: int, values: dict
+     ) -> ScheduleItemRow:
+-        found = self._get_schedule_item(project_id, item_id)
+-        item, filename, current_revision = found
+-        starts_on = values.get("starts_on", item.starts_on)
+-        ends_on = values.get("ends_on", item.ends_on)
+-        if starts_on and ends_on and starts_on > ends_on:
+-            raise BusinessError(ErrorCode.INVALID_SCHEDULE_DATES)
+         with transactional(self._db):
+-            filename, current_revision = self._lock_current_source(
+-                project_id, item, filename, current_revision
++            item, filename, current_revision = self._lock_schedule_item(
++                project_id, item_id
+             )
++            starts_on = values.get("starts_on", item.starts_on)
++            ends_on = values.get("ends_on", item.ends_on)
++            if starts_on and ends_on and starts_on > ends_on:
++                raise BusinessError(ErrorCode.INVALID_SCHEDULE_DATES)
++            self._ensure_current(item.source_text_revision, current_revision)
+             for field in ("title", "kind", "starts_on", "ends_on"):
+                 if field in values:
+                     setattr(item, field, values[field])
+@@ -112,12 +110,12 @@ class DecisionScheduleReviewService:
+         return self._decide_decision(project_id, item_id, user_id, "REJECTED")
+ 
+     def cancel_decision(self, project_id: int, item_id: int) -> DecisionRow:
+-        item, filename, current_revision = self._get_decision(project_id, item_id)
+         with transactional(self._db):
++            item, filename, current_revision = self._lock_decision(
++                project_id, item_id
++            )
+             if item.decision == "REJECTED":
+-                filename, current_revision = self._lock_current_source(
+-                    project_id, item, filename, current_revision
+-                )
++                self._ensure_current(item.source_text_revision, current_revision)
+             self._cancel(item)
+         return self._decision_row(item, filename, current_revision)
+ 
+@@ -132,50 +130,64 @@ class DecisionScheduleReviewService:
+         return self._decide_schedule_item(project_id, item_id, user_id, "REJECTED")
+ 
+     def cancel_schedule_item(self, project_id: int, item_id: int) -> ScheduleItemRow:
+-        item, filename, current_revision = self._get_schedule_item(project_id, item_id)
+         with transactional(self._db):
++            item, filename, current_revision = self._lock_schedule_item(
++                project_id, item_id
++            )
+             if item.decision == "REJECTED":
+-                filename, current_revision = self._lock_current_source(
+-                    project_id, item, filename, current_revision
+-                )
++                self._ensure_current(item.source_text_revision, current_revision)
+             self._cancel(item)
+         return self._schedule_row(item, filename, current_revision)
+ 
+     def _decide_decision(
+         self, project_id: int, item_id: int, user_id: int, decision: str
+     ) -> DecisionRow:
+-        item, filename, current_revision = self._get_decision(project_id, item_id)
+         with transactional(self._db):
++            item, filename, current_revision = self._lock_decision(
++                project_id, item_id
++            )
+             if decision == "APPROVED":
+-                filename, current_revision = self._lock_current_source(
+-                    project_id, item, filename, current_revision
+-                )
++                self._ensure_current(item.source_text_revision, current_revision)
+             self._mark(item, decision, user_id)
+         return self._decision_row(item, filename, current_revision)
+ 
+     def _decide_schedule_item(
+         self, project_id: int, item_id: int, user_id: int, decision: str
+     ) -> ScheduleItemRow:
+-        item, filename, current_revision = self._get_schedule_item(project_id, item_id)
+         with transactional(self._db):
++            item, filename, current_revision = self._lock_schedule_item(
++                project_id, item_id
++            )
+             if decision == "APPROVED":
+-                filename, current_revision = self._lock_current_source(
+-                    project_id, item, filename, current_revision
+-                )
++                self._ensure_current(item.source_text_revision, current_revision)
+             self._mark(item, decision, user_id)
+         return self._schedule_row(item, filename, current_revision)
+ 
+-    def _get_decision(self, project_id: int, item_id: int):
++    def _lock_decision(self, project_id: int, item_id: int):
+         found = self._repository.get_decision(project_id, item_id)
+         if found is None:
+             raise BusinessError(ErrorCode.DECISION_NOT_FOUND)
+-        return found
++        item, filename, current_revision = found
++        filename, current_revision = self._lock_source(
++            project_id, item, filename, current_revision
++        )
++        locked = self._repository.get_decision_for_update(project_id, item_id)
++        if locked is None:
++            raise BusinessError(ErrorCode.DECISION_NOT_FOUND)
++        return locked, filename, current_revision
+ 
+-    def _get_schedule_item(self, project_id: int, item_id: int):
++    def _lock_schedule_item(self, project_id: int, item_id: int):
+         found = self._repository.get_schedule_item(project_id, item_id)
+         if found is None:
+             raise BusinessError(ErrorCode.SCHEDULE_ITEM_NOT_FOUND)
+-        return found
++        item, filename, current_revision = found
++        filename, current_revision = self._lock_source(
++            project_id, item, filename, current_revision
++        )
++        locked = self._repository.get_schedule_item_for_update(project_id, item_id)
++        if locked is None:
++            raise BusinessError(ErrorCode.SCHEDULE_ITEM_NOT_FOUND)
++        return locked, filename, current_revision
+ 
+     @staticmethod
+     def _mark(item: Decision | ScheduleItem, decision: str, user_id: int) -> None:
+@@ -192,14 +204,14 @@ class DecisionScheduleReviewService:
+         item.decided_by = None
+         item.decided_at = None
+ 
+-    def _lock_current_source(
++    def _lock_source(
+         self,
+         project_id: int,
+         item: Decision | ScheduleItem,
+         filename: str | None,
+         current_revision: int | None,
+     ) -> tuple[str | None, int | None]:
+-        """출처 문서를 잠근 뒤 revision을 다시 읽어 승인 판정을 원자화한다."""
++        """출처 문서를 먼저 잠가 재분석과 모든 검토 상태 전이를 직렬화한다."""
+         if item.document_id is None:
+             return filename, current_revision
+         source = self._repository.lock_document(project_id, item.document_id)
+@@ -207,9 +219,7 @@ class DecisionScheduleReviewService:
+             # 문서 삭제 시 제안 행은 남기는 스키마다. 현재 revision을 알 수 없으므로
+             # 삭제된 출처 행의 검토를 막지 않는다.
+             return None, None
+-        locked_filename, locked_revision = source
+-        self._ensure_current(item.source_text_revision, locked_revision)
+-        return locked_filename, locked_revision
++        return source
+ 
+     @staticmethod
+     def _ensure_current(source_revision: int, current_revision: int | None) -> None:
+diff --git a/backend/app/services/decision_schedule_writer.py b/backend/app/services/decision_schedule_writer.py
+index 82ae64b..f50e4c8 100644
+--- a/backend/app/services/decision_schedule_writer.py
++++ b/backend/app/services/decision_schedule_writer.py
+@@ -36,6 +36,7 @@ class DecisionScheduleWriter:
+         project_id: int,
+         document_id: int,
+         source_text_revision: int,
++        source_ocr_revision: int,
+         analyzer_type: str,
+         result: AnalyzeResult,
+         extractions: list[DecisionExtraction],
+@@ -46,6 +47,9 @@ class DecisionScheduleWriter:
+             analyzer_type=analyzer_type,
+             result=result,
+         )
++        self._decision_schedule_repository.delete_pending_decisions(
++            project_id, document_id
++        )
+         rows = [
+             Decision(
+                 project_id=project_id,
+@@ -58,7 +62,7 @@ class DecisionScheduleWriter:
+                 confidence=_decimal(item.confidence),
+                 reason=item.reason,
+                 decision=_PENDING,
+-                source_text_revision=source_text_revision,
++                source_text_revision=source_ocr_revision,
+             )
+             for item in extractions
+         ]
+@@ -70,6 +74,7 @@ class DecisionScheduleWriter:
+         project_id: int,
+         document_id: int,
+         source_text_revision: int,
++        source_ocr_revision: int,
+         analyzer_type: str,
+         result: AnalyzeResult,
+         extractions: list[ScheduleItemExtraction],
+@@ -80,6 +85,9 @@ class DecisionScheduleWriter:
+             analyzer_type=analyzer_type,
+             result=result,
+         )
++        self._decision_schedule_repository.delete_pending_schedule_items(
++            project_id, document_id
++        )
+         rows = [
+             ScheduleItem(
+                 project_id=project_id,
+@@ -92,7 +100,7 @@ class DecisionScheduleWriter:
+                 confidence=_decimal(item.confidence),
+                 reason=item.reason,
+                 decision=_PENDING,
+-                source_text_revision=source_text_revision,
++                source_text_revision=source_ocr_revision,
+             )
+             for item in extractions
+         ]
+diff --git a/backend/app/worker.py b/backend/app/worker.py
+index cdb27a9..0668e2f 100644
+--- a/backend/app/worker.py
++++ b/backend/app/worker.py
+@@ -158,11 +158,15 @@ def analyze_document_task(project_id: int, document_id: int, job_id: str, reques
+     import asyncio
+     from app.analyzers.summary_analyzer import SummaryAnalyzer
+     from app.analyzers.category_analyzer import CategoryAnalyzer
++    from app.analyzers.extraction_analyzer import DecisionAnalyzer
++    from app.analyzers.schedule_analyzer import ScheduleAnalyzer
+     from app.repositories.analysis_job_repository import AnalysisJobRepository
+     from app.repositories.analysis_repository import AnalysisRepository
++    from app.repositories.decision_schedule_repository import DecisionScheduleRepository
+     from app.repositories.document_repository import DocumentRepository
+     from app.services.analysis_service import AnalysisService
+     from app.services.analysis_job_service import AnalysisJobService
++    from app.services.decision_schedule_writer import DecisionScheduleWriter
+     from app.core.transaction import transactional
+ 
+     bind_request_id(request_id)
+@@ -194,10 +198,28 @@ def analyze_document_task(project_id: int, document_id: int, job_id: str, reques
+             category_client = make_client(settings.AI_MODEL_CATEGORY)
+             if hasattr(category_client, "aclose"):
+                 stack.push_async_callback(category_client.aclose)
++            extraction_client = make_client(None)
++            if hasattr(extraction_client, "aclose"):
++                stack.push_async_callback(extraction_client.aclose)
+             with SessionLocal() as db:
+                 documents = DocumentRepository(db)
+-                analysis = AnalysisService(db, documents, AnalysisRepository(db),
+-                    {"summary": SummaryAnalyzer(summary_client), "category": CategoryAnalyzer(category_client)})
++                analysis_repository = AnalysisRepository(db)
++                decision_schedule_writer = DecisionScheduleWriter(
++                    analysis_repository,
++                    DecisionScheduleRepository(db),
++                )
++                analysis = AnalysisService(
++                    db,
++                    documents,
++                    analysis_repository,
++                    {
++                        "summary": SummaryAnalyzer(summary_client),
++                        "category": CategoryAnalyzer(category_client),
++                        "decision": DecisionAnalyzer(extraction_client),
++                        "schedule": ScheduleAnalyzer(extraction_client),
++                    },
++                    decision_schedule_writer,
++                )
+                 service = AnalysisJobService(db, documents, AnalysisJobRepository(db), analysis)
+                 await service.run(project_id, document_id, job_id, progress)
+     asyncio.run(run())
+diff --git a/backend/tests/test_ai_analysis.py b/backend/tests/test_ai_analysis.py
+index 6232928..2decbf4 100644
+--- a/backend/tests/test_ai_analysis.py
++++ b/backend/tests/test_ai_analysis.py
+@@ -26,6 +26,7 @@ def config():
+ 
+ class ScriptedAI:
+     provider = "test"
++    model_name = "test"
+ 
+     def __init__(self, answer):
+         self.answer, self.requests = answer, []
+@@ -203,6 +204,273 @@ def test_인용_불일치로는_재시도하지_않는다(config):
+     assert len(근거요청) == len(set(p.user for p in 근거요청)), "같은 구간을 다시 부르지 않는다"
+ 
+ 
++# =============================================================================
++# 결정사항 · 일정 추출
++#
++# 분류(category)는 앞·중간·뒤 표본만 보지만 추출은 전체를 덮어야 한다. 표본에
++# 안 들어간 구간의 마감일은 그냥 없어지고, 빠뜨린 것을 사람이 알아챌 방법도 없다.
++# =============================================================================
++
++# --- 일정: 날짜는 파이썬이 찾고 모델은 고르기만 한다 -------------------------
++#
++# 3B 모델은 날짜를 제목에 적고 날짜 필드를 비워둔다(실측 0/4). date 타입을
++# 강제해도, 원문 문자열로 받아도 같았다. 그래서 찾기를 정규식으로 옮겼다.
++
++def _item(date_ids, title="제안서 제출 마감", kind="DEADLINE", confidence=0.9):
++    return {"date_ids": date_ids, "title": title, "kind": kind,
++            "confidence": confidence, "reason": "context 에 이름이 있다."}
++
++
++def test_날짜가_없으면_모델을_아예_부르지_않는다(config):
++    from app.analyzers.schedule_analyzer import ScheduleAnalyzer
++
++    client = ScriptedAI(lambda *_: pytest.fail("불러서는 안 된다"))
++    result = asyncio.run(ScheduleAnalyzer(client, config).analyze("날짜가 없는 문서입니다."))
++
++    assert client.requests == []
++    assert result.result["schedule_items"] == []
++    assert result.result["call_count"] == 0
++    # 호출이 없어도 analyses.model_name 이 NOT NULL 이라 값이 있어야 한다.
++    assert result.model_name == "test"
++
++
++def test_목록에_없는_날짜는_고를_수_없다(config):
++    """모델이 날짜를 «쓰지» 않고 «고르게» 한 이유. 없는 날짜를 만들 수 없다."""
++    from app.analyzers.schedule_analyzer import ScheduleAnalyzer
++
++    client = ScriptedAI(lambda *_: {"items": [_item(["d99"])]})
++    with pytest.raises(BusinessError) as exc:
++        asyncio.run(ScheduleAnalyzer(client, config).analyze("제출 마감 2026/07/20 입니다."))
++    assert exc.value.error_code is ErrorCode.AI_INVALID_RESPONSE
++
++
++def test_고른_id_가_실제_날짜로_바뀐다(config):
++    from app.analyzers.schedule_analyzer import ScheduleAnalyzer
++
++    client = ScriptedAI(lambda *_: {"items": [_item(["d1"])]})
++    result = asyncio.run(ScheduleAnalyzer(client, config).analyze(
++        "제안서 제출 마감일시: 2026/07/20 10:00"))
++    item = result.result["schedule_items"][0]
++
++    assert item["ends_on"] == "2026-07-20"
++    # DEADLINE 에 starts_on 을 채우면 「하루짜리 기간」이라는 없던 뜻이 생긴다.
++    assert item["starts_on"] is None
++    assert result.result["date_count"] == 1
++
++
++@pytest.mark.parametrize("kind,컬럼", [
++    ("DEADLINE", "ends_on"),
++    ("MEETING", "starts_on"),
++    ("MILESTONE", "starts_on"),
++])
++def test_한_시점은_kind_가_지정하는_컬럼에_담는다(config, kind, 컬럼):
++    """models/schedule.py 머리말이 정한 규칙이다. 틀리면 조용히 사라진다.
++
++    ScheduleItem.due_date 와 프런트의 eventPrimaryDate() 가 kind 를 보고 컬럼을
++    고른다. MEETING 을 ends_on 에 담으면 달력에 아예 뜨지 않는다.
++    """
++    from app.analyzers.schedule_analyzer import ScheduleAnalyzer
++
++    client = ScriptedAI(lambda *_: {"items": [_item(["d1"], "평가", kind)]})
++    result = asyncio.run(ScheduleAnalyzer(client, config).analyze("평가 2026/07/20"))
++    item = result.result["schedule_items"][0]
++    반대 = "starts_on" if 컬럼 == "ends_on" else "ends_on"
++
++    assert item[컬럼] == "2026-07-20"
++    # 양쪽에 같은 날짜를 넣어 «안전하게» 가면 「하루짜리 기간」이라는 뜻이 생긴다.
++    assert item[반대] is None
++
++
++def test_기간은_두_날짜를_시작과_끝으로_받는다(config):
++    from app.analyzers.schedule_analyzer import ScheduleAnalyzer
++
++    # 모델이 순서를 뒤집어 골라도 이른 쪽이 시작이 되어야 한다.
++    client = ScriptedAI(lambda *_: {"items": [_item(["d2", "d1"], "제출 기간", "PERIOD")]})
++    result = asyncio.run(ScheduleAnalyzer(client, config).analyze(
++        "제출기간: 2026/07/13 10:00 ~ 2026/07/15 10:00"))
++    item = result.result["schedule_items"][0]
++
++    assert (item["starts_on"], item["ends_on"]) == ("2026-07-13", "2026-07-15")
++
++
++def test_기간인데_날짜를_하나만_고르면_마감으로_낮춘다(config):
++    """시작인지 끝인지 모르는 것을 기간으로 저장하면 없던 뜻이 생긴다."""
++    from app.analyzers.schedule_analyzer import ScheduleAnalyzer
++
++    client = ScriptedAI(lambda *_: {"items": [_item(["d1"], "과업기간", "PERIOD")]})
++    result = asyncio.run(ScheduleAnalyzer(client, config).analyze("과업기간 2026/07/20"))
++    item = result.result["schedule_items"][0]
++
++    assert item["kind"] == "DEADLINE"
++    assert (item["starts_on"], item["ends_on"]) == (None, "2026-07-20")
++
++
++def test_서로_다른_id_가_같은_날짜여도_기간이_아니다(config):
++    """개수만 보면 놓친다. 같은 날에 시작·종료 시각이 따로 적힌 문서에서 나온다.
++
++    그대로 담으면 달력이 그날 하루를 「기간」으로 칠한다 — 원문에 없던 뜻이다.
++    """
++    from app.analyzers.schedule_analyzer import ScheduleAnalyzer
++
++    client = ScriptedAI(lambda *_: {"items": [_item(["d1", "d2"], "온라인 평가", "PERIOD")]})
++    result = asyncio.run(ScheduleAnalyzer(client, config).analyze(
++        "온라인평가 시작 2026/07/20 09:30 종료 2026/07/20 10:30"))
++    item = result.result["schedule_items"][0]
++
++    assert item["kind"] == "DEADLINE"
++    assert (item["starts_on"], item["ends_on"]) == (None, "2026-07-20")
++
++
++def test_고르지_않은_날짜는_버려진다(config):
++    """공고일·사업명의 연도까지 일정이 되면 목록이 쓰레기가 된다."""
++    from app.analyzers.schedule_analyzer import ScheduleAnalyzer
++
++    client = ScriptedAI(lambda *_: {"items": [_item(["d2"])]})
++    result = asyncio.run(ScheduleAnalyzer(client, config).analyze(
++        "공고일 2026/07/01 · 제안서 제출 마감 2026/07/20"))
++
++    assert result.result["date_count"] == 2
++    assert result.result["labeled_count"] == 1
++    assert len(result.result["schedule_items"]) == 1
++
++
++def test_일정은_날짜_순서로_준다(config):
++    from app.analyzers.schedule_analyzer import ScheduleAnalyzer
++
++    client = ScriptedAI(lambda *_: {"items": [
++        _item(["d2"], "나중 일정"), _item(["d1"], "먼저 일정")]})
++    result = asyncio.run(ScheduleAnalyzer(client, config).analyze(
++        "먼저 2026/07/01 · 나중 2026/09/30"))
++
++    assert [i["title"] for i in result.result["schedule_items"]] == ["먼저 일정", "나중 일정"]
++
++
++@pytest.mark.parametrize("본문,기대", [
++    ("마감 2026/07/20 까지", ["2026-07-20"]),
++    # 추출기가 공백을 여러 칸 뱉는다. 이것을 놓치면 조달청 문서의 평가 일정이 빠진다.
++    ("평가 2026.   07.   20.   09:30", ["2026-07-20"]),
++    ("작성일 2026년 7월 20일", ["2026-07-20"]),
++    ("2026-07-13 ~ 2026-07-15", ["2026-07-13", "2026-07-15"]),
++    ("잘못된 날짜 2026/13/45 입니다", []),
++    ("금액 369,699,438원", []),
++])
++def test_날짜_찾기는_LLM_없이_동작한다(본문, 기대):
++    from app.analyzers.date_finder import find_dates
++
++    assert [d.value.isoformat() for d in find_dates(본문)] == 기대
++
++
++def test_찾은_날짜는_앞뒤_문맥을_함께_준다():
++    """무엇의 날짜인지는 **날짜 앞**에 적힌다 — 「제안서평가일시: 2026/07/20」."""
++    from app.analyzers.date_finder import find_dates
++
++    found = find_dates("○제안서평가일시: 2026/07/20   09:30 ○제안서평가장소: 나라장터")[0]
++    assert "제안서평가일시" in found.context
++    assert found.as_prompt_record()["date"] == "2026-07-20"
++
++
++@pytest.mark.parametrize("본문,기대", [
++    ("○ 납품기한: 2026/12/10", "납품기한"),
++    ("·  평가위원질의종료일시   :   2026.   07.   20.", "평가위원질의종료일시"),
++    ("- 제출기한:   2026/07/14   18:00까지", "제출기한"),
++    # 문장이 딸려 오면 이름이 아니다. 모델에게 맡긴다.
++    ("허가 과정에서 변경될 수 있음. 입찰마감: 2025/11/03", None),
++    # 콜론이 없는 산문·표에는 이름이 없다.
++    ("연구기간 2021. 3. 25. ~ 2021. 8. 20. (5개월)", None),
++])
++def test_이름은_콜론_앞에서_떼어낸다(본문, 기대):
++    """모델은 이름을 바꿔 쓴다(「제출시작일시」→「제출 마감」). 잡히면 원문이 이긴다."""
++    from app.analyzers.date_finder import find_dates
++
++    assert find_dates(본문)[0].label == 기대
++
++
++def test_이름은_모델에게_보내지_않는다():
++    """힌트로 줬더니 제목에 날짜를 넣거나 한 가지 이름으로 무너졌다."""
++    from app.analyzers.date_finder import find_dates
++
++    found = find_dates("○ 납품기한: 2026/12/10")[0]
++    assert found.label == "납품기한"
++    assert "label" not in found.as_prompt_record()
++
++
++def test_원문에서_떼어낸_이름이_모델의_제목을_이긴다(config):
++    from app.analyzers.schedule_analyzer import ScheduleAnalyzer
++
++    client = ScriptedAI(lambda *_: {"items": [_item(["d1"], "제안서 제출 마감")]})
++    result = asyncio.run(ScheduleAnalyzer(client, config).analyze(
++        "○제안서ㆍ가격전자입찰서제출시작일시: 2026/07/13   10:00"))
++
++    assert result.result["schedule_items"][0]["title"] == "제안서ㆍ가격전자입찰서제출시작일시"
++
++
++@pytest.mark.parametrize("label,기대", [
++    ("납품기한", "DEADLINE"),
++    ("제안서ㆍ가격전자입찰서제출마감일시", "DEADLINE"),
++    # 「평가」가 들어 있어도 「종료」가 이긴다 — 질의를 끝내는 기한이다.
++    ("평가위원질의종료일시", "DEADLINE"),
++    ("제안서평가일시", "MEETING"),
++    ("개찰일시", "MEETING"),
++    # 「시작」이 들어 있어도 「평가」가 이긴다 — 평가를 하는 자리다.
++    ("온라인평가 시작일시", "MEETING"),
++    # 「기간」이 가장 강하다. 제출기간은 마감이 아니라 구간이다.
++    ("제출기간", "PERIOD"),
++    ("용역기간", "PERIOD"),
++    ("제출시작일시", "MILESTONE"),
++    ("조합장 선임", "MILESTONE"),
++    ("장소", None),
++])
++def test_종류는_이름에서_읽는다(label, 기대):
++    """모델은 kind 에서 오락가락한다. 그런데 kind 가 틀리면 달력에서 사라진다."""
++    from app.analyzers.schedule_analyzer import kind_from_label
++
++    kind = kind_from_label(label)
++    assert (kind.value if kind else None) == 기대
++
++
++def test_이름에서_읽은_종류가_모델을_이긴다(config):
++    from app.analyzers.schedule_analyzer import ScheduleAnalyzer
++
++    # 모델은 MILESTONE 이라 했지만 이름이 「납품기한」이면 DEADLINE 이다.
++    client = ScriptedAI(lambda *_: {"items": [_item(["d1"], "납품", "MILESTONE")]})
++    result = asyncio.run(ScheduleAnalyzer(client, config).analyze("○ 납품기한: 2026/12/10"))
++    item = result.result["schedule_items"][0]
++
++    assert item["kind"] == "DEADLINE"
++    assert (item["starts_on"], item["ends_on"]) == (None, "2026-12-10")
++
++
++def test_이름이_없으면_모델의_종류를_쓴다(config):
++    from app.analyzers.schedule_analyzer import ScheduleAnalyzer
++
++    client = ScriptedAI(lambda *_: {"items": [_item(["d1"], "착수 보고", "MILESTONE")]})
++    result = asyncio.run(ScheduleAnalyzer(client, config).analyze("2026. 3. 2. 착수한다"))
++
++    assert result.result["schedule_items"][0]["kind"] == "MILESTONE"
++
++
++def test_이름을_못_떼어내면_모델의_제목을_쓴다(config):
++    from app.analyzers.schedule_analyzer import ScheduleAnalyzer
++
++    client = ScriptedAI(lambda *_: {"items": [_item(["d1"], "연구기간 종료")]})
++    result = asyncio.run(ScheduleAnalyzer(client, config).analyze(
++        "연구를 2021. 8. 20. 까지 수행한다"))
++
++    assert result.result["schedule_items"][0]["title"] == "연구기간 종료"
++
++
++def test_결정사항도_같은_구조로_동작한다(config):
++    from app.analyzers.extraction_analyzer import DecisionAnalyzer
++
++    client = ScriptedAI(lambda *_: {"decisions": [
++        {"title": "우선협상대상자로 A사를 선정", "content": None, "status": "DECIDED",
++         "decided_on": "2026-07-25", "confidence": 0.9, "reason": "낙찰 결과에 적혀 있다."}]})
++    result = asyncio.run(DecisionAnalyzer(client, config).analyze("결정 내용입니다.\n" * 200))
++
++    assert len(result.result["decisions"]) == 1
++    assert result.prompt_version == "decision-v1"
++
++
+ @pytest.mark.parametrize("category", ["RFP", "PROPOSAL", "COST_SHEET", "CONTRACT", "CONTRACT_CHANGE", "REPORT", "MEETING_NOTES", "ETC"])
+ def test_eight_category_codes_are_accepted(config, category):
+     client = ScriptedAI(lambda *_: {"category": category, "reason": "문서에 근거한 분류입니다."})
