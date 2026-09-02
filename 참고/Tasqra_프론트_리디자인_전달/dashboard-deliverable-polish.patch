@@ -148,6 +148,20 @@ index c36f32e..38297f0 100644
  .project-calendar{border-radius:var(--ui-panel-radius)}.project-calendar__controls button:hover,.project-calendar__detail li button:hover{border-color:var(--c-accent-border);background:var(--c-accent-soft)}.project-calendar__day.is-selected{box-shadow:inset 0 0 0 2px var(--c-accent)}.project-calendar__date small,.project-calendar__more{color:var(--c-accent)}
  
  /* Documents */
+diff --git a/frontend/src/styles/landing.css b/frontend/src/styles/landing.css
+index c5d12ed..113b6dd 100644
+--- a/frontend/src/styles/landing.css
++++ b/frontend/src/styles/landing.css
+@@ -6,6 +6,9 @@
+ 
+ .landing{min-width:320px;min-height:100vh;overflow-x:clip;background:#fff;color:#475569;font-family:"Pretendard Variable",Pretendard,"Noto Sans KR","Malgun Gothic","Apple SD Gothic Neo",-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif}
+ .landing .app-header{position:sticky;top:0;height:74px;padding-inline:max(24px,calc((100vw - 1192px)/2));border-color:#edf1f7;background:rgba(255,255,255,.96);backdrop-filter:blur(12px)}
++.landing .app-header__brand .logo{gap:0}
++.landing .app-header__brand .logo-mark{width:52px;height:52px}
++.landing .app-header__brand .logo strong{font-size:20px;letter-spacing:.015em;text-transform:uppercase}
+ .landing-page{width:min(1320px,100%);margin:0 auto;overflow:hidden;background:#fff}
+ .landing-hero{position:relative;display:grid;min-height:570px;grid-template-columns:minmax(390px,.9fr) minmax(0,1.1fr);column-gap:clamp(40px,4.5vw,64px);align-items:center;padding:34px clamp(24px,4vw,64px) 26px;background:#fff;isolation:isolate}
+ .landing-hero__copy{position:relative;z-index:3;width:min(450px,100%);justify-self:end;animation:landing-copy-enter .65s cubic-bezier(.2,.8,.2,1) both}
 diff --git a/frontend/public/tasqra-logo.svg b/frontend/public/tasqra-logo.svg
 new file mode 100644
 index 0000000..0ddc0c7
