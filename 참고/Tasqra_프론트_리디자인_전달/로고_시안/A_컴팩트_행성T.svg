@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">시안 A 컴팩트 행성 T</title>
+  <defs>
+    <linearGradient id="a-planet" x1="13" y1="49" x2="51" y2="13" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#173cff"/>
+      <stop offset=".52" stop-color="#087ff4"/>
+      <stop offset="1" stop-color="#08d7e5"/>
+    </linearGradient>
+    <linearGradient id="a-orbit" x1="8" y1="45" x2="58" y2="31" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#173cff"/>
+      <stop offset="1" stop-color="#08d7e5"/>
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="30" r="20" fill="url(#a-planet)"/>
+  <path fill="#fff" d="M19 20h28l-5 7h-8l-6 19h-8l6-19H15z"/>
+  <path d="M8 37c7 13 34 16 49-2" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round"/>
+  <path d="M8 37c7 13 34 16 49-2" fill="none" stroke="url(#a-orbit)" stroke-width="3" stroke-linecap="round"/>
+</svg>
