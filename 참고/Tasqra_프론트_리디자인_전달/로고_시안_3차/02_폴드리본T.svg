@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72" role="img" aria-labelledby="title">
+  <title id="title">폴드 리본 T</title>
+  <defs>
+    <linearGradient id="fold-main" x1="10" y1="13" x2="60" y2="57" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#173cff"/>
+      <stop offset=".6" stop-color="#087df4"/>
+      <stop offset="1" stop-color="#08d9e6"/>
+    </linearGradient>
+    <linearGradient id="fold-shadow" x1="35" y1="24" x2="26" y2="61" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#101d72"/>
+      <stop offset="1" stop-color="#173cff"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#fold-main)" d="M10 13h49c3 0 4.3 2.8 2.4 5L55 25.3c-1.6 1.8-3.7 2.7-6.2 2.7H34l-11.2 30c-1.5 4.1-6.2 5.2-9.1 2.1-2-2.1-1.8-4.8-.6-7.7L22.5 30c.6-1.4-.4-2-2-2H5.7L10 13Z"/>
+  <path fill="url(#fold-shadow)" d="M34 28h13.2L31.5 59.2c-2.1 4.2-7.6 4.6-10.2.8L34 28Z" opacity=".95"/>
+  <path fill="#09cfe6" d="m31.3 58.9 13.8-17.2c1.5-1.9 3.4-2.7 5.8-2.7H63L40.2 62.2c-3 3-6.8 2.3-8.9-.7-.7-1-.7-1.8 0-2.6Z"/>
+</svg>

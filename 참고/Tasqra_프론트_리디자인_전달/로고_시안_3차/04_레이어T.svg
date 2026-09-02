@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72" role="img" aria-labelledby="title">
+  <title id="title">레이어 T</title>
+  <defs>
+    <linearGradient id="layer-back" x1="9" y1="14" x2="62" y2="14" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#173cff"/>
+      <stop offset="1" stop-color="#08d9e6"/>
+    </linearGradient>
+    <linearGradient id="layer-main" x1="8" y1="24" x2="58" y2="58" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#173cff"/>
+      <stop offset=".58" stop-color="#087df4"/>
+      <stop offset="1" stop-color="#08d9e6"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#layer-back)" d="M14 9h48c2 0 3 2.1 1.6 3.7L59 18H8l3.6-6.4C12.2 10.5 13 9 14 9Z" opacity=".34"/>
+  <path fill="url(#layer-back)" d="M10 16h49c2.3 0 3.3 2.4 1.8 4.1L56 26H4l3.5-7C8 17.6 9 16 10 16Z" opacity=".62"/>
+  <path fill="url(#layer-main)" d="M7 24h49c2.6 0 3.7 2.6 2 4.6L52.5 35H36L26 60.3c-1.5 3.8-6.1 4.7-8.8 1.7-1.8-2-1.5-4.5-.4-7.1L24.7 35H1.5L7 24Z"/>
+  <path fill="#08cfe6" d="m25.8 58.5 12.8-15.8h12.5L33.7 61.4c-2.6 2.7-6 2.1-7.9-.5-.6-.8-.6-1.6 0-2.4Z"/>
+</svg>
