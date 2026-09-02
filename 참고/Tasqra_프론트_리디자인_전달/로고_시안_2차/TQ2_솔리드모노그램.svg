@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">TQ2 솔리드 모노그램</title>
+  <defs>
+    <linearGradient id="tq2" x1="8" y1="56" x2="56" y2="8" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#173cff"/>
+      <stop offset=".55" stop-color="#087ff4"/>
+      <stop offset="1" stop-color="#08d7e5"/>
+    </linearGradient>
+  </defs>
+  <circle cx="30" cy="29" r="24" fill="url(#tq2)"/>
+  <circle cx="30" cy="29" r="14" fill="#fff"/>
+  <path d="m44 43 11 10" fill="none" stroke="url(#tq2)" stroke-width="9" stroke-linecap="round"/>
+  <path fill="url(#tq2)" d="M17 18h29l-5 8h-8l-7 23h-9l7-23H12z"/>
+</svg>
