@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>김보현 Portfolio · Backend Developer</title>
+  <!--
+    1. 이 파일의 책임: 렉스코드 Python/FastAPI·AI 백엔드 공고에 맞춘 김보현의 A3 4페이지 포트폴리오를 표현한다.
+    2. 다른 파일과의 관계: 같은 폴더의 NotoSansKR.ttf를 사용하며, 인터넷 연결·이미지·스크립트 없이 열고 PDF로 인쇄할 수 있다.
+    3. Spring 비교: 하나의 정적 View 템플릿에 해당하며, 검증된 프로젝트 사실만 화면에 렌더링한다.
+  -->
+  <style>
+    @font-face {
+      font-family: "Noto Sans KR Local";
+      src: url("./NotoSansKR.ttf") format("truetype");
+      font-style: normal;
+      font-weight: 100 900;
+      font-display: swap;
+    }
+    :root {
+      --black: #111111;
+      --ink: #292925;
+      --gray-700: #4a4a44;
+      --gray-500: #77776f;
+      --gray-300: #c7c7c0;
+      --gray-200: #deded8;
+      --gray-100: #f0f0ed;
+      --paper: #fafaf8;
+      --white: #ffffff;
+      --pw: 297mm;
+      --ph: 420mm;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: #d8d8d3; color: var(--black); }
+    body {
+      font-family: "Noto Sans KR Local", Pretendard, "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", Arial, sans-serif;
+      font-size: 12px;
+      line-height: 1.58;
+      word-break: keep-all;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    a { color: inherit; text-decoration: none; }
+    strong { font-weight: 800; }
+
+    .page {
+      position: relative;
+      width: var(--pw);
+      height: var(--ph);
+      margin: 18px auto;
+      background: var(--paper);
+      overflow: hidden;
+      page-break-after: always;
+      break-after: page;
+      box-shadow: 0 10px 35px rgba(0, 0, 0, .12);
+    }
+    .page:last-child { page-break-after: auto; break-after: auto; }
+    .page-frame { height: 100%; padding: 25mm 24mm 20mm; }
+
+    .eyebrow {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      color: var(--gray-500);
+      font-size: 9px;
+      font-weight: 800;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+    }
+    .eyebrow::before { content: ""; width: 25px; height: 2px; background: var(--black); }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { margin-bottom: 0; font-size: 34px; line-height: 1.12; letter-spacing: -.045em; }
+    h2 { margin-bottom: 0; font-size: 26px; line-height: 1.2; letter-spacing: -.04em; }
+    h3 { margin-bottom: 0; font-size: 15px; line-height: 1.35; letter-spacing: -.02em; }
+
+    .page-number {
+      position: absolute;
+      right: 24mm;
+      bottom: 10mm;
+      font-size: 9px;
+      color: var(--gray-500);
+      letter-spacing: .12em;
+    }
+    .page-number strong { color: var(--black); }
+    .section-number {
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 58px;
+      font-weight: 700;
+      line-height: .85;
+      color: var(--gray-200);
+    }
+    .section-head {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      margin: 8mm 0 7mm;
+      padding-bottom: 5mm;
+      border-bottom: 2px solid var(--black);
+    }
+    .section-head p { margin: 0 0 2px; color: var(--gray-500); font-size: 10px; }
+
+    .tag-row { display: flex; flex-wrap: wrap; gap: 5px; }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 23px;
+      padding: 3px 8px;
+      border: 1px solid var(--gray-300);
+      background: var(--white);
+      font-size: 9px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .tag.dark { border-color: var(--black); background: var(--black); color: var(--white); }
+
+    .label {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--gray-500);
+      font-size: 8px;
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+    .rule-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4mm;
+      font-size: 13px;
+      font-weight: 900;
+    }
+    .rule-title::after { content: ""; flex: 1; height: 1px; background: var(--gray-300); }
+    .muted { color: var(--gray-500); }
+    .small { font-size: 9px; }
+    .mono { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
+
+    /* PAGE 1 */
+    .cover { display: grid; grid-template-columns: 78mm 1fr; }
+    .cover-side {
+      height: 100%;
+      padding: 23mm 12mm 18mm;
+      background: var(--black);
+      color: var(--white);
+      display: flex;
+      flex-direction: column;
+    }
+    .identity-mark {
+      width: 43mm;
+      height: 43mm;
+      border: 1px solid #777;
+      display: grid;
+      place-items: center;
+      margin-bottom: 12mm;
+      background:
+        linear-gradient(135deg, transparent 49.7%, #353532 50%, transparent 50.3%),
+        linear-gradient(45deg, transparent 49.7%, #353532 50%, transparent 50.3%);
+    }
+    .identity-mark span {
+      display: grid;
+      place-items: center;
+      width: 29mm;
+      height: 29mm;
+      border-radius: 50%;
+      background: var(--white);
+      color: var(--black);
+      font-family: Georgia, serif;
+      font-size: 25px;
+      font-weight: 800;
+      letter-spacing: -.06em;
+    }
+    .cover-side h1 { font-size: 28px; letter-spacing: -.06em; }
+    .cover-side .role { margin: 3px 0 11mm; color: #bcbcb6; font-size: 11px; }
+    .side-block { padding: 7mm 0; border-top: 1px solid #44443f; }
+    .side-block .label { color: #8e8e87; }
+    .contact-list { display: grid; gap: 8px; font-size: 9.5px; }
+    .contact-item { display: grid; grid-template-columns: 12px 1fr; gap: 7px; align-items: start; }
+    .contact-item b { color: #8f8f88; font-size: 8px; }
+    .contact-item a { overflow-wrap: anywhere; }
+    .side-timeline { display: grid; gap: 12px; }
+    .side-timeline article { position: relative; padding-left: 13px; }
+    .side-timeline article::before {
+      content: ""; position: absolute; left: 0; top: 5px; width: 5px; height: 5px;
+      border: 1px solid #aaa; background: var(--black); border-radius: 50%;
+    }
+    .side-timeline h3 { margin: 0 0 2px; font-size: 10px; color: var(--white); }
+    .side-timeline p { margin: 0; color: #a7a7a0; font-size: 8.5px; line-height: 1.45; }
+    .side-footer { margin-top: auto; padding-top: 7mm; border-top: 1px solid #44443f; color: #888880; font-size: 8px; }
+
+    .cover-main { height: 100%; padding: 24mm 20mm 19mm; display: flex; flex-direction: column; }
+    .cover-kicker { margin-bottom: 13mm; }
+    .cover-title { max-width: 164mm; font-size: 35px; }
+    .cover-title em { font-family: Georgia, "Times New Roman", serif; font-weight: 400; }
+    .cover-lead {
+      margin: 7mm 0 8mm;
+      max-width: 158mm;
+      color: var(--gray-700);
+      font-size: 12px;
+      line-height: 1.75;
+    }
+    .cover-lead strong { color: var(--black); }
+    .value-grid { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--black); margin-bottom: 9mm; }
+    .value-card { min-height: 42mm; padding: 6mm; border-right: 1px solid var(--gray-300); background: var(--white); }
+    .value-card:last-child { border-right: 0; }
+    .value-card .num { font-family: Georgia, serif; font-size: 24px; line-height: 1; }
+    .value-card h3 { margin: 4mm 0 2mm; font-size: 11px; }
+    .value-card p { margin: 0; color: var(--gray-500); font-size: 8.5px; line-height: 1.5; }
+
+    .stack-area { margin-bottom: 8mm; }
+    .stack-level { display: grid; grid-template-columns: 32mm 1fr; gap: 5mm; padding: 3.5mm 0; border-top: 1px solid var(--gray-200); }
+    .stack-level:last-child { border-bottom: 1px solid var(--gray-200); }
+    .stack-level h3 { font-size: 9px; }
+    .stack-level p { margin: 0; color: var(--gray-700); font-size: 9px; }
+    .project-strip { display: grid; grid-template-columns: 1.3fr 1fr 1fr; margin-top: auto; border-top: 2px solid var(--black); }
+    .project-mini { padding: 5mm 5mm 0 0; border-right: 1px solid var(--gray-300); }
+    .project-mini + .project-mini { padding-left: 5mm; }
+    .project-mini:last-child { border-right: 0; }
+    .project-mini h3 { margin-bottom: 2mm; font-size: 11px; }
+    .project-mini p { margin: 0; color: var(--gray-500); font-size: 8px; }
+
+    /* PROJECT PAGES */
+    .project-meta { display: flex; align-items: center; gap: 7px; margin-top: 4px; color: var(--gray-500); font-size: 9px; }
+    .project-meta i { width: 3px; height: 3px; background: var(--black); border-radius: 50%; }
+    .hero-grid { display: grid; grid-template-columns: 1.08fr .92fr; gap: 9mm; }
+    .hero-copy { padding-right: 4mm; }
+    .hero-copy .big-statement { margin: 0 0 6mm; font-size: 20px; font-weight: 900; line-height: 1.45; letter-spacing: -.035em; }
+    .hero-copy .big-statement span { border-bottom: 5px solid var(--gray-200); }
+    .hero-copy > p { color: var(--gray-700); }
+    .scope-box { padding: 6mm; border: 1px solid var(--black); background: var(--white); }
+    .scope-box ul { margin: 3mm 0 0; padding: 0; list-style: none; }
+    .scope-box li { position: relative; padding: 2.5mm 0 2.5mm 13px; border-top: 1px solid var(--gray-200); font-size: 9px; }
+    .scope-box li::before { content: "→"; position: absolute; left: 0; font-weight: 900; }
+    .scope-box li:first-child { border-top: 0; }
+
+    .pipeline { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin: 8mm 0; }
+    .pipe-step { position: relative; min-height: 34mm; padding: 5mm 4mm; border: 1px solid var(--gray-300); background: var(--white); }
+    .pipe-step:not(:last-child)::after { content: ""; position: absolute; right: -5px; top: 50%; width: 5px; height: 1px; background: var(--black); z-index: 2; }
+    .pipe-step b { display: block; margin-bottom: 3mm; font-size: 9.5px; }
+    .pipe-step p { margin: 0; color: var(--gray-500); font-size: 8px; line-height: 1.45; }
+    .pipe-step .n { display: block; margin-bottom: 2mm; color: var(--gray-500); font-family: Georgia, serif; font-size: 16px; }
+
+    .case-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6mm; }
+    .case-card { min-height: 66mm; padding: 6mm; border-top: 4px solid var(--black); background: var(--gray-100); }
+    .case-card .case-label { margin-bottom: 4mm; font-size: 8px; color: var(--gray-500); font-weight: 800; letter-spacing: .12em; }
+    .case-card h3 { margin-bottom: 3mm; font-size: 12px; }
+    .case-card p { margin: 0; color: var(--gray-700); font-size: 8.5px; line-height: 1.55; }
+    .case-card code { display: block; margin-top: 4mm; padding-top: 3mm; border-top: 1px solid var(--gray-300); font-size: 7.5px; color: var(--gray-700); }
+
+    .evidence { display: grid; grid-template-columns: 1fr 1fr; gap: 8mm; margin-top: 8mm; }
+    .evidence-panel { border-top: 1px solid var(--black); padding-top: 4mm; }
+    .evidence-panel ul { margin: 0; padding-left: 15px; }
+    .evidence-panel li { margin: 0 0 2mm; color: var(--gray-700); font-size: 8.5px; }
+    .boundary { padding: 5mm; border: 1px dashed var(--gray-500); background: var(--white); }
+    .boundary p { margin: 0; font-size: 8.5px; color: var(--gray-700); }
+
+    /* PAGE 3 */
+    .status-flow { display: grid; grid-template-columns: repeat(5, 1fr); align-items: center; margin: 7mm 0 8mm; }
+    .state { padding: 5mm 3mm; text-align: center; border: 1px solid var(--gray-300); background: var(--white); font-size: 9px; font-weight: 800; }
+    .arrow { text-align: center; font-size: 16px; color: var(--gray-500); }
+    .rule-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
+    .rule-card { min-height: 52mm; padding: 6mm; border: 1px solid var(--gray-300); background: var(--white); }
+    .rule-card .icon { display: grid; place-items: center; width: 24px; height: 24px; margin-bottom: 4mm; background: var(--black); color: var(--white); font-size: 10px; font-weight: 900; }
+    .rule-card h3 { margin-bottom: 2mm; font-size: 11px; }
+    .rule-card p { margin: 0; color: var(--gray-500); font-size: 8.5px; }
+    .db-table { width: 100%; margin-top: 7mm; border-collapse: collapse; font-size: 8.5px; }
+    .db-table th, .db-table td { padding: 3mm; text-align: left; border-top: 1px solid var(--gray-300); vertical-align: top; }
+    .db-table th { width: 35mm; color: var(--gray-500); font-size: 8px; letter-spacing: .05em; }
+    .search-band { display: grid; grid-template-columns: .8fr 1.2fr; gap: 7mm; margin-top: 8mm; padding: 7mm; background: var(--black); color: var(--white); }
+    .search-band p { margin: 0; color: #bbbbB5; font-size: 8.5px; }
+    .search-band .query { display: grid; gap: 5px; }
+    .query-row { display: grid; grid-template-columns: 26mm 1fr; gap: 5mm; padding-bottom: 3mm; border-bottom: 1px solid #444; }
+    .query-row:last-child { border-bottom: 0; padding-bottom: 0; }
+    .query-row b { font-size: 8.5px; }
+
+    /* PAGE 4 */
+    .two-column { display: grid; grid-template-columns: 1fr 1fr; gap: 9mm; }
+    .trouble { margin-bottom: 5mm; border: 1px solid var(--gray-300); background: var(--white); }
+    .trouble-head { display: grid; grid-template-columns: 23mm 1fr; }
+    .trouble-index { display: grid; place-items: center; background: var(--black); color: var(--white); font-family: Georgia, serif; font-size: 19px; }
+    .trouble-title { padding: 4mm; }
+    .trouble-title h3 { font-size: 11px; }
+    .trouble-title p { margin: 1mm 0 0; color: var(--gray-500); font-size: 8px; }
+    .trouble-body { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--gray-300); }
+    .trouble-body div { min-height: 35mm; padding: 4mm; border-right: 1px solid var(--gray-200); }
+    .trouble-body div:last-child { border-right: 0; }
+    .trouble-body b { display: block; margin-bottom: 2mm; font-size: 8px; letter-spacing: .08em; }
+    .trouble-body p { margin: 0; color: var(--gray-700); font-size: 7.8px; line-height: 1.5; }
+
+    .test-list { display: grid; gap: 4px; }
+    .test-item { display: grid; grid-template-columns: 23mm 1fr; gap: 4mm; padding: 3mm 0; border-top: 1px solid var(--gray-200); }
+    .test-item b { font-size: 8px; }
+    .test-item p { margin: 0; color: var(--gray-700); font-size: 8px; }
+    .coffee-box { margin-top: 6mm; padding: 6mm; border: 1px solid var(--black); }
+    .coffee-box h3 { margin-bottom: 3mm; }
+    .journal-flow { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; gap: 4px; align-items: center; margin-top: 4mm; }
+    .journal-flow span { padding: 3mm; text-align: center; background: var(--gray-100); font-size: 7.8px; }
+    .journal-flow i { font-style: normal; color: var(--gray-500); }
+    .motivation { margin-top: 7mm; padding: 7mm; background: var(--black); color: var(--white); }
+    .motivation h3 { margin-bottom: 3mm; font-size: 14px; }
+    .motivation p { margin: 0; color: #c9c9c2; font-size: 9px; line-height: 1.7; }
+    .link-list { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 5mm; border: 1px solid var(--gray-300); }
+    .link-item { padding: 4mm; border-right: 1px solid var(--gray-300); background: var(--white); }
+    .link-item:last-child { border-right: 0; }
+    .link-item b { display: block; margin-bottom: 1mm; font-size: 8px; }
+    .link-item span { color: var(--gray-500); font-size: 7px; overflow-wrap: anywhere; }
+
+    @page { size: 297mm 420mm; margin: 0; }
+    @media print {
+      html, body { background: var(--paper); }
+      .page { margin: 0; box-shadow: none; }
+    }
+    @media screen and (max-width: 1120px) {
+      body { min-width: 1120px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- 01. PROFILE -->
+  <section class="page cover" aria-label="프로필과 핵심 역량">
+    <aside class="cover-side">
+      <div class="identity-mark" aria-label="김보현 이니셜"><span>KB</span></div>
+      <h1>김보현</h1>
+      <p class="role">Junior Backend Developer</p>
+
+      <section class="side-block">
+        <span class="label">Contact</span>
+        <div class="contact-list">
+          <div class="contact-item"><b>P</b><a href="tel:+821075774025">010-7577-4025</a></div>
+          <div class="contact-item"><b>E</b><a href="mailto:bohyeonkk@naver.com">bohyeonkk@naver.com</a></div>
+          <div class="contact-item"><b>G</b><a href="https://github.com/bobohyeon">github.com/bobohyeon</a></div>
+        </div>
+      </section>
+
+      <section class="side-block">
+        <span class="label">Education</span>
+        <div class="side-timeline">
+          <article>
+            <h3>KH정보교육원</h3>
+            <p>AWS 클라우드 기반 DevOps<br />개발자 양성 과정 · 수료<br />2025.11 – 2026.06</p>
+          </article>
+          <article>
+            <h3>경남대학교</h3>
+            <p>디자인학부 · 중퇴<br />2011.03 – 2012.02</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="side-block">
+        <span class="label">Experience</span>
+        <div class="side-timeline">
+          <article><h3>(주)더 케이텍</h3><p>아모레뷰티파크 · 단기계약<br />2024.11 – 2025.11</p></article>
+          <article><h3>(주)하이진로지스틱스</h3><p>이커머스팀 사원<br />2022.07 – 2024.09</p></article>
+          <article><h3>와이즈교육</h3><p>외부강사·보육교사<br />2014 – 2022</p></article>
+        </div>
+      </section>
+
+      <section class="side-block">
+        <span class="label">Certificate</span>
+        <div class="small">전산회계 1급 · 2019.07<br />바리스타 2급 · 2022.03<br />MOS Master 2010 · 2011.05</div>
+      </section>
+
+      <div class="side-footer">PORTFOLIO · 2026<br />BACKEND / AI SERVICE</div>
+    </aside>
+
+    <main class="cover-main">
+      <div class="cover-kicker eyebrow">Backend Developer Portfolio</div>
+      <h2 class="cover-title">기능 너머의 문제를 보고,<br /><em>데이터가 끝까지 맞는 구조</em>를 만듭니다.</h2>
+      <p class="cover-lead">
+        Java/Spring에서 익힌 <strong>도메인 규칙·권한·트랜잭션 설계</strong>를 Python/FastAPI로 확장했습니다.
+        문서 추출 결과가 청크·임베딩·검색 응답으로 이어지는 흐름에서, 조용히 틀리는 데이터와 권한 누출을 먼저 막는 백엔드를 지향합니다.
+      </p>
+
+      <section class="value-grid" aria-label="핵심 역량">
+        <article class="value-card"><span class="num">01</span><h3>AI 서비스 연결</h3><p>모델 자체를 과장하지 않고, 임베딩 클라이언트 추상화와 검증·저장·재색인 경로를 구현했습니다.</p></article>
+        <article class="value-card"><span class="num">02</span><h3>검색·데이터 설계</h3><p>pgvector HNSW와 pg_trgm GIN을 결합하고 프로젝트 권한 범위를 쿼리 단계에서 지켰습니다.</p></article>
+        <article class="value-card"><span class="num">03</span><h3>정합성 중심 개발</h3><p>예약 상태 전이, 소유권, 중복 방지, 역분개처럼 실패했을 때 데이터가 어떻게 남는지부터 설계합니다.</p></article>
+      </section>
+
+      <section class="stack-area">
+        <div class="rule-title">TECH STACK · 숙련도와 경험 범위를 구분했습니다</div>
+        <div class="stack-level"><h3>직접 구현</h3><p>Python · FastAPI · SQLAlchemy · PostgreSQL · pgvector · Java · Spring Boot · JPA · QueryDSL · REST API</p></div>
+        <div class="stack-level"><h3>프로젝트 사용</h3><p>React · MyBatis · Oracle · JWT · Redux Toolkit · Alembic · pytest · Docker Compose</p></div>
+        <div class="stack-level"><h3>협업 환경 경험</h3><p>Git/GitHub · AWS 배포 환경 · GitHub Actions 기반 배포 흐름</p></div>
+      </section>
+
+      <section class="project-strip" aria-label="프로젝트 요약">
+        <article class="project-mini"><span class="label">Main · Tasqra</span><h3>문서 RAG 검색 백엔드</h3><p>FastAPI · OCR 결과 구조화 · 청킹/임베딩 · 하이브리드 검색</p></article>
+        <article class="project-mini"><span class="label">Team · Sloway</span><h3>예약 상태·권한 설계</h3><p>Spring Boot · QueryDSL · PostgreSQL 정합성</p></article>
+        <article class="project-mini"><span class="label">Team · CoffePrince</span><h3>회계 데이터 정합성</h3><p>복식부기 전표 · 역분개 · Oracle</p></article>
+      </section>
+    </main>
+    <div class="page-number"><strong>01</strong> / 04</div>
+  </section>
+
+  <!-- 02. TASQRA -->
+  <section class="page" aria-label="Tasqra 프로젝트">
+    <div class="page-frame">
+      <div class="eyebrow">Main Project · Python / FastAPI / AI Service</div>
+      <header class="section-head">
+        <div>
+          <h2>Tasqra · 문서 RAG 검색 백엔드</h2>
+          <div class="project-meta"><span>팀 프로젝트</span><i></i><span>Python / FastAPI</span><i></i><span>담당: 검색·청킹·임베딩 연동·평가 분석</span></div>
+        </div>
+        <div class="section-number">02</div>
+      </header>
+
+      <div class="hero-grid">
+        <div class="hero-copy">
+          <p class="big-statement">문서 추출 결과가 검색 가능한 근거가 되기까지,<br /><span>RAG 백엔드의 수직 흐름</span>을 구현했습니다.</p>
+          <p>FastAPI 검색 API부터 SQLAlchemy 리포지토리, PostgreSQL 벡터·키워드 인덱스, RRF 결합과 프롬프트 컨텍스트 조립까지 이어지는 경로를 담당했습니다.</p>
+          <div class="tag-row">
+            <span class="tag dark">FastAPI</span><span class="tag">SQLAlchemy</span><span class="tag">PostgreSQL</span><span class="tag">pgvector</span><span class="tag">pg_trgm</span><span class="tag">Alembic</span><span class="tag">pytest</span>
+          </div>
+        </div>
+        <aside class="scope-box">
+          <span class="label">My Contribution · 직접 구현 범위</span>
+          <ul>
+            <li>의미·키워드·하이브리드 검색 REST API</li>
+            <li>OCR/추출 결과의 구조 판정과 청킹·재임베딩</li>
+            <li>임베딩 클라이언트 추상화와 벡터 검증·저장</li>
+            <li>pgvector HNSW · pg_trgm GIN 스키마/쿼리</li>
+            <li>청킹·구조 판정·RRF·컨텍스트 조립 단위 테스트</li>
+          </ul>
+        </aside>
+      </div>
+
+      <section class="pipeline" aria-label="RAG 처리 흐름">
+        <article class="pipe-step"><span class="n">01</span><b>추출 결과</b><p>OCR·문서 파서가 만든 요소와 본문을 입력으로 받습니다.</p></article>
+        <article class="pipe-step"><span class="n">02</span><b>구조 판정</b><p>제목과 반복 머리글·바닥글을 보수적으로 판정합니다.</p></article>
+        <article class="pipe-step"><span class="n">03</span><b>청킹·임베딩</b><p>페이지·표·본문 좌표를 보존하고 벡터 수와 1024차원을 검증합니다.</p></article>
+        <article class="pipe-step"><span class="n">04</span><b>검색·결합</b><p>코사인 검색과 트라이그램 검색의 순위를 RRF로 결합합니다.</p></article>
+        <article class="pipe-step"><span class="n">05</span><b>근거 조립</b><p>중복 문장을 줄이고 토큰 예산 안에서 LLM 컨텍스트를 구성합니다.</p></article>
+      </section>
+
+      <section class="case-grid">
+        <article class="case-card">
+          <div class="case-label">CASE 01 · 권한과 검색 범위</div>
+          <h3>결과를 만든 뒤 거르지 않고,<br />쿼리 전에 범위를 확정</h3>
+          <p>요청한 프로젝트 중 사용자가 실제 멤버인 범위만 계산하고, 벡터·키워드 쿼리 모두 같은 범위 함수를 재사용했습니다. 서로 다른 임베딩 모델의 벡터가 섞이지 않도록 모델명도 조건에 포함했습니다.</p>
+          <code>project_ids + embedding_model → search scope</code>
+        </article>
+        <article class="case-card">
+          <div class="case-label">CASE 02 · 조용한 데이터 손실 방지</div>
+          <h3>벡터 개수·차원을 저장 전에 검증</h3>
+          <p>청크와 벡터 개수가 다르면 zip이 뒤쪽 데이터를 조용히 버릴 수 있습니다. 저장 전에 개수와 1024차원을 검증하고, 기존 청크 삭제와 신규 삽입을 한 트랜잭션에서 처리했습니다.</p>
+          <code>validate → delete old + bulk insert → commit</code>
+        </article>
+        <article class="case-card">
+          <div class="case-label">CASE 03 · 점수 체계가 다른 검색 결합</div>
+          <h3>코사인·트라이그램 점수 대신<br />순위를 RRF로 결합</h3>
+          <p>의미 유사도와 문자열 유사도는 같은 0.8이어도 뜻이 다릅니다. 원점수를 임의로 더하지 않고 <span class="mono">Σ 1/(k+rank)</span>로 결합해 두 방식이 함께 찾은 결과를 올렸습니다.</p>
+          <code>semantic rank + keyword rank → reciprocal rank fusion</code>
+        </article>
+      </section>
+
+      <section class="evidence">
+        <div class="evidence-panel">
+          <div class="rule-title">구현 근거</div>
+          <ul>
+            <li>FastAPI 검색 엔드포인트 3종과 서비스·리포지토리 계층</li>
+            <li><span class="mono">document_chunks</span> 1024차원 Vector, HNSW 코사인 인덱스, GIN trigram 인덱스</li>
+            <li>본문 버전·임베딩 모델이 같으면 불필요한 재임베딩 생략</li>
+            <li>로컬 OpenAI-compatible 임베딩 API의 배치·응답 순서·차원 검증</li>
+          </ul>
+        </div>
+        <div class="boundary">
+          <span class="label">Contribution Boundary · 팀 기여 구분</span>
+          <p><strong>제가 구현한 것은 OCR 엔진 자체가 아니라</strong> OCR·추출 결과의 구조 판정, 청킹, 임베딩·검색 연결입니다. 모델 파인튜닝과 리랭커 구현, 반복 측정은 팀원 담당입니다. 저는 팀 실측을 바탕으로 R@1 목표의 후보 상한과 지표 정의를 분석했습니다.</p>
+        </div>
+      </section>
+    </div>
+    <div class="page-number"><strong>02</strong> / 04</div>
+  </section>
+
+  <!-- 03. SLOWAY -->
+  <section class="page" aria-label="Sloway 프로젝트">
+    <div class="page-frame">
+      <div class="eyebrow">Team Project · Domain / Authorization / Consistency</div>
+      <header class="section-head">
+        <div>
+          <h2>Sloway · 숙소 예약 플랫폼</h2>
+          <div class="project-meta"><span>2026.04 – 06</span><i></i><span>5인</span><i></i><span>예약·리뷰·검색·지도 / 형상관리</span></div>
+        </div>
+        <div class="section-number">03</div>
+      </header>
+
+      <div class="hero-grid">
+        <div class="hero-copy">
+          <p class="big-statement">예약의 성공 경로보다 먼저,<br /><span>상태·시간·소유권이 충돌하는 경계</span>를 설계했습니다.</p>
+          <p>서비스 메서드의 if문에만 기대지 않고 애플리케이션 검증과 데이터베이스 제약을 함께 사용했습니다. 예약·리뷰 규칙이 어느 진입점에서도 같은 결과를 내도록 책임을 분리했습니다.</p>
+          <div class="tag-row"><span class="tag dark">Spring Boot</span><span class="tag">Java 21</span><span class="tag">JPA</span><span class="tag">QueryDSL</span><span class="tag">PostgreSQL</span><span class="tag">Spring Security</span><span class="tag">JWT</span></div>
+        </div>
+        <aside class="scope-box">
+          <span class="label">My Contribution</span>
+          <ul>
+            <li>예약 생성·취소·상태 전이와 중복 예약 방지</li>
+            <li>호스트 소유권·사용자 본인 예약 권한 검증</li>
+            <li>이용 완료·퇴실 후 14일·중복 리뷰 규칙</li>
+            <li>QueryDSL 기반 동적 숙소 검색 조건</li>
+            <li>리뷰·답글·도움돼요의 유일성 제약/인덱스</li>
+          </ul>
+        </aside>
+      </div>
+
+      <section aria-label="예약 상태 흐름">
+        <div class="rule-title" style="margin-top:8mm">예약 상태를 명시적인 전이로 관리</div>
+        <div class="status-flow">
+          <div class="state">예약 요청</div><div class="arrow">→</div><div class="state">승인 / 확정</div><div class="arrow">→</div><div class="state">이용 완료</div>
+        </div>
+        <div class="status-flow" style="grid-template-columns:1fr auto 1fr auto 1fr; margin-top:-4mm">
+          <div class="state">결제 대기</div><div class="arrow">→</div><div class="state">30분 경과</div><div class="arrow">→</div><div class="state">자동 취소</div>
+        </div>
+      </section>
+
+      <section class="rule-grid">
+        <article class="rule-card"><div class="icon">01</div><h3>중복 예약 · 블랙아웃 차단</h3><p><span class="mono">countOverlappingRsvn()</span>으로 날짜 구간 충돌을 확인하고, 호스트의 예약 불가일은 <span class="mono">checkBlackOut(...)</span>으로 분리해 검사했습니다.</p></article>
+        <article class="rule-card"><div class="icon">02</div><h3>소유권 검증 · 값 비교</h3><p>래퍼 타입 식별자를 참조 비교(<span class="mono">!=</span>)하면 같은 값도 다른 객체로 판단될 수 있습니다. <span class="mono">.equals(memberNo)</span>로 본인 예약과 호스트 소유권을 검증했습니다.</p></article>
+        <article class="rule-card"><div class="icon">03</div><h3>리뷰 작성 가능 조건</h3><p>본인 예약, 이용 완료, 퇴실 후 14일 이내, 중복 리뷰 없음, 별점 1~5를 모두 만족해야 저장되도록 규칙을 한 흐름으로 구성했습니다.</p></article>
+        <article class="rule-card"><div class="icon">04</div><h3>중복 취소·완료 방지</h3><p><span class="mono">ALREADY_CANCELLED</span>, <span class="mono">ALREADY_COMPLETED</span>처럼 이미 끝난 상태를 명시적으로 거절해 같은 요청이 데이터에 중복 반영되지 않게 했습니다.</p></article>
+      </section>
+
+      <table class="db-table" aria-label="데이터베이스 정합성 설계">
+        <tr><th>APPLICATION RULE</th><td>서비스 계층에서 예약 상태·시간·소유권·리뷰 자격을 사용자 맥락과 함께 검증</td></tr>
+        <tr><th>DATABASE RULE</th><td><span class="mono">review.rsvn_no UNIQUE</span> · <span class="mono">review_reply.review_no UNIQUE</span> · <span class="mono">helpful(user_no, review_no) UNIQUE</span></td></tr>
+        <tr><th>WHY BOTH?</th><td>애플리케이션은 이해할 수 있는 오류를 주고, DB 제약은 동시 요청이나 다른 저장 경로에서도 마지막 방어선이 됩니다.</td></tr>
+      </table>
+
+      <section class="search-band">
+        <div>
+          <span class="label" style="color:#8e8e87">Dynamic Search</span>
+          <h3 style="font-size:14px; margin-bottom:3mm">조건 조합을 QueryDSL로 분리</h3>
+          <p>지역·가격·인원·날짜처럼 선택적인 검색 조건을 <span class="mono">BooleanExpression</span> 단위로 나눠 null 조건을 안전하게 조합했습니다.</p>
+        </div>
+        <div class="query">
+          <div class="query-row"><b>지역</b><p><span class="mono">RegionType</span>으로 허용된 값과 화면 필터를 연결</p></div>
+          <div class="query-row"><b>예약 가능</b><p>겹치는 예약과 블랙아웃 기간을 제외해 조회 결과와 예약 규칙 일치</p></div>
+          <div class="query-row"><b>유지보수</b><p>분기마다 조건을 늘리는 대신 조건 메서드를 조합해 변경 범위를 제한</p></div>
+        </div>
+      </section>
+    </div>
+    <div class="page-number"><strong>03</strong> / 04</div>
+  </section>
+
+  <!-- 04. PROBLEM SOLVING -->
+  <section class="page" aria-label="문제 해결과 지원 동기">
+    <div class="page-frame">
+      <div class="eyebrow">Problem Solving · Test · Motivation</div>
+      <header class="section-head">
+        <div><h2>문제가 생긴 뒤보다, 틀린 데이터가 남기 전에</h2><div class="project-meta"><span>검증 가능한 코드</span><i></i><span>실패 경로 설계</span><i></i><span>기여 범위 명시</span></div></div>
+        <div class="section-number">04</div>
+      </header>
+
+      <div class="two-column">
+        <section>
+          <div class="rule-title">대표 트러블슈팅</div>
+          <article class="trouble">
+            <div class="trouble-head"><div class="trouble-index">1</div><div class="trouble-title"><h3>검색 점수를 그대로 더할 수 없었습니다</h3><p>Tasqra · 하이브리드 검색</p></div></div>
+            <div class="trouble-body">
+              <div><b>PROBLEM</b><p>코사인 유사도와 트라이그램 유사도는 같은 숫자여도 의미와 분포가 달랐습니다.</p></div>
+              <div><b>DECISION</b><p>원점수 정규화 상수를 임의로 정하지 않고, 각 검색 결과의 순위만 사용했습니다.</p></div>
+              <div><b>RESULT</b><p>RRF로 두 방식이 함께 찾은 문서를 우선하면서 점수 스케일 의존을 제거했습니다.</p></div>
+            </div>
+          </article>
+
+          <article class="trouble">
+            <div class="trouble-head"><div class="trouble-index">2</div><div class="trouble-title"><h3>OCR 검수 뒤 과거 청크가 남을 수 있었습니다</h3><p>Tasqra · 재청킹/재임베딩</p></div></div>
+            <div class="trouble-body">
+              <div><b>PROBLEM</b><p>본문이 수정되거나 전부 제외돼도 예전 벡터가 남으면 삭제한 내용이 검색됩니다.</p></div>
+              <div><b>DECISION</b><p>본문 버전과 모델을 비교하고, 빈 본문은 기존 청크를 삭제하도록 경로를 맞췄습니다.</p></div>
+              <div><b>RESULT</b><p>교체는 한 트랜잭션으로 처리해 실패 시 낡은 청크라도 유지하고 중간 상태는 남기지 않았습니다.</p></div>
+            </div>
+          </article>
+
+          <article class="trouble">
+            <div class="trouble-head"><div class="trouble-index">3</div><div class="trouble-title"><h3>같은 ID인데도 권한 없음으로 판단될 수 있었습니다</h3><p>Sloway · Java 래퍼 타입 비교</p></div></div>
+            <div class="trouble-body">
+              <div><b>PROBLEM</b><p><span class="mono">Long != Long</span>은 값을 비교하지 않아 동일 값도 다른 객체면 불일치할 수 있습니다.</p></div>
+              <div><b>DECISION</b><p>소유자 식별자는 <span class="mono">.equals()</span>로 비교하고 검증 메서드로 한곳에 모았습니다.</p></div>
+              <div><b>RESULT</b><p>객체 캐시 범위와 무관하게 값 기준으로 일관된 소유권 판단을 하도록 수정했습니다.</p></div>
+            </div>
+          </article>
+        </section>
+
+        <section>
+          <div class="rule-title">테스트와 운영 관점의 근거</div>
+          <div class="test-list">
+            <article class="test-item"><b>UNIT TEST</b><p>청킹·문서 구조 판정·키워드 검색·RRF 결합·컨텍스트 조립을 DB/모델 없이 검증했습니다.</p></article>
+            <article class="test-item"><b>DB SAFETY</b><p>벡터 차원 CHECK, 복합 UNIQUE, FK 인덱스와 트랜잭션으로 애플리케이션 밖의 실패도 방어했습니다.</p></article>
+            <article class="test-item"><b>MODEL API</b><p>외부 임베딩 API 비교 도구에 역할별 입력, rate limit, 429 재시도와 텍스트 해시 캐시를 보강했습니다.</p></article>
+            <article class="test-item"><b>DOCKER</b><p>로컬 Compose의 PostgreSQL을 <span class="mono">pgvector/pgvector:pg16</span> 이미지로 전환했습니다. 전체 인프라 구축은 팀 기여입니다.</p></article>
+            <article class="test-item"><b>METRIC</b><p>R@1 90%는 팀 목표입니다. 반복 측정 대신 팀 실측에서 후보 수·리랭커 상한·표본 크기와 지표 정의를 분석했습니다.</p></article>
+          </div>
+
+          <div class="coffee-box">
+            <span class="label">Supporting Project · CoffePrince</span>
+            <h3>매출 수정 이력을 지우지 않는 복식부기 전표</h3>
+            <p class="small muted">Spring Boot · Java 21 · MyBatis · Oracle · 2026.01 – 03 · 5인 · 재무관리/매출등록</p>
+            <p class="small">매출 등록 시 결제수단에 따라 차변 계정을 선택하고 제품매출 계정과 함께 전표를 자동 생성했습니다. 수정 시 기존 전표를 덮어쓰지 않고 원본 조회 → 역분개 → 신규 전표를 생성해 변경 전후 4건을 검증 가능하게 남겼습니다.</p>
+            <div class="journal-flow"><span>원본 전표</span><i>→</i><span>역분개</span><i>→</i><span>신규 전표</span></div>
+          </div>
+
+          <div class="motivation">
+            <span class="label" style="color:#8e8e87">Why Lexcode</span>
+            <h3>AI가 답을 만드는 순간보다, 그 답에 쓸 근거가 정확히 도착하는 과정에 강점이 있습니다.</h3>
+            <p>렉스코드의 AI·NLP 백엔드는 모델 호출만으로 끝나지 않고 다양한 문서를 파싱하고, 데이터와 권한을 지키며, 운영 가능한 API로 연결해야 하는 일이라고 이해했습니다. Tasqra에서 쌓은 FastAPI·문서 구조화·RAG 검색 경험과 Spring 프로젝트에서 다져 온 정합성 설계를 바탕으로, 실패를 설명할 수 있고 개선을 측정할 수 있는 서비스를 만들겠습니다.</p>
+          </div>
+        </section>
+      </div>
+
+      <nav class="link-list" aria-label="GitHub 저장소 링크">
+        <a class="link-item" href="https://github.com/ParkSehyeon1009/Tasqra"><b>TASQRA</b><span>github.com/ParkSehyeon1009/Tasqra</span></a>
+        <a class="link-item" href="https://github.com/bobohyeon/Sloway_Project"><b>SLOWAY</b><span>github.com/bobohyeon/Sloway_Project</span></a>
+        <a class="link-item" href="https://github.com/bobohyeon/CoffePrince_Semi"><b>COFFEPRINCE</b><span>github.com/bobohyeon/CoffePrince_Semi</span></a>
+      </nav>
+    </div>
+    <div class="page-number"><strong>04</strong> / 04</div>
+  </section>
+</body>
+</html>
