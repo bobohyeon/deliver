@@ -1,27 +1,3 @@
-diff --git a/.kiro/steering/local-frontend-rebuild.md b/.kiro/steering/local-frontend-rebuild.md
-new file mode 100644
-index 0000000..c22da62
---- /dev/null
-+++ b/.kiro/steering/local-frontend-rebuild.md
-@@ -0,0 +1,18 @@
-+---
-+inclusion: always
-+---
-+
-+# Windows 로컬 프런트 반영 규칙
-+
-+이 프로젝트의 사용자 Windows Docker 환경에서는 프런트 소스 변경 뒤 로컬
-+`npm run build`만 실행하면 실행 중인 프런트 컨테이너 화면이 갱신되지 않는다.
-+
-+화면 확인 전에 저장소 루트에서 다음처럼 프런트 이미지를 다시 만들고 컨테이너를
-+강제로 재생성한다.
-+
-+```powershell
-+docker compose up -d --build --force-recreate frontend
-+```
-+
-+그 뒤 `docker compose ps frontend`로 실행 상태를 확인하고 브라우저에서
-+`Ctrl + F5`로 강력 새로고침한다.
 diff --git a/frontend/src/pages/DocumentDetailPage.jsx b/frontend/src/pages/DocumentDetailPage.jsx
 index 8511da7..2773f44 100644
 --- a/frontend/src/pages/DocumentDetailPage.jsx
