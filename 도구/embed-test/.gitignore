@@ -1,0 +1,26 @@
+# 생성물 — 커밋하지 않는다
+chunks.csv
+chunks_worksheet.csv
+results.csv
+results_detail.csv
+.venv/
+__pycache__/
+
+# 평가셋은 직접 만든 것이므로 커밋한다 (queries.csv 는 제외 안 함)
+
+# 원본 문서는 커밋하지 않는다 (저작권·용량)
+input/*
+!input/.gitkeep
+
+# 팀원이 준 자료로 만든 변환 결과는 커밋하지 않는다.
+# deliver 는 public 이다. 남이 만든 평가셋을 동의 없이 공개하지 않는다.
+# convert_jsonl.py --out 은 이 규칙에 맞는 폴더 이름을 쓴다.
+eval_*/
+*_sehyeon*/
+source_map.csv
+
+# corpus 는 샘플만 커밋한다
+corpus/*
+!corpus/*_샘플.md
+.embed_cache/
+g2b_raw/

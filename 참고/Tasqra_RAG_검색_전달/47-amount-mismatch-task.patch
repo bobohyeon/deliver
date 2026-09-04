@@ -1,0 +1,714 @@
+diff --git a/backend/app/api/routes/amount_router.py b/backend/app/api/routes/amount_router.py
+index 8094a4a..01b352f 100644
+--- a/backend/app/api/routes/amount_router.py
++++ b/backend/app/api/routes/amount_router.py
+@@ -24,19 +24,24 @@
+ # =============================================================================
+ 
+ from fastapi import APIRouter, Depends, Query
++from starlette import status
+ 
+ from app.dependencies import (
+     ProjectAccess,
+     get_amount_precedent_service,
+     get_amount_summary_service,
++    get_amount_task_service,
+     get_project_access,
+     get_project_amount_access,
++    get_project_editor_access,
+ )
+ from app.schemas.amount_item import AmountItemListResponse
+ from app.schemas.amount_precedent import AmountPrecedentResponse
+ from app.schemas.amount_summary import AmountSummaryResponse
++from app.schemas.task import TaskResponse
+ from app.services.amount_precedent_service import AmountPrecedentService
+ from app.services.amount_summary_service import AmountSummaryService
++from app.services.amount_task_service import AmountTaskService
+ 
+ router = APIRouter(prefix="/api/projects/{project_id}", tags=["amount"])
+ 
+@@ -147,3 +152,64 @@ def list_amount_items(
+       `404`                     내가 멤버가 아닌 프로젝트
+     """
+     return service.list_items(access.project.id, limit)
++
++
++
++@router.post(
++    "/amount-items/{item_id}/task",
++    response_model=TaskResponse,
++    status_code=status.HTTP_201_CREATED,
++)
++def create_task_from_amount_mismatch(
++    item_id: int,
++    access: ProjectAccess = Depends(get_project_editor_access),
++    service: AmountTaskService = Depends(get_amount_task_service),
++) -> TaskResponse:
++    """검산이 어긋난 금액 항목을 태스크로 만든다 (`AMT-004-3` · `TSK-002-1`).
++
++    **자동으로 만들지 않습니다.** 완료 판정이 *"승인형 태스크 제안 카드가 생기고
++    자동 등록은 하지 않는다"* 라서, 검산할 때가 아니라 **사람이 누를 때** 만듭니다.
++    그래서 이 엔드포인트가 승인 버튼 그 자체입니다.
++
++    `TSK-002-1` 의 *"승인 전에는 보드에 나타나지 않는다"* 도 같이 만족합니다 —
++    누르기 전에는 `tasks` 에 행이 없으므로 보드 조회를 건드릴 필요가 없습니다.
++
++    ### 요청 본문이 없습니다
++
++    금액이나 차액을 받지 않고 **항목 id 만** 받습니다. 서버가 그 항목을 다시
++    검산합니다. 화면이 낡은 목록을 들고 있으면 이미 고쳐진 항목으로 태스크를 만들
++    수 있고, 그러면 근거 없는 태스크가 남습니다.
++
++    ### 제목·설명을 서버가 만듭니다
++
++    화면마다 문구를 만들면 같은 성격의 태스크가 다르게 적힙니다. 그리고 이 태스크는
++    보드에서도 읽히므로 **계산 근거가 설명 안에 함께** 있어야 무슨 일인지 알 수
++    있습니다. 차액은 부호가 아니라 문장으로 적습니다 — `-50,000` 만 적으면
++    "부족" 으로 읽힙니다.
++
++    `type` 은 `DOCUMENT` 입니다. 문서에 적힌 값을 확인하는 일이고, `OTHER` 로 두면
++    보드에서 성격을 알 수 없습니다.
++
++    ### 만들어진 태스크
++
++    `origin='AI_APPROVED'`, `source_suggestion_id=<금액 항목 id>` 입니다.
++
++    ⚠ `source_suggestion_id` 는 원래 「제안 테이블의 id」 자리인데 그 테이블이 아직
++    없어서 **빌려 쓰고 있습니다.** `task_suggestions` 를 만드는 리비전에서 컬럼을
++    갈라야 합니다 — 자세한 것은 `models/task.py` 의 그 컬럼 주석에 있습니다.
++
++    ### 오류
++
++      `404 AMOUNT_ITEM_NOT_FOUND`        그 항목이 없다 (다른 프로젝트 것 포함)
++      `409 AMOUNT_NOT_MISMATCHED`        어긋난 항목이 아니다 → 목록이 낡았다
++      `409 AMOUNT_TASK_ALREADY_EXISTS`   이미 만든 태스크가 있다
++      `403 PROJECT_FORBIDDEN`            VIEWER 다. 태스크를 만들 수 없다
++
++    검산 불가(제경비처럼 수량·단가가 없는 항목)와 금액이 안 적힌 항목도
++    `AMOUNT_NOT_MISMATCHED` 입니다. **어긋난 것이 아니라 정상**이라서 태스크로 만들
++    이유가 없습니다.
++    """
++    task = service.create_from_mismatch(
++        access.project.id, item_id, access.member.user_id
++    )
++    return TaskResponse.model_validate(task)
+diff --git a/backend/app/core/error_codes.py b/backend/app/core/error_codes.py
+index 5509f35..2001c77 100644
+--- a/backend/app/core/error_codes.py
++++ b/backend/app/core/error_codes.py
+@@ -69,6 +69,13 @@ class ErrorCode(Enum):
+ 
+     # ── 금액 (amount_items) ──
+     AMOUNT_ITEM_NOT_FOUND = ("AMOUNT_ITEM_NOT_FOUND", "금액 항목을 찾을 수 없습니다.", 404)
++    # 아래 둘을 나눈 이유는 **화면이 다르게 처리해야 하기 때문**이다.
++    #   NOT_MISMATCHED  → 화면이 낡았다. 목록을 다시 받아야 한다
++    #   TASK_EXISTS     → 이미 있다. 그 태스크를 가리켜 주면 된다
++    # 하나로 묶으면 화면이 "오류가 났습니다" 만 띄우게 되고 사용자는 무엇을 해야
++    # 하는지 알 수 없다.
++    AMOUNT_NOT_MISMATCHED = ("AMOUNT_NOT_MISMATCHED", "수량 × 단가가 문서 금액과 어긋난 항목만 태스크로 만들 수 있습니다.", 409)
++    AMOUNT_TASK_ALREADY_EXISTS = ("AMOUNT_TASK_ALREADY_EXISTS", "이 금액 항목으로 만든 태스크가 이미 있습니다.", 409)
+     AMOUNT_NOT_ANALYZED = ("AMOUNT_NOT_ANALYZED", "금액 분석이 완료되지 않았습니다.", 409)
+     CURRENCY_MISMATCH = ("CURRENCY_MISMATCH", "통화가 다른 금액은 함께 집계할 수 없습니다.", 409)
+     NO_APPROVED_AMOUNTS = ("NO_APPROVED_AMOUNTS", "집계할 승인된 금액이 없습니다.", 409)
+diff --git a/backend/app/dependencies.py b/backend/app/dependencies.py
+index 2ac2d37..fd8df7f 100644
+--- a/backend/app/dependencies.py
++++ b/backend/app/dependencies.py
+@@ -59,6 +59,7 @@ from app.models.project import Project, ProjectMember
+ from app.models.user import User
+ from app.services.amount_precedent_service import AmountPrecedentService
+ from app.services.amount_summary_service import AmountSummaryService
++from app.services.amount_task_service import AmountTaskService
+ from app.services.auth_service import AuthService
+ from app.services.project_service import ProjectService
+ from app.services.analysis_service import AnalysisService
+@@ -247,8 +248,22 @@ def get_amount_precedent_service(
+ # 트랜잭션을 열 일이 없는 순수 조회다.
+ def get_amount_summary_service(
+     amount_repository: AmountRepository = Depends(get_amount_repository),
++    task_repository: TaskRepository = Depends(get_task_repository),
+ ) -> AmountSummaryService:
+-    return AmountSummaryService(amount_repository)
++    return AmountSummaryService(amount_repository, task_repository)
++
++
++def get_amount_task_service(
++    amount_repository: AmountRepository = Depends(get_amount_repository),
++    task_repository: TaskRepository = Depends(get_task_repository),
++    task_service: TaskService = Depends(get_task_service),
++) -> AmountTaskService:
++    """금액 불일치를 태스크로 만드는 서비스 (AMT-004-3).
++
++    태스크를 만드는 것은 TaskService 에 맡긴다 — 제목 검증·담당자 확인·활동 기록이
++    거기 있고, 그것을 복사하면 제안으로 만든 태스크만 활동 로그에 안 남는다.
++    """
++    return AmountTaskService(amount_repository, task_repository, task_service)
+ 
+ 
+ def get_dashboard_repository(db: Session = Depends(get_db)) -> DashboardRepository:
+diff --git a/backend/app/models/task.py b/backend/app/models/task.py
+index c5780fe..75e7e78 100644
+--- a/backend/app/models/task.py
++++ b/backend/app/models/task.py
+@@ -26,6 +26,24 @@ class Task(Base):
+     due_on: Mapped[date | None] = mapped_column(Date)
+     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+     origin: Mapped[str] = mapped_column(String(20), nullable=False, server_default="MANUAL")
++    # ⚠ 지금 이 컬럼에는 **amount_items.id** 가 들어간다 (금액 불일치 태스크 제안,
++    #   AMT-004-3). 원래는 「제안 테이블의 id」 자리인데 그 테이블이 아직 없어서
++    #   빌려 쓰고 있다.
++    #
++    #   빌려도 안전한 이유: 그때까지 이 컬럼은 전부 NULL 이었다(POST /tasks 가 값을
++    #   넘기지 않았다). 그래서 들어가는 값이 한 종류뿐이고, 나중에 갈라놓을 때 어느
++    #   행이 무엇인지 확실하다.
++    #
++    #   **task_suggestions 테이블을 만드는 리비전에서 반드시 갈라야 한다.**
++    #     ① tasks 에 source_amount_item_id 추가 (FK → amount_items.id)
++    #     ② UPDATE tasks SET source_amount_item_id = source_suggestion_id,
++    #                        source_suggestion_id = NULL
++    #        WHERE source_suggestion_id IS NOT NULL      ← 값이 한 종류라 안전
++    #     ③ source_suggestion_id 에 FK → task_suggestions.id 추가
++    #
++    #   갈라야 하는 이유는 **한 컬럼이 두 테이블을 가리키면 FK 를 걸 수 없다**는
++    #   것이다. FK 가 없으면 제안이 지워져도 태스크가 없는 id 를 가리킨 채 남고,
++    #   에러 없이 추적만 끊긴다.
+     source_suggestion_id: Mapped[int | None] = mapped_column(BigInteger)
+     created_by: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="SET NULL"))
+     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+diff --git a/backend/app/repositories/amount_repository.py b/backend/app/repositories/amount_repository.py
+index 109080b..d1a97ac 100644
+--- a/backend/app/repositories/amount_repository.py
++++ b/backend/app/repositories/amount_repository.py
+@@ -168,6 +168,33 @@ class AmountRepository:
+             for row in self._db.execute(stmt).all()
+         ]
+ 
++    def get_item(
++        self, project_id: int, item_id: int
++    ) -> tuple[AmountItem, int, str] | None:
++        """금액 항목 하나를 문서 정보와 함께 가져온다. 없으면 None.
++
++        **`project_id` 로 반드시 함께 거른다.** 항목 id 만으로 찾으면 다른
++        프로젝트의 금액을 id 만 바꿔서 읽을 수 있다(수평 권한 상승). 경로에
++        프로젝트가 있고 의존성이 멤버십을 확인했더라도, 조회가 그 범위를 다시
++        좁혀야 한다 — 확인하는 곳과 읽는 곳이 다르면 어긋난다.
++
++        **승인 상태로 거르지 않는다.** 이 메서드는 「이 항목이 무엇인가」를 묻는
++        것이고, 승인 여부로 무엇을 할지는 부르는 쪽이 정한다.
++
++        Spring 비교: `findByIdAndDocument_Project_Id(...)` 처럼 소유 관계를 쿼리에
++        박아 두는 것과 같다.
++        """
++        stmt: Select = (
++            select(AmountItem, Document.id, Document.filename)
++            .join(Document, Document.id == AmountItem.document_id)
++            .where(Document.project_id == project_id)
++            .where(AmountItem.id == item_id)
++        )
++        row = self._db.execute(stmt).first()
++        if row is None:
++            return None
++        return (row[0], int(row[1]), row[2])
++
+     def stated_totals(self, project_id: int) -> dict[int, Decimal]:
+         """문서에 적힌 합계를 {문서 id: 합계} 로 준다 (리비전 0022).
+ 
+diff --git a/backend/app/repositories/task_repository.py b/backend/app/repositories/task_repository.py
+index b6f89d5..776642d 100644
+--- a/backend/app/repositories/task_repository.py
++++ b/backend/app/repositories/task_repository.py
+@@ -22,6 +22,32 @@ class TaskRepository:
+             .all()
+         )
+ 
++    def suggestion_task_ids(self, project_id: int) -> dict[int, int]:
++        """{제안 id: 태스크 id}. 제안으로 만든 태스크가 이미 있는지 보는 용도다.
++
++        `origin = 'AI_APPROVED'` 인 태스크만 본다. 사람이 직접 만든 태스크는
++        `source_suggestion_id` 가 없다.
++
++        ⚠ **지금 이 제안 id 는 `amount_items.id` 다** (금액 불일치 태스크 제안,
++        `AMT-004-3`). `task_suggestions` 테이블이 생기면 `source_suggestion_id` 가
++        두 가지를 가리키게 되므로, 그 리비전에서 컬럼을 가르고 **이 메서드도
++        어느 쪽을 볼지 정해야 한다.** 자세한 것은 models/task.py 의 그 컬럼 주석에
++        있다.
++
++        한 번에 다 가져오는 이유: 목록 화면이 항목마다 따로 물으면 N+1 이 된다.
++        한 프로젝트의 AI 태스크는 많아도 수백 건이라 전부 담아도 무겁지 않다.
++        """
++        rows = (
++            self._db.query(Task.source_suggestion_id, Task.id)
++            .filter(
++                Task.project_id == project_id,
++                Task.origin == "AI_APPROVED",
++                Task.source_suggestion_id.isnot(None),
++            )
++            .all()
++        )
++        return {int(row[0]): int(row[1]) for row in rows}
++
+     def get(self, project_id: int, task_id: int) -> Task | None:
+         return (
+             self._db.query(Task)
+diff --git a/backend/app/schemas/amount_item.py b/backend/app/schemas/amount_item.py
+index 8c68533..af731bd 100644
+--- a/backend/app/schemas/amount_item.py
++++ b/backend/app/schemas/amount_item.py
+@@ -57,6 +57,13 @@ class AmountItemRow(BaseModel):
+     # 원문 근거. 표에서는 줄여 보여주고 마우스를 올리면 전체가 보이게 한다.
+     source_quote: str | None
+     decision: str
++    # 이 항목으로 만든 태스크의 id. 없으면 None (AMT-004-3).
++    #
++    # 화면이 「태스크로 만들기」와 「태스크 있음」을 구별하는 데 쓴다. 이 값을
++    # 서버가 주는 이유는, 화면이 태스크 목록을 따로 받아 맞춰보게 하면 그 규칙
++    # (origin='AI_APPROVED' 이고 source_suggestion_id 가 이 항목인 것)이 화면에도
++    # 생기기 때문이다.
++    task_id: int | None = None
+ 
+     # --- 서버가 계산해 붙이는 값 (DB 컬럼이 아니다) --------------------------
+     # 수량 x 단가. 둘 중 하나라도 없으면 None 이다.
+diff --git a/backend/app/services/amount_summary_service.py b/backend/app/services/amount_summary_service.py
+index 7bcf8ac..9f7f663 100644
+--- a/backend/app/services/amount_summary_service.py
++++ b/backend/app/services/amount_summary_service.py
+@@ -38,6 +38,7 @@ from app.core.exceptions import BusinessError
+ from app.models.amount import AmountItem
+ from app.models.enums import AmountCategory
+ from app.repositories.amount_repository import APPROVED_DECISIONS, AmountRepository
++from app.repositories.task_repository import TaskRepository
+ from app.schemas.amount_summary import (
+     AmountSummaryResponse,
+     CategoryTotal,
+@@ -108,8 +109,16 @@ def _to_int(value: Decimal) -> int:
+ 
+ 
+ class AmountSummaryService:
+-    def __init__(self, amount_repository: AmountRepository) -> None:
++    def __init__(
++        self,
++        amount_repository: AmountRepository,
++        task_repository: TaskRepository | None = None,
++    ) -> None:
+         self._amounts = amount_repository
++        # 금액 항목으로 만든 태스크를 찾는 데만 쓴다 (AMT-004-3). **없어도 된다** —
++        # 합계 계산은 태스크와 무관하고, 단위테스트는 금액 저장소만 가짜로 넣는다.
++        # 필수로 만들면 계산 테스트가 태스크 저장소까지 준비해야 한다.
++        self._tasks = task_repository
+ 
+     def summarize(self, project_id: int) -> AmountSummaryResponse:
+         """프로젝트 금액 현황을 만든다 (AMT-002-2 집계 + AMT-002-1 검산).
+@@ -243,8 +252,13 @@ class AmountSummaryService:
+         """
+         rows = self._amounts.list_project_items(project_id)
+         visible = rows[:limit]
++        # 이 항목으로 만든 태스크가 있는지 (AMT-004-3). 저장소가 없으면(단위테스트)
++        # 빈 표로 두고 task_id 를 채우지 않는다 — 그것도 정상 응답이다.
++        task_ids = (
++            self._tasks.suggestion_task_ids(project_id) if self._tasks else {}
++        )
+         items = [
+-            self._to_row(item, document_id, filename)
++            self._to_row(item, document_id, filename, task_ids.get(item.id))
+             for item, document_id, filename in visible
+         ]
+         return AmountItemListResponse(
+@@ -260,7 +274,11 @@ class AmountSummaryService:
+ 
+     @classmethod
+     def _to_row(
+-        cls, item: AmountItem, document_id: int, filename: str
++        cls,
++        item: AmountItem,
++        document_id: int,
++        filename: str,
++        task_id: int | None = None,
+     ) -> AmountItemRow:
+         """DB 행 하나를 화면용 한 줄로 바꾸고 **검산 결과를 붙인다.**
+ 
+@@ -297,6 +315,7 @@ class AmountSummaryService:
+             currency=item.currency,
+             source_quote=item.source_quote,
+             decision=item.decision,
++            task_id=task_id,
+             expected=expected,
+             verified=verified,
+             difference=difference,
+diff --git a/backend/app/services/amount_task_service.py b/backend/app/services/amount_task_service.py
+new file mode 100644
+index 0000000..c04a916
+--- /dev/null
++++ b/backend/app/services/amount_task_service.py
+@@ -0,0 +1,160 @@
++# =============================================================================
++# 이 파일의 책임: 금액 검산 불일치를 **승인형 태스크 제안**으로 만든다
++#   (AMT-004-3 불일치 태스크 제안 · TSK-002-1 AI 제안 승인).
++# 다른 파일과의 관계: AmountRepository 로 항목을 읽고 amount_calculator 로 다시
++#   검산한 뒤 TaskService.create 로 태스크를 만든다. TaskRepository 는 같은
++#   항목으로 이미 만든 태스크가 있는지 보는 데만 쓴다.
++# Spring 비교: 두 도메인(금액·태스크)을 잇는 응용 서비스다. 각 도메인 서비스를
++#   호출만 하고 자기 저장소를 갖지 않는 @Service 에 해당한다.
++#
++# 제안을 저장하지 않는다
++#   불일치는 **결정론적으로 다시 계산된다.** amount-summary 를 부를 때마다 새로
++#   만들어지므로 테이블에 또 넣을 이유가 없다. 그래서 이 기능에는 마이그레이션이
++#   없다.
++#
++#   LLM 이 뽑은 제안(ANL-002-1)은 다르다 — 호출 비용이 들고 결과가 매번 달라서
++#   다시 계산할 수 없다. 그때는 저장할 테이블이 필요하다. **「다시 계산할 수 있는가」
++#   가 저장 여부를 가르는 기준이다.**
++#
++# 자동으로 만들지 않는다
++#   AMT-004-3 완료 판정이 "승인형 태스크 제안 카드가 생기고 **자동 등록은 하지
++#   않는다**" 다. 그래서 검산할 때 태스크를 만들지 않고, 사람이 누를 때만 만든다.
++#   TSK-002-1 의 "승인 전에는 보드에 나타나지 않는다" 도 같이 만족한다 — 승인
++#   전에는 tasks 에 행이 아예 없으므로 보드 조회를 건드릴 필요가 없다.
++#
++# 화면이 보낸 값을 믿지 않는다
++#   요청 본문에 금액이나 차액을 받지 않는다. 항목 id 만 받아 **서버가 다시 검산**
++#   한다. 화면이 낡은 목록을 들고 있으면 이미 고쳐진 항목으로 태스크를 만들 수
++#   있고, 그러면 근거 없는 태스크가 남는다.
++# =============================================================================
++
++from __future__ import annotations
++
++from app.core.error_codes import ErrorCode
++from app.core.exceptions import BusinessError
++from app.models.amount import AmountItem
++from app.models.task import Task
++from app.repositories.amount_repository import AmountRepository
++from app.repositories.task_repository import TaskRepository
++from app.services.amount_calculator import verify_line
++from app.services.amount_summary_service import AmountSummaryService
++from app.services.task_service import TaskService
++
++# 태스크 제목은 300자 제한이다(tasks.title). 항목명이 길면 잘라서 넣는다.
++_TITLE_PREFIX = "금액 불일치: "
++_TITLE_LIMIT = 300
++
++
++class AmountTaskService:
++    def __init__(
++        self,
++        amounts: AmountRepository,
++        tasks: TaskRepository,
++        task_service: TaskService,
++    ) -> None:
++        self._amounts = amounts
++        self._tasks = tasks
++        self._task_service = task_service
++
++    def create_from_mismatch(
++        self, project_id: int, item_id: int, user_id: int
++    ) -> Task:
++        """불일치 항목 하나를 태스크로 만든다 (AMT-004-3).
++
++        막는 경우가 셋이고 **오류 코드를 다르게 준다.** 화면이 해야 할 일이 다르다.
++
++        | 언제 | 코드 | 화면이 할 일 |
++        |---|---|---|
++        | 그 항목이 없다(다른 프로젝트 것 포함) | `404 AMOUNT_ITEM_NOT_FOUND` | 목록을 다시 받는다 |
++        | 어긋난 항목이 아니다 | `409 AMOUNT_NOT_MISMATCHED` | 목록이 낡았다 — 다시 받는다 |
++        | 이미 만든 태스크가 있다 | `409 AMOUNT_TASK_ALREADY_EXISTS` | 그 태스크를 가리킨다 |
++
++        검산 불가(수량·단가가 없는 제경비 등)와 금액이 안 적힌 항목도
++        `AMOUNT_NOT_MISMATCHED` 다 — **어긋난 것이 아니기 때문**이다. 오류가 아니라
++        정상 항목이라서 태스크로 만들 이유가 없다.
++        """
++        found = self._amounts.get_item(project_id, item_id)
++        if found is None:
++            raise BusinessError(ErrorCode.AMOUNT_ITEM_NOT_FOUND)
++        item, document_id, filename = found
++
++        check = self._verify(item, document_id, filename)
++        # matches 가 True(맞음)거나 None(검산 불가)이면 만들지 않는다.
++        if check is None or check.matches is not False:
++            raise BusinessError(ErrorCode.AMOUNT_NOT_MISMATCHED)
++
++        existing = self._tasks.suggestion_task_ids(project_id).get(item.id)
++        if existing is not None:
++            # 같은 불일치로 태스크가 둘 생기면 보드에서 같은 일이 두 번 보인다.
++            raise BusinessError(ErrorCode.AMOUNT_TASK_ALREADY_EXISTS)
++
++        return self._task_service.create(
++            project_id,
++            user_id,
++            {
++                "title": self._title(item.item_name),
++                "description": self._description(
++                    item, filename, check.expected or 0, check.difference or 0
++                ),
++                # 문서에 적힌 값을 확인하는 일이라 DOCUMENT 로 둔다. 개발·설계·인프라
++                # 어디에도 속하지 않고, OTHER 로 두면 보드에서 성격을 알 수 없다.
++                "type": "DOCUMENT",
++            },
++            origin="AI_APPROVED",
++            source_suggestion_id=item.id,
++        )
++
++    # --- 내부 ---------------------------------------------------------------
++
++    @staticmethod
++    def _verify(item: AmountItem, document_id: int, filename: str):
++        """항목 하나를 다시 검산한다. 금액이 안 적혀 있으면 검산 자체가 안 된다.
++
++        `AmountSummaryService._to_line` 을 재사용한다. 변환 규칙(Enum·반올림·
++        None 처리)이 두 곳에 생기면 합계 화면과 이 판정이 어긋난다.
++        """
++        if item.amount is None:
++            return None
++        return verify_line(
++            AmountSummaryService._to_line(item, document_id, filename)
++        )
++
++    @staticmethod
++    def _title(item_name: str) -> str:
++        room = _TITLE_LIMIT - len(_TITLE_PREFIX)
++        name = item_name.strip()
++        if len(name) > room:
++            # 자른 표시를 남긴다. 말없이 자르면 항목명이 원래 그런 줄 안다.
++            name = name[: room - 1] + "…"
++        return _TITLE_PREFIX + name
++
++    @staticmethod
++    def _description(
++        item: AmountItem, filename: str, expected: int, difference: int
++    ) -> str:
++        """태스크 설명을 **서버가 만든다.**
++
++        화면마다 문구를 만들면 같은 태스크가 다르게 적힌다. 그리고 이 문구는
++        보드·산출물 등 금액 화면이 아닌 곳에서도 읽히므로, 그 자리에 계산 근거가
++        함께 있어야 무슨 일인지 알 수 있다.
++
++        부호를 그대로 쓰지 않는다 — `difference` 는 `계산값 − 문서 금액` 이라
++        문서 금액이 크면 음수다. `-50,000` 만 적으면 "부족" 으로 읽힌다.
++        """
++        gap = (
++            f"문서 금액이 {abs(difference):,}원 "
++            + ("적습니다" if difference > 0 else "많습니다")
++        )
++        lines = [
++            f"출처 문서: {filename}",
++            f"항목: {item.item_name}",
++            f"수량 × 단가: {item.quantity} {item.unit or ''} × {item.unit_price:,}원 = {expected:,}원".replace(
++                "  ", " "
++            ),
++            f"문서에 적힌 금액: {int(item.amount):,}원",
++            f"차이: {gap}",
++            "",
++            "문서와 계산 중 어느 쪽이 맞는지 확인해 주세요. 문서가 맞다면 금액 항목의 "
++            "값을 고치면(EDITED) 불일치 표시가 사라집니다.",
++        ]
++        return "\n".join(lines)
+diff --git a/frontend/src/api/amount.js b/frontend/src/api/amount.js
+index 8e5bb83..ea6dba9 100644
+--- a/frontend/src/api/amount.js
++++ b/frontend/src/api/amount.js
+@@ -107,3 +107,32 @@ export async function getAmountItems(projectId, { limit = 200 } = {}) {
+   })
+   return data
+ }
++
++
++// POST /api/projects/{projectId}/amount-items/{itemId}/task
++//
++// 검산이 어긋난 금액 항목을 태스크로 만든다 (AMT-004-3 불일치 태스크 제안 ·
++// TSK-002-1 AI 제안 승인).
++//
++// **본문이 없다.** 금액이나 차액을 보내지 않고 항목 id 만 보낸다 — 서버가 그 항목을
++// 다시 검산한다. 화면이 낡은 목록을 들고 있으면 이미 고쳐진 항목으로 태스크를 만들
++// 수 있고, 그러면 근거 없는 태스크가 남는다.
++//
++// 제목·설명도 서버가 만든다. 화면마다 문구를 만들면 같은 성격의 태스크가 다르게
++// 적히고, 이 태스크는 보드에서도 읽히므로 계산 근거가 설명 안에 있어야 한다.
++//
++// 응답은 만들어진 태스크(TaskResponse)다. origin='AI_APPROVED' 이고
++// source_suggestion_id 가 이 금액 항목 id 다.
++//
++// 오류를 셋으로 나눠 받는다 — 화면이 할 일이 다르다.
++//   404 AMOUNT_ITEM_NOT_FOUND        그 항목이 없다        → 목록을 다시 받는다
++//   409 AMOUNT_NOT_MISMATCHED        어긋난 항목이 아니다   → 목록이 낡았다
++//   409 AMOUNT_TASK_ALREADY_EXISTS   이미 태스크가 있다     → 목록을 다시 받는다
++//
++// 세 경우 모두 **목록을 다시 받는 것**이 화면의 할 일이라, 실패해도 invalidate 한다.
++export async function createTaskFromMismatch(projectId, itemId) {
++  const { data } = await http.post(
++    `/api/projects/${projectId}/amount-items/${itemId}/task`,
++  )
++  return data
++}
+diff --git a/frontend/src/features/amount/AmountSummaryView.css b/frontend/src/features/amount/AmountSummaryView.css
+index 15bf166..01b00a8 100644
+--- a/frontend/src/features/amount/AmountSummaryView.css
++++ b/frontend/src/features/amount/AmountSummaryView.css
+@@ -99,12 +99,24 @@
+ .amount-verify.is-bad { color: var(--c-text-strong); }
+ .amount-verify.is-muted { color: var(--c-text-muted); font-weight: 400; }
+ 
+-/* 원문 근거. 한 줄로 줄이고 title 로 전체를 보여준다(마우스 올리면 뜬다).
+-   cursor: help 로 "올리면 뭔가 나온다" 를 미리 알린다 — 안 그러면 아무도 안 올린다. */
+-.amount-quote { max-width: 260px; overflow: hidden; color: var(--c-text-muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; cursor: help; }
++/* 원문 근거. 한 줄로 줄인다. */
++.amount-quote { max-width: 260px; overflow: hidden; color: var(--c-text-muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
++/* **잘린 것만** 마우스 올림 안내를 준다. 짧아서 다 보이는 근거에 물음표 커서를
++   붙이면 "더 있다" 고 약속해놓고 없는 셈이 된다. title 도 그때만 붙인다. */
++.amount-quote.is-clipped { cursor: help; }
+ 
+ 
+ /* 문서 합계 대조. 이 화면에서 가장 강한 정보라 원가구분별 표보다 위에 둔다. */
+ .amount-total-check { margin-bottom: 18px; }
+ /* 문서명 칸은 표 안에서 줄이지 않는다 — 대조 결과를 어느 문서 것인지 알아야 한다. */
+ .amount-total-check .amount-item-source { max-width: 320px; font-size: 13px; font-weight: 700; color: var(--c-text-strong); }
++
++
++/* 태스크 칸 (AMT-004-3). 어긋난 항목에만 버튼이 있다. */
++.amount-task-cell { white-space: nowrap; }
++.amount-task-button { min-height: 30px; padding: 6px 11px; border: 1px solid var(--c-border-strong); border-radius: 8px; background: var(--c-bg); color: var(--c-text-strong); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
++.amount-task-button:hover:not(:disabled), .amount-task-button:focus-visible:not(:disabled) { border-color: var(--c-accent); background: var(--c-accent-soft); }
++.amount-task-button:disabled { background: var(--c-bg-hover); color: var(--c-text-muted); cursor: not-allowed; }
++/* 이미 만든 것. 버튼이 아니라 상태 표시라 눌리지 않는 모양으로 둔다. */
++.amount-task-done { color: var(--c-text-strong); font-size: 12px; font-weight: 700; }
++.amount-task-none { color: var(--c-text-muted); font-size: 12px; }
+diff --git a/frontend/src/features/amount/AmountSummaryView.jsx b/frontend/src/features/amount/AmountSummaryView.jsx
+index 91dd09d..5f61f1a 100644
+--- a/frontend/src/features/amount/AmountSummaryView.jsx
++++ b/frontend/src/features/amount/AmountSummaryView.jsx
+@@ -31,8 +31,8 @@
+ // =============================================================================
+ 
+ import { useState } from 'react'
+-import { useQuery } from '@tanstack/react-query'
+-import { getAmountItems, getAmountSummary } from '../../api/amount'
++import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
++import { createTaskFromMismatch, getAmountItems, getAmountSummary } from '../../api/amount'
+ import PageHeading from '../../components/common/PageHeading'
+ import { formatMoney, formatNumber } from '../../utils/format'
+ import './AmountSummaryView.css'
+@@ -56,7 +56,7 @@ const CATEGORY_LABELS = {
+ // 승인 상태 표시 문구. included_decisions 를 사람 말로 바꿀 때만 쓴다.
+ const DECISION_LABELS = { APPROVED: '승인', EDITED: '수정 승인' }
+ 
+-export default function AmountSummaryView({ projectId }) {
++export default function AmountSummaryView({ projectId, notify }) {
+   const summaryQuery = useQuery({
+     queryKey: ['projects', projectId, 'amount-summary'],
+     queryFn: () => getAmountSummary(projectId),
+@@ -154,7 +154,7 @@ export default function AmountSummaryView({ projectId }) {
+             onClick={() => setExpanded(current => !current)}
+           >{expanded ? '항목 숨기기' : `항목 보기 (${formatNumber(summary?.included_item_count ?? 0)}건)`}</button>
+ 
+-          {expanded && <ItemTable projectId={projectId}/>}
++          {expanded && <ItemTable projectId={projectId} notify={notify}/>}
+         </>}
+     </section>
+ 
+@@ -282,13 +282,30 @@ const FILTERS = [
+ ]
+ 
+ // 금액 항목 표(AMT-003-3). 「무엇을 집계했나」를 펼쳤을 때만 그린다.
+-function ItemTable({ projectId }) {
++function ItemTable({ projectId, notify }) {
+   const [filter, setFilter] = useState('all')
++  const queryClient = useQueryClient()
+   const itemsQuery = useQuery({
+     queryKey: ['projects', projectId, 'amount-items'],
+     queryFn: () => getAmountItems(projectId),
+     retry: false,
+   })
++
++  // 어긋난 항목을 태스크로 만든다 (AMT-004-3). **자동으로 만들지 않는다** —
++  // 사람이 누를 때만 부른다. 그것이 완료 판정의 "자동 등록은 하지 않는다" 다.
++  const taskMutation = useMutation({
++    mutationFn: item => createTaskFromMismatch(projectId, item.id),
++    onSuccess: task => notify?.('success', '태스크를 만들었습니다', task.title),
++    onError: error => notify?.('error', '태스크를 만들지 못했습니다', error?.message),
++    // **성공이든 실패든 목록을 다시 받는다.** 실패 사유 셋(항목이 없다 · 어긋난
++    // 항목이 아니다 · 이미 태스크가 있다)이 모두 "화면이 낡았다" 는 뜻이라,
++    // 다시 받는 것이 사용자가 해야 할 일이다.
++    onSettled: () => {
++      queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'amount-items'] })
++      // 보드가 열려 있으면 새 태스크가 보여야 한다.
++      queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'tasks'] })
++    },
++  })
+   const rows = itemsQuery.data?.items ?? []
+   const matcher = FILTERS.find(([key]) => key === filter)?.[2] ?? (() => true)
+   const visible = rows.filter(matcher)
+@@ -329,10 +346,16 @@ function ItemTable({ projectId }) {
+             <th scope='col' className='amount-cell-number'>문서 금액</th>
+             <th scope='col'>검산</th>
+             <th scope='col'>원문 근거</th>
++            <th scope='col'>태스크</th>
+           </tr>
+         </thead>
+         <tbody>
+-          {visible.map(row => <ItemRow key={row.id} row={row}/>)}
++          {visible.map(row => <ItemRow
++            key={row.id}
++            row={row}
++            pending={taskMutation.isPending && taskMutation.variables?.id === row.id}
++            onCreateTask={item => taskMutation.mutate(item)}
++          />)}
+         </tbody>
+       </table>
+     </div>
+@@ -341,8 +364,21 @@ function ItemTable({ projectId }) {
+   </div>
+ }
+ 
+-function ItemRow({ row }) {
++// 원문 근거를 표에서 한 줄로 줄이는 기준 글자 수.
++//
++// **이 길이를 넘을 때만 마우스 올림 안내(title·물음표 커서)를 붙인다.** 짧은 근거는
++// 이미 다 보이는데 툴팁을 띄우면 같은 말을 두 번 하고, 물음표 커서가 "더 있다" 고
++// 약속해놓고 없는 상태가 된다.
++//
++// 픽셀이 아니라 글자 수로 재는 것은 어림이다. 정확히 하려면 그린 뒤에
++// scrollWidth 와 clientWidth 를 비교해야 하는데, 줄마다 ref 를 달고 다시 그려야
++// 해서 얻는 것보다 복잡하다. 어긋나도 손해가 "툴팁이 한 번 더 뜬다" 뿐이다.
++const QUOTE_INLINE_MAX = 24
++
++function ItemRow({ row, pending, onCreateTask }) {
+   const [text, tone] = verifyText(row)
++  const quote = row.source_quote || ''
++  const quoteClipped = quote.length > QUOTE_INLINE_MAX
+   return <tr className={tone === 'bad' ? 'is-mismatch' : undefined}>
+     <th scope='row'>
+       <strong>{row.item_name}</strong>
+@@ -353,9 +389,21 @@ function ItemRow({ row }) {
+     <td className='amount-cell-number'>{quantityText(row)}</td>
+     <td className='amount-cell-number'>{row.amount === null ? '—' : formatMoney(row.amount)}</td>
+     <td className={'amount-verify is-' + tone}>{text}</td>
+-    {/* 원문 근거는 길다. 표에서는 한 줄로 줄이고 마우스를 올리면 title 로 전체가
+-        보인다. 전부 펼치면 표가 읽히지 않는다. */}
+-    <td className='amount-quote' title={row.source_quote ?? ''}>{row.source_quote || '—'}</td>
++    <td
++      className={'amount-quote' + (quoteClipped ? ' is-clipped' : '')}
++      title={quoteClipped ? quote : undefined}
++    >{quote || '—'}</td>
++    {/* 어긋난 항목만 태스크로 만들 수 있다. 서버도 같은 판정을 다시 하므로
++        여기서 막는 것은 «누를 수 없게 보이는 것» 까지다. */}
++    <td className='amount-task-cell'>
++      {row.task_id
++        ? <span className='amount-task-done'>태스크 있음</span>
++        : tone === 'bad'
++          ? <button type='button' className='amount-task-button' disabled={pending} onClick={() => onCreateTask(row)}>
++            {pending ? '만드는 중…' : '태스크로 만들기'}
++          </button>
++          : <span className='amount-task-none'>—</span>}
++    </td>
+   </tr>
+ }
+ 
+diff --git a/frontend/src/pages/WorkspacePage.jsx b/frontend/src/pages/WorkspacePage.jsx
+index c8c110f..0144bca 100644
+--- a/frontend/src/pages/WorkspacePage.jsx
++++ b/frontend/src/pages/WorkspacePage.jsx
+@@ -169,6 +169,6 @@ function TabContent({ tab, project, data, documentType, onDocumentTypeChange, ca
+   if (tab === 'deliverables') return <DeliverablesView projectId={project.id} notify={notify}/>
+   // 금액도 워크스페이스 데이터를 쓰지 않는다. 합계는 서버가 내므로(AMT-002-2)
+   // 화면에 넘어온 문서 목록으로 다시 세거나 더하지 않는다.
+-  if (tab === 'amounts') return <AmountSummaryView projectId={project.id}/>
++  if (tab === 'amounts') return <AmountSummaryView projectId={project.id} notify={notify}/>
+   return <BoardView projectId={project.id} members={data.members} canEdit={canEdit} notify={notify}/>
+ }

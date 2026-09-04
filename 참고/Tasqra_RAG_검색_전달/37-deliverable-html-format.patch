@@ -1,0 +1,857 @@
+diff --git a/backend/app/api/routes/deliverable_router.py b/backend/app/api/routes/deliverable_router.py
+index 0b61a4a..07105a0 100644
+--- a/backend/app/api/routes/deliverable_router.py
++++ b/backend/app/api/routes/deliverable_router.py
+@@ -40,6 +40,7 @@ from app.dependencies import (
+     get_project_editor_access,
+ )
+ from app.schemas.deliverable import (
++    FORMAT_FILE_TYPES,
+     DeliverableCreateRequest,
+     DeliverablePreviewResponse,
+     DeliverableResponse,
+@@ -140,14 +141,20 @@ def create_deliverable(
+     **미리보기와 같은 규칙으로 센다.** 만들기가 자기만의 집계를 갖지 않으므로
+     "미리보기는 12건이라 했는데 보고서는 9건" 이 생기지 않는다.
+ 
+-    ⚠️ 지금 만들 수 있는 형식은 **Markdown 하나**다. `XLSX`·`HTML`·`PDF` 는 DB 가
++    ⚠️ 지금 만들 수 있는 형식은 **`MD`·`HTML`** 둘이다. `XLSX`·`PDF` 는 DB 가
+     허용하는 값이지만 만드는 코드가 아직 없어 `501` 을 낸다. 값이 틀린 것(400)과
+     서버가 아직 못 하는 것(501)은 다른 상황이라 구분한다.
+ 
++    두 형식은 **같은 내용**이다. 절을 고르는 규칙이 한 곳(build_document)에 있고
++    형식별 파일은 표를 그리는 방법만 안다.
++
+     ⚠️ 개요 문장은 아직 비어 있다. `DLV-002-1` 완료 판정의 "LLM 호출은 개요 1회"
+     가 붙지 않았다. 표는 모두 실제 자료이고, 개요 자리에 비었다고 적는다 —
+     없는 문장을 지어내지 않는다.
+ 
++    ⚠️ HTML 산출물의 모든 칸은 escape 한다. 문서 이름은 사용자가 올린 파일에서 온
++    값이라 `<script>` 가 들어올 수 있다. 다운로드도 첨부로 내려간다.
++
+     편집 권한이 필요하다(`VIEWER` 는 만들 수 없다). 읽기 전용 참여자가 프로젝트에
+     파일과 이력을 남기는 것은 역할의 뜻과 맞지 않는다.
+ 
+@@ -192,13 +199,21 @@ def download_deliverable(
+       `410 DELIVERABLE_FILE_MISSING`  이력은 있는데 파일이 사라졌다
+     """
+     row = service.open_file(access.project.id, deliverable_id)
+-    extension = row.format.lower()
++    # 확장자와 MIME 타입을 한 곳(FORMAT_FILE_TYPES)에서 가져온다. 여기서 따로
++    # 만들면 .md 를 text/html 로 주는 것 같은 어긋남이 생긴다.
++    extension, media_type = FORMAT_FILE_TYPES.get(
++        row.format, (row.format.lower(), "application/octet-stream")
++    )
+     return FileResponse(
+         row.file_path,
+         # 한글 제목이라 브라우저가 알아볼 수 있게 FileResponse 가 RFC 5987 로
+         # 인코딩해 준다. 여기서 직접 헤더를 만들지 않는다.
++        #
++        # ⚠️ filename 을 주면 Content-Disposition 이 attachment 가 된다. HTML
++        #   산출물이 우리 도메인에서 그대로 렌더링되지 않게 하는 효과가 있다 —
++        #   본문은 이미 escape 하지만(deliverable_html 머리말) 두 겹으로 둔다.
+         filename=f"{row.title}.{extension}",
+-        media_type="text/markdown; charset=utf-8",
++        media_type=media_type,
+     )
+ 
+ 
+diff --git a/backend/app/schemas/deliverable.py b/backend/app/schemas/deliverable.py
+index 140bfbb..9176b75 100644
+--- a/backend/app/schemas/deliverable.py
++++ b/backend/app/schemas/deliverable.py
+@@ -25,6 +25,7 @@ __all__ = [
+     "DELIVERABLE_FORMATS",
+     "DELIVERABLE_KIND_LABELS",
+     "DELIVERABLE_KINDS",
++    "FORMAT_FILE_TYPES",
+     "PERIOD_REQUIRED_KINDS",
+     "SUPPORTED_DELIVERABLE_FORMATS",
+     "DeliverableCreateRequest",
+@@ -41,9 +42,20 @@ PERIOD_REQUIRED_KINDS = ("WEEKLY_REPORT",)
+ # models/deliverable.py 의 _FORMAT 과 같아야 한다. 리비전 0021 이 PDF 를 더했다.
+ DELIVERABLE_FORMATS = ("XLSX", "HTML", "MD", "PDF")
+ # 실제로 만들 수 있는 형식. **DB 가 허용하는 것과 다르다** — 허용값은 넷인데
+-# 만드는 코드는 아직 Markdown 하나다. 나머지는 501 로 분명히 알린다. 값이
+-# 틀린 것(400)과 서버가 아직 못 하는 것(501)은 다른 상황이다.
+-SUPPORTED_DELIVERABLE_FORMATS = ("MD",)
++# 만드는 코드는 아직 둘이다. 나머지는 501 로 분명히 알린다. 값이 틀린 것(400)과
++# 서버가 아직 못 하는 것(501)은 다른 상황이다.
++#
++# XLSX·PDF 를 아직 안 한 이유는 **새 라이브러리가 필요해서**다. MD·HTML 은
++# 문자열만 만들면 되고 의존성이 0 이다. 팀 이미지가 이미 11.1GB 라 라이브러리를
++# 더 얹는 판단은 따로 받는 편이 낫다.
++SUPPORTED_DELIVERABLE_FORMATS = ("MD", "HTML")
++
++# 형식별 파일 확장자와 MIME 타입. 저장(서비스)과 내려보내기(라우터)가 같은 값을
++# 봐야 해서 한 곳에 둔다 — 갈리면 .md 파일을 text/html 로 주는 일이 생긴다.
++FORMAT_FILE_TYPES = {
++    "MD": ("md", "text/markdown; charset=utf-8"),
++    "HTML": ("html", "text/html; charset=utf-8"),
++}
+ 
+ # 제목에 쓰는 사람이 읽는 이름. 화면의 KINDS 목록과 문구를 맞춘다.
+ DELIVERABLE_KIND_LABELS = {
+diff --git a/backend/app/services/deliverable_html.py b/backend/app/services/deliverable_html.py
+new file mode 100644
+index 0000000..3d6702f
+--- /dev/null
++++ b/backend/app/services/deliverable_html.py
+@@ -0,0 +1,97 @@
++# =============================================================================
++# 이 파일의 책임: 산출물 문서 구조를 HTML 한 장으로 바꾼다. 절을 고르는 규칙은
++#   여기 없다 — deliverable_markdown.build_document 가 정한다.
++#
++# 다른 파일과의 관계
++#   services/deliverable_markdown.py  문서 구조(DeliverableDocument)와 그 빌더
++#   services/deliverable_service.py   형식에 따라 이 함수나 render_markdown 을 부른다
++#
++# Spring 비교: 같은 모델을 다른 View 로 그리는 것이다(JSON 뷰 대 HTML 뷰).
++#
++# ⚠ 값을 반드시 escape 한다 — 보안 문제다
++#   문서 이름이나 항목명은 **사용자가 올린 파일에서 온 값**이다. 거기에
++#   `<script>` 가 들어 있으면 HTML 산출물을 브라우저로 열 때 그대로 실행된다.
++#   그래서 모든 칸을 html.escape 로 감싼다. Markdown 은 `|` 를 막았지만 그것은
++#   표가 깨지는 문제였고, 이쪽은 실행되는 문제라 성격이 다르다.
++#
++#   다운로드도 첨부(attachment)로 내려간다 — FileResponse 에 filename 을 주면
++#   Content-Disposition 이 attachment 가 되어 브라우저가 우리 도메인에서 바로
++#   렌더링하지 않는다. escape 와 함께 두 겹이다.
++#
++# ⚠ 색을 쓰지 않는다
++#   보고서는 흑백으로 만든다. 인쇄와 캡처에서 흐려지지 않고, 강조가 필요한 곳은
++#   굵기와 선으로만 나타낸다. 스타일은 파일 안에 넣는다 — 산출물은 한 파일로
++#   주고받으므로 외부 CSS 를 참조하면 받는 쪽에서 깨진다.
++# =============================================================================
++
++from __future__ import annotations
++
++from html import escape
++from typing import Any
++
++from app.services.deliverable_markdown import DeliverableDocument, build_document
++
++__all__ = ["render_html", "to_html"]
++
++# 흑백 무채색. 폰트는 받는 쪽에 있는 것을 쓴다(웹폰트를 내려받게 하지 않는다).
++STYLE = """
++body { max-width: 900px; margin: 40px auto; padding: 0 20px;
++  font-family: -apple-system, "Segoe UI", "Malgun Gothic", sans-serif;
++  color: #1b1b1b; line-height: 1.6; }
++h1 { margin: 0 0 6px; font-size: 24px; }
++h2 { margin: 32px 0 10px; padding-bottom: 6px; font-size: 17px;
++  border-bottom: 1px solid #1b1b1b; }
++ul.meta { margin: 0 0 8px; padding-left: 18px; color: #555; font-size: 13px; }
++p.note { color: #555; font-size: 14px; }
++table { width: 100%; margin: 0; border-collapse: collapse; font-size: 14px; }
++th, td { padding: 7px 9px; border: 1px solid #c9c9c9; text-align: left;
++  vertical-align: top; }
++th { background: #f2f2f2; font-weight: 700; }
++""".strip()
++
++
++def render_html(**kwargs: Any) -> str:
++    """산출물 본문을 HTML 로. 인자는 build_document 와 같다."""
++    return to_html(build_document(**kwargs))
++
++
++def to_html(document: DeliverableDocument) -> str:
++    parts: list[str] = [
++        "<!DOCTYPE html>",
++        '<html lang="ko">',
++        "<head>",
++        '<meta charset="utf-8">',
++        f"<title>{escape(document.title)}</title>",
++        f"<style>{STYLE}</style>",
++        "</head>",
++        "<body>",
++        f"<h1>{escape(document.title)}</h1>",
++    ]
++
++    if document.meta:
++        parts.append('<ul class="meta">')
++        parts.extend(f"<li>{escape(line)}</li>" for line in document.meta)
++        parts.append("</ul>")
++
++    for section in document.sections:
++        parts.append(f"<h2>{escape(section.title)}</h2>")
++        if section.header and section.rows:
++            parts.append("<table>")
++            parts.append("<thead><tr>")
++            parts.extend(f"<th>{escape(name)}</th>" for name in section.header)
++            parts.append("</tr></thead>")
++            parts.append("<tbody>")
++            for row in section.rows:
++                parts.append("<tr>")
++                parts.extend(f"<td>{escape(value)}</td>" for value in row)
++                parts.append("</tr>")
++            parts.append("</tbody>")
++            parts.append("</table>")
++        else:
++            # 표가 없는 절(개요)과 행이 없는 표는 같은 모양으로 문장만 낸다.
++            # 빈 표를 그리면 "자료를 못 가져온 것" 처럼 보인다.
++            note = section.note or "해당 자료가 없습니다."
++            parts.append(f'<p class="note">{escape(note)}</p>')
++
++    parts.extend(["</body>", "</html>", ""])
++    return "\n".join(parts)
+diff --git a/backend/app/services/deliverable_markdown.py b/backend/app/services/deliverable_markdown.py
+index ca4c154..6631f83 100644
+--- a/backend/app/services/deliverable_markdown.py
++++ b/backend/app/services/deliverable_markdown.py
+@@ -1,29 +1,32 @@
+ # =============================================================================
+-# 이 파일의 책임: 산출물 본문을 Markdown 문자열로 만든다. DB·파일·HTTP 를 모르고
+-#   받은 자료만 문자열로 바꾼다.
++# 이 파일의 책임: 산출물 본문을 (1) 형식과 무관한 문서 구조로 만들고,
++#   (2) 그것을 Markdown 문자열로 바꾼다. DB·파일·HTTP 를 모른다.
+ #
+ # 다른 파일과의 관계
++#   services/deliverable_html.py     같은 문서 구조를 HTML 로 바꾼다
+ #   services/deliverable_service.py  자료를 모아 이 함수를 부르고 파일로 저장한다
+ #   repositories/deliverable_repository.py  자료를 조회한다
+ #   schemas/deliverable.py  유형 이름(DELIVERABLE_KIND_LABELS)을 여기서도 쓴다
+ #
+ # Spring 비교: 템플릿 엔진(Thymeleaf·Freemarker) 자리다. 다만 템플릿 파일을 두지
+-#   않고 문자열을 직접 만든다 — 표 몇 개라 템플릿 문법을 더할 이유가 없고,
++#   않고 문서 구조 + 포매터로 나눴다 — 표 몇 개라 템플릿 문법을 더할 이유가 없고,
+ #   순수 함수라 DB 없이 테스트된다.
+ #
+-# ⚠ Markdown 을 먼저 만드는 이유
+-#   새 의존성이 없다. XLSX 는 openpyxl, PDF 는 폰트나 별도 라이브러리가 필요하고
+-#   그것은 팀 이미지 크기에 영향을 준다(이미 11.1GB 다). 형식을 늘리는 판단을
+-#   미뤄도 "만들기" 자체는 끝낼 수 있다.
++# ⚠ 왜 문서 구조를 따로 두는가 (형식이 둘이 된 뒤의 이유)
++#   Markdown 과 HTML 이 각자 절을 만들면 **한쪽에만 절을 더하는 실수**가 생긴다.
++#   금액 절을 MD 에만 넣고 HTML 에 빼먹어도 에러가 나지 않는다. 그래서
++#   "유형마다 어떤 절이 들어가는가" 는 build_document 한 곳에만 둔다.
++#   형식별 파일은 **표를 어떻게 그리는지**만 안다.
++#
++# ⚠ 값을 escape 하는 것은 **형식별 포매터의 몫**이다
++#   Markdown 은 `|` 가 표를 깨고, HTML 은 `<` 가 태그가 된다. 막아야 하는 글자가
++#   다르므로 구조에는 원래 값을 담고 각 포매터가 자기 규칙으로 바꾼다.
++#   구조 단계에서 한쪽 규칙으로 바꿔 두면 다른 형식에서 값이 이상해진다.
+ #
+ # ⚠ 개요는 비어 있다 — 일부러 그렇다
+ #   DLV-002-1 완료 판정에 "LLM 호출은 개요 1회" 가 있다. 아직 LLM 이 붙지 않아
+ #   개요 문장을 만들 수 없다. **없는 문장을 지어내지 않고** 자리를 비워 두고
+ #   비었다고 적는다. 표는 전부 실제 자료다.
+-#
+-# ⚠ 표에 들어가는 값은 반드시 escape 한다
+-#   문서 이름이나 항목명에 `|` 가 있으면 표가 깨진다. 줄바꿈이 있으면 행이
+-#   갈라진다. 사용자 자료라 언제든 들어올 수 있다.
+ # =============================================================================
+ 
+ from __future__ import annotations
+@@ -35,11 +38,24 @@ from typing import Any
+ 
+ from app.schemas.deliverable import DELIVERABLE_KIND_LABELS
+ 
+-__all__ = ["DeliverableMaterials", "build_title", "render_markdown"]
++__all__ = [
++    "DeliverableDocument",
++    "DeliverableMaterials",
++    "Section",
++    "build_document",
++    "build_title",
++    "clean",
++    "render_markdown",
++]
+ 
+ # 값이 없을 때 표에 넣는 글자. 0 과 구별한다.
+ EMPTY = "—"
+ 
++SUMMARY_PLACEHOLDER = (
++    "개요 문장은 아직 넣지 않았습니다. 저장된 문서 요약을 한 번 재요약해 채울"
++    " 자리입니다(LLM 연결 예정). 아래 표는 모두 실제 자료입니다."
++)
++
+ 
+ @dataclass
+ class DeliverableMaterials:
+@@ -56,14 +72,41 @@ class DeliverableMaterials:
+     amount_items: list[Any] = field(default_factory=list)
+ 
+ 
+-def cell(value: Any) -> str:
+-    """표 한 칸에 넣을 문자열. None 은 —, 표를 깨뜨리는 글자는 바꾼다."""
++@dataclass
++class Section:
++    """문서의 한 절.
++
++    `header` 가 없으면 표가 아니라 문단이다(개요처럼). 표인데 `rows` 가 비면
++    머리글만 있는 표 대신 `note` 문장을 쓴다 — 빈 표는 "자료를 못 가져온 것" 처럼
++    보인다.
++    """
++
++    title: str
++    header: list[str] | None = None
++    rows: list[list[str]] = field(default_factory=list)
++    note: str | None = None
++
++
++@dataclass
++class DeliverableDocument:
++    """형식과 무관한 산출물 내용. 포매터가 이것만 보고 그린다."""
++
++    title: str
++    meta: list[str] = field(default_factory=list)
++    sections: list[Section] = field(default_factory=list)
++
++
++def clean(value: Any) -> str:
++    """표 한 칸에 넣을 값을 다듬는다.
++
++    None·빈 값은 —, 줄바꿈은 공백으로 바꾼다. 줄바꿈은 Markdown 에서 행을 갈라
++    표를 깨고 HTML 에서도 의미가 없다.
++
++    **형식별 escape 는 하지 않는다** — 파일 머리말 참고.
++    """
+     if value is None or value == "":
+         return EMPTY
+-    text = str(value)
+-    # 줄바꿈은 공백으로, 파이프는 전각으로. 전각으로 바꾸는 이유는 지우면 값이
+-    # 달라 보이기 때문이다(예: "A|B" -> "AB" 는 다른 이름이 된다).
+-    return text.replace("\r", " ").replace("\n", " ").replace("|", "｜").strip()
++    return str(value).replace("\r", " ").replace("\n", " ").strip()
+ 
+ 
+ def money(value: Decimal | int | None) -> str:
+@@ -90,28 +133,7 @@ def build_title(kind: str, period_from: date | None, period_to: date | None) ->
+     return label
+ 
+ 
+-def _table(header: list[str], rows: list[list[str]]) -> list[str]:
+-    lines = ["| " + " | ".join(header) + " |"]
+-    lines.append("|" + "|".join(["---"] * len(header)) + "|")
+-    lines.extend("| " + " | ".join(row) + " |" for row in rows)
+-    return lines
+-
+-
+-def _section(title: str, header: list[str], rows: list[list[str]], empty: str) -> list[str]:
+-    """제목 + 표. 행이 없으면 표 대신 한 줄로 없다고 적는다.
+-
+-    빈 표를 넣지 않는 이유: 머리글만 있는 표는 "자료를 못 가져온 것" 처럼 보인다.
+-    """
+-    lines = [f"## {title}", ""]
+-    if rows:
+-        lines.extend(_table(header, rows))
+-    else:
+-        lines.append(empty)
+-    lines.append("")
+-    return lines
+-
+-
+-def render_markdown(
++def build_document(
+     *,
+     kind: str,
+     title: str,
+@@ -119,116 +141,148 @@ def render_markdown(
+     period_to: date | None,
+     materials: DeliverableMaterials,
+     generated_at_text: str,
+-) -> str:
+-    """산출물 본문. 유형에 따라 담는 절이 다르다.
++) -> DeliverableDocument:
++    """유형에 맞는 절을 골라 문서 구조를 만든다.
+ 
+     유형별 규칙은 deliverable_service._count 의 표와 같아야 한다 — 세어서 보여준
+     것과 담기는 것이 다르면 미리보기가 거짓이 된다.
+     """
+-    lines: list[str] = [f"# {title}", ""]
+-
+     period = (
+         f"{period_from.isoformat()} ~ {period_to.isoformat()}"
+         if period_from and period_to
+         else "기간 전체"
+     )
+-    lines.extend(
+-        [
+-            f"- 대상 기간: {period}",
+-            f"- 만든 시각: {generated_at_text}",
+-            "",
+-        ]
++    document = DeliverableDocument(
++        title=title,
++        meta=[f"대상 기간: {period}", f"만든 시각: {generated_at_text}"],
+     )
+ 
+     if kind in ("WEEKLY_REPORT", "PROJECT_STATUS"):
+-        lines.extend(
+-            [
+-                "## 개요",
+-                "",
+-                "_개요 문장은 아직 넣지 않았습니다. 저장된 문서 요약을 한 번 재요약해"
+-                " 채울 자리입니다(LLM 연결 예정). 아래 표는 모두 실제 자료입니다._",
+-                "",
+-            ]
+-        )
+-        lines.extend(
+-            _section(
+-                "문서",
+-                ["파일명", "유형", "등록일"],
+-                [
+-                    [cell(item.filename), cell(item.document_type), day(_as_date(item.created_at))]
++        document.sections.append(Section(title="개요", note=SUMMARY_PLACEHOLDER))
++        document.sections.append(
++            Section(
++                title="문서",
++                header=["파일명", "유형", "등록일"],
++                rows=[
++                    [clean(item.filename), clean(item.document_type),
++                     day(_as_date(item.created_at))]
+                     for item in materials.documents
+                 ],
+-                "이 기간에 등록된 문서가 없습니다.",
++                note="이 기간에 등록된 문서가 없습니다.",
+             )
+         )
+-        lines.extend(
+-            _section(
+-                "완료한 태스크",
+-                ["제목", "담당", "완료일"],
+-                [
++        document.sections.append(
++            Section(
++                title="완료한 태스크",
++                header=["제목", "담당", "완료일"],
++                rows=[
+                     [
+-                        cell(item.title),
+-                        cell(getattr(getattr(item, "assignee", None), "name", None)),
++                        clean(item.title),
++                        clean(getattr(getattr(item, "assignee", None), "name", None)),
+                         day(_as_date(item.completed_at)),
+                     ]
+                     for item in materials.completed_tasks
+                 ],
+-                "이 기간에 완료한 태스크가 없습니다.",
++                note="이 기간에 완료한 태스크가 없습니다.",
+             )
+         )
+-        lines.extend(_decision_section(materials.decisions, "이 기간의 결정사항이 없습니다."))
+-        lines.extend(
+-            _section(
+-                "일정·기한",
+-                ["제목", "종류", "시작", "종료"],
+-                [
+-                    [cell(item.title), cell(item.kind), day(item.starts_on), day(item.ends_on)]
++        document.sections.append(
++            _decision_section(materials.decisions, "이 기간의 결정사항이 없습니다.")
++        )
++        document.sections.append(
++            Section(
++                title="일정·기한",
++                header=["제목", "종류", "시작", "종료"],
++                rows=[
++                    [clean(item.title), clean(item.kind), day(item.starts_on),
++                     day(item.ends_on)]
+                     for item in materials.schedule_items
+                 ],
+-                "이 기간에 걸리는 일정이 없습니다.",
++                note="이 기간에 걸리는 일정이 없습니다.",
+             )
+         )
+-        lines.extend(
+-            _section(
+-                "금액",
+-                ["항목", "수량", "단가", "금액"],
+-                [
++        document.sections.append(
++            Section(
++                title="금액",
++                header=["항목", "수량", "단가", "금액"],
++                rows=[
+                     [
+-                        cell(item.item_name),
+-                        cell(_trim_number(item.quantity)),
++                        clean(item.item_name),
++                        clean(_trim_number(item.quantity)),
+                         money(item.unit_price),
+                         money(item.amount),
+                     ]
+                     for item in materials.amount_items
+                 ],
+-                "이 기간의 금액 항목이 없습니다.",
++                note="이 기간의 금액 항목이 없습니다.",
+             )
+         )
+     elif kind == "DECISION_LOG":
+-        lines.extend(
+-            _decision_section(materials.decisions, "기록된 결정사항이 없습니다.", show_status=True)
++        document.sections.append(
++            _decision_section(
++                materials.decisions, "기록된 결정사항이 없습니다.", show_status=True
++            )
+         )
+     elif kind == "MEETING_AGENDA":
+-        lines.extend(
++        document.sections.append(
+             _decision_section(materials.decisions, "미결 상태인 결정사항이 없습니다.")
+         )
+ 
++    return document
++
++
++def render_markdown(**kwargs: Any) -> str:
++    """산출물 본문을 Markdown 으로. 인자는 build_document 와 같다."""
++    return to_markdown(build_document(**kwargs))
++
++
++def to_markdown(document: DeliverableDocument) -> str:
++    lines: list[str] = [f"# {document.title}", ""]
++    lines.extend(f"- {line}" for line in document.meta)
++    lines.append("")
++
++    for section in document.sections:
++        lines.extend([f"## {section.title}", ""])
++        if section.header and section.rows:
++            lines.append("| " + " | ".join(_md_cell(v) for v in section.header) + " |")
++            lines.append("|" + "|".join(["---"] * len(section.header)) + "|")
++            lines.extend(
++                "| " + " | ".join(_md_cell(v) for v in row) + " |"
++                for row in section.rows
++            )
++        elif section.header:
++            # 빈 표 대신 한 줄로 없다고 적는다.
++            lines.append(section.note or "해당 자료가 없습니다.")
++        else:
++            # 문단. 개요처럼 표가 아닌 절이다. 기울임으로 본문과 구별한다.
++            lines.append(f"_{section.note}_" if section.note else "")
++        lines.append("")
++
+     # 끝에 개수를 다시 적지 않는다. 표를 세면 되고, 두 곳에 적으면 어긋난다.
+     return "\n".join(lines).rstrip() + "\n"
+ 
+ 
++def _md_cell(value: str) -> str:
++    """Markdown 표에서 `|` 는 칸을 가른다.
++
++    지우지 않고 전각으로 바꾼다 — 지우면 값이 달라 보인다("A|B" -> "AB" 는 다른
++    이름이 된다).
++    """
++    return value.replace("|", "｜")
++
++
+ def _decision_section(
+     decisions: list[Any], empty: str, *, show_status: bool = False
+-) -> list[str]:
++) -> Section:
+     header = ["안건", "상태", "결정일"] if show_status else ["안건", "결정일"]
+     rows = []
+     for item in decisions:
+-        row = [cell(item.title)]
++        row = [clean(item.title)]
+         if show_status:
+-            row.append(cell(item.status))
++            row.append(clean(item.status))
+         row.append(day(item.decided_on))
+         rows.append(row)
+-    return _section("결정사항", header, rows, empty)
++    return Section(title="결정사항", header=header, rows=rows, note=empty)
+ 
+ 
+ def _as_date(value: Any) -> date | None:
+diff --git a/backend/app/services/deliverable_service.py b/backend/app/services/deliverable_service.py
+index c5bb064..9f3e224 100644
+--- a/backend/app/services/deliverable_service.py
++++ b/backend/app/services/deliverable_service.py
+@@ -52,17 +52,27 @@ from app.repositories.deliverable_repository import DeliverableRepository
+ from app.schemas.deliverable import (
+     DELIVERABLE_FORMATS,
+     DELIVERABLE_KINDS,
++    FORMAT_FILE_TYPES,
+     PERIOD_REQUIRED_KINDS,
+     SUPPORTED_DELIVERABLE_FORMATS,
+     DeliverablePreviewResponse,
+     PreviewCounts,
+ )
++from app.services.deliverable_html import render_html
+ from app.services.deliverable_markdown import (
+     DeliverableMaterials,
+     build_title,
+     render_markdown,
+ )
+ 
++# 형식별 본문 생성 함수. 형식을 늘릴 때 **여기와 SUPPORTED_DELIVERABLE_FORMATS**
++# 두 곳만 고치면 된다. if 문으로 늘리면 형식이 늘 때마다 분기가 깊어진다.
++# Spring 비교: Map<String, Renderer> 로 전략을 주입하는 것과 같다.
++RENDERERS = {
++    "MD": render_markdown,
++    "HTML": render_html,
++}
++
+ logger = logging.getLogger(__name__)
+ 
+ # 보고서 한 절에 넣을 행 수 상한. 수천 행을 넣으면 파일도 크고 사람이 읽지도
+@@ -204,7 +214,9 @@ class DeliverableService:
+         materials = self._materials(project_id, kind=kind, since=since, until=until)
+         title = build_title(kind, since, until)
+         generated_at = datetime.now(timezone.utc)
+-        body = render_markdown(
++        # 형식별 본문 생성기는 RENDERERS 에서 고른다. 절을 고르는 규칙은 어느
++        # 형식이든 같다(build_document) — 한쪽에만 절을 더하는 실수를 막는다.
++        body = RENDERERS[deliverable_format](
+             kind=kind,
+             title=title,
+             period_from=since,
+@@ -213,7 +225,8 @@ class DeliverableService:
+             generated_at_text=generated_at.astimezone().strftime("%Y-%m-%d %H:%M"),
+         )
+ 
+-        path = self._write_file(project_id, body)
++        extension, _ = FORMAT_FILE_TYPES[deliverable_format]
++        path = self._write_file(project_id, body, extension)
+         try:
+             with transactional(self._db) as db:  # type: ignore[arg-type]
+                 row = self._repo.add(
+@@ -362,7 +375,7 @@ class DeliverableService:
+         )
+ 
+     @staticmethod
+-    def _write_file(project_id: int, body: str) -> str:
++    def _write_file(project_id: int, body: str, extension: str) -> str:
+         """산출물 파일을 저장하고 경로를 돌려준다.
+ 
+         프로젝트별 폴더에 uuid 이름으로 둔다. 제목을 파일명에 쓰지 않는 이유는
+@@ -371,7 +384,7 @@ class DeliverableService:
+         """
+         directory = os.path.join(settings.UPLOAD_DIR, "deliverables", str(project_id))
+         os.makedirs(directory, exist_ok=True)
+-        path = os.path.join(directory, f"{uuid.uuid4().hex}.md")
++        path = os.path.join(directory, f"{uuid.uuid4().hex}.{extension}")
+         with open(path, "w", encoding="utf-8") as file:
+             file.write(body)
+         return path
+diff --git a/backend/tests/test_deliverable_generate.py b/backend/tests/test_deliverable_generate.py
+index b7cc5d5..964a2ac 100644
+--- a/backend/tests/test_deliverable_generate.py
++++ b/backend/tests/test_deliverable_generate.py
+@@ -26,7 +26,11 @@ import pytest
+ 
+ from app.core.error_codes import ErrorCode
+ from app.core.exceptions import BusinessError
+-from app.services.deliverable_markdown import DeliverableMaterials, cell, render_markdown
++from app.services.deliverable_markdown import (
++    DeliverableMaterials,
++    clean,
++    render_markdown,
++)
+ from app.services.deliverable_service import SNAPSHOT_KEYS, DeliverableService
+ 
+ WEEK = {"period_from": date(2026, 8, 14), "period_to": date(2026, 8, 20)}
+@@ -147,7 +151,7 @@ def test_period_required_is_checked_before_writing():
+ 
+ def test_unsupported_format_is_not_ready_not_invalid():
+     """DB 가 허용하는 값이다. 값이 틀린 것과 서버가 아직 못 하는 것을 구분한다."""
+-    for unsupported in ("XLSX", "HTML", "PDF"):
++    for unsupported in ("XLSX", "PDF"):
+         service, repo = _service(documents=3)
+         with pytest.raises(BusinessError) as err:
+             service.generate(
+@@ -242,11 +246,26 @@ def test_empty_section_says_so_instead_of_empty_table():
+     assert "이 기간에 완료한 태스크가 없습니다." in body
+ 
+ 
+-def test_pipe_in_value_does_not_break_table():
++def test_clean_keeps_value_and_removes_newlines():
++    """구조 단계에서는 형식별 escape 를 하지 않는다. 줄바꿈만 없앤다."""
++    assert clean("두\n줄") == "두 줄"
++    assert clean(None) == "—"
++    # `|` 는 여기서 바꾸지 않는다 — Markdown 포매터의 몫이다.
++    assert clean("A|B") == "A|B"
++
++
++def test_pipe_in_value_does_not_break_markdown_table():
+     """문서 이름에 | 가 있으면 표가 깨진다. 지우지 않고 전각으로 바꾼다."""
+-    assert cell("A|B") == "A｜B"
+-    assert cell("두\n줄") == "두 줄"
+-    assert cell(None) == "—"
++    body = render_markdown(
++        kind="PROJECT_STATUS",
++        title="t",
++        period_from=None,
++        period_to=None,
++        materials=DeliverableMaterials(documents=[_document("A|B.pdf")]),
++        generated_at_text="2026-08-24 15:00",
++    )
++    assert "A｜B.pdf" in body
++    assert "A|B.pdf" not in body
+ 
+ 
+ def test_amount_none_is_dash_not_zero():
+diff --git a/backend/tests/test_deliverable_html.py b/backend/tests/test_deliverable_html.py
+new file mode 100644
+index 0000000..9237d35
+--- /dev/null
++++ b/backend/tests/test_deliverable_html.py
+@@ -0,0 +1,168 @@
++# =============================================================================
++# 이 파일의 책임: HTML 산출물을 검증한다. DB·파일이 필요 없다.
++#
++#   검사하는 것
++#     ① **두 형식이 같은 절을 담는가** — 한쪽에만 절을 더하는 실수를 잡는다
++#     ② 값을 escape 하는가 (보안. 문서 이름에 <script> 가 올 수 있다)
++#     ③ 표가 없는 절(개요)과 행이 없는 표를 문장으로 내는가
++#     ④ 형식별 확장자·MIME 이 한 곳에서 나오는가
++#
++# 다른 파일과의 관계
++#   services/deliverable_html.py       검사 대상
++#   services/deliverable_markdown.py   문서 구조와 Markdown 포매터
++#   schemas/deliverable.py             FORMAT_FILE_TYPES
++#
++# Spring 비교: 같은 모델을 다른 View 로 그린 결과를 비교하는 뷰 테스트다.
++# =============================================================================
++
++from datetime import date, datetime, timezone
++from decimal import Decimal
++from types import SimpleNamespace
++
++from app.schemas.deliverable import (
++    FORMAT_FILE_TYPES,
++    SUPPORTED_DELIVERABLE_FORMATS,
++)
++from app.services.deliverable_html import render_html
++from app.services.deliverable_markdown import (
++    DeliverableMaterials,
++    build_document,
++    render_markdown,
++)
++
++WEEK = {"period_from": date(2026, 8, 14), "period_to": date(2026, 8, 20)}
++
++
++def _document(name="계약서.pdf"):
++    return SimpleNamespace(
++        filename=name,
++        document_type="CONTRACT",
++        created_at=datetime(2026, 8, 17, 9, 30, tzinfo=timezone.utc),
++    )
++
++
++def _amount():
++    return SimpleNamespace(
++        item_name="직접인건비",
++        quantity=Decimal("6.0000"),
++        unit_price=1_000_000,
++        amount=6_000_000,
++    )
++
++
++def _args(materials=None, kind="WEEKLY_REPORT"):
++    return {
++        "kind": kind,
++        "title": "주간 보고서 2026-08-14 ~ 2026-08-20",
++        "period_from": WEEK["period_from"],
++        "period_to": WEEK["period_to"],
++        "materials": materials or DeliverableMaterials(documents=[_document()]),
++        "generated_at_text": "2026-08-24 15:00",
++    }
++
++
++# --- ① 두 형식이 같은 절을 담는다 -------------------------------------------
++
++
++def test_both_formats_have_the_same_sections():
++    """절을 고르는 규칙은 한 곳(build_document)에만 있어야 한다."""
++    args = _args(
++        DeliverableMaterials(documents=[_document()], amount_items=[_amount()])
++    )
++    titles = [section.title for section in build_document(**args).sections]
++    html, markdown = render_html(**args), render_markdown(**args)
++    for title in titles:
++        assert f"<h2>{title}</h2>" in html, title
++        assert f"## {title}" in markdown, title
++    # 주간 보고서는 개요 + 다섯 절이다.
++    assert titles == ["개요", "문서", "완료한 태스크", "결정사항", "일정·기한", "금액"]
++
++
++def test_meeting_agenda_has_only_decisions_in_both_formats():
++    args = _args(DeliverableMaterials(), kind="MEETING_AGENDA")
++    html, markdown = render_html(**args), render_markdown(**args)
++    assert "<h2>결정사항</h2>" in html
++    assert "<h2>문서</h2>" not in html
++    assert "## 문서" not in markdown
++
++
++def test_html_contains_real_values():
++    args = _args(
++        DeliverableMaterials(documents=[_document("과업지시서.pdf")], amount_items=[_amount()])
++    )
++    html = render_html(**args)
++    assert "과업지시서.pdf" in html
++    assert "직접인건비" in html
++    # 금액 표기는 형식과 무관하다 — 문서 구조에서 이미 정해진다.
++    assert "6,000,000" in html
++    assert "<title>주간 보고서 2026-08-14 ~ 2026-08-20</title>" in html
++
++
++# --- ② escape (보안) ---------------------------------------------------------
++
++
++def test_html_escapes_values():
++    """문서 이름은 사용자가 올린 파일에서 온 값이다. 태그가 살아 있으면 실행된다."""
++    args = _args(DeliverableMaterials(documents=[_document("<script>alert(1)</script>.pdf")]))
++    html = render_html(**args)
++    assert "<script>" not in html
++    assert "&lt;script&gt;" in html
++
++
++def test_html_escapes_title():
++    args = _args()
++    args["title"] = "보고서 <b>강조</b>"
++    html = render_html(**args)
++    assert "<b>강조</b>" not in html
++    assert "&lt;b&gt;" in html
++
++
++def test_html_keeps_pipe_as_is():
++    """`|` 는 Markdown 표만 깨뜨린다. HTML 에서는 바꿀 이유가 없다."""
++    args = _args(DeliverableMaterials(documents=[_document("A|B.pdf")]))
++    assert "A|B.pdf" in render_html(**args)
++
++
++# --- ③ 빈 절 ----------------------------------------------------------------
++
++
++def test_empty_table_becomes_sentence_not_empty_table():
++    """머리글만 있는 표는 '자료를 못 가져온 것' 처럼 보인다."""
++    html = render_html(**_args(DeliverableMaterials(documents=[_document()])))
++    assert "이 기간에 완료한 태스크가 없습니다." in html
++    # 빈 표를 그리지 않는다 — 표는 자료가 있는 절에만 있다.
++    assert html.count("<table>") == 1
++
++
++def test_summary_section_is_a_paragraph():
++    html = render_html(**_args())
++    assert "<h2>개요</h2>" in html
++    assert 'class="note"' in html
++
++
++def test_html_is_a_whole_document():
++    """산출물은 파일 하나로 주고받는다. 외부 CSS 를 참조하면 받는 쪽에서 깨진다."""
++    html = render_html(**_args())
++    assert html.startswith("<!DOCTYPE html>")
++    assert '<meta charset="utf-8">' in html
++    assert "<style>" in html
++    assert "http://" not in html and "https://" not in html
++    assert html.rstrip().endswith("</html>")
++
++
++# --- ④ 형식 메타 -------------------------------------------------------------
++
++
++def test_supported_formats_have_file_types():
++    """만들 수 있는 형식은 확장자와 MIME 이 정의돼 있어야 한다."""
++    for name in SUPPORTED_DELIVERABLE_FORMATS:
++        assert name in FORMAT_FILE_TYPES, name
++        extension, media_type = FORMAT_FILE_TYPES[name]
++        assert extension and media_type
++
++
++def test_markdown_and_html_have_different_file_types():
++    assert FORMAT_FILE_TYPES["MD"][0] == "md"
++    assert FORMAT_FILE_TYPES["HTML"][0] == "html"
++    assert "markdown" in FORMAT_FILE_TYPES["MD"][1]
++    assert "text/html" in FORMAT_FILE_TYPES["HTML"][1]

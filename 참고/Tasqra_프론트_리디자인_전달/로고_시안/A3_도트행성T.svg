@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">시안 A3 도트 행성 T</title>
+  <defs>
+    <linearGradient id="a3-planet" x1="12" y1="49" x2="50" y2="12" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#173cff"/>
+      <stop offset=".56" stop-color="#087ff4"/>
+      <stop offset="1" stop-color="#08d7e5"/>
+    </linearGradient>
+  </defs>
+  <circle cx="30" cy="32" r="21" fill="url(#a3-planet)"/>
+  <path fill="#fff" d="M16 20h30l-5 8h-9l-7 22h-9l7-22H11z"/>
+  <path d="M8 43c12 8 34 9 48-5" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round"/>
+  <circle cx="54" cy="19" r="4.2" fill="#08cde5"/>
+</svg>

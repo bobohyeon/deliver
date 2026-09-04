@@ -1,0 +1,845 @@
+diff --git a/backend/app/api/routes/search_router.py b/backend/app/api/routes/search_router.py
+index d598c0d..e58d617 100644
+--- a/backend/app/api/routes/search_router.py
++++ b/backend/app/api/routes/search_router.py
+@@ -35,7 +35,7 @@ from fastapi import APIRouter, Depends
+ 
+ from app.dependencies import get_current_user, get_search_service
+ from app.models.user import User
+-from app.schemas.search import SearchRequest, SearchResponse
++from app.schemas.search import KeywordSearchRequest, SearchRequest, SearchResponse
+ from app.services.search_service import SearchService
+ 
+ router = APIRouter(prefix="/api", tags=["search"])
+@@ -55,6 +55,33 @@ def search_documents(
+     return service.search(user.id, request)
+ 
+ 
++@router.post("/search/keyword", response_model=SearchResponse)
++def search_keyword(
++    request: KeywordSearchRequest,
++    user: User = Depends(get_current_user),
++    service: SearchService = Depends(get_search_service),
++) -> SearchResponse:
++    """키워드 검색을 한다 (SRH-003).
++
++    본문에 검색어가 **그대로 들어 있는** 조각을 찾는다. 문서번호·고유명사·금액
++    처럼 의미 검색이 놓치는 것을 위한 것이다.
++
++    `/api/search` 를 고치지 않고 엔드포인트를 따로 둔 이유
++      의미 검색(SRH-001)은 이미 구현됨이고 프론트가 쓰고 있다. 요청 스키마에
++      `mode` 를 더하면 그 계약을 고쳐야 하고 회귀 위험이 생긴다. 나중에
++      하이브리드(SRH-004)가 둘을 합칠 때 `/api/search/hybrid` 를 하나 더 두면
++      세 방식을 나란히 놓고 비교할 수 있다.
++
++    응답은 `/api/search` 와 **같은 모양**이다. 키워드에서만 채워지는 세 필드가
++    있다 — `match_kind`("keyword") · `match_count` · `match_offset`.
++    의미 검색 응답에서는 그 셋이 `null` 이다.
++
++    범위·권한은 의미 검색과 같다. 멤버가 아닌 프로젝트를 지정하면 404 다.
++    검색어가 너무 짧으면 400 `KEYWORD_TOO_SHORT` 다.
++    """
++    return service.search_keyword(user.id, request)
++
++
+ @router.post("/search/explain", response_model=dict)
+ def explain_search(
+     request: SearchRequest,
+diff --git a/backend/app/core/config.py b/backend/app/core/config.py
+index 994db70..79c1ade 100644
+--- a/backend/app/core/config.py
++++ b/backend/app/core/config.py
+@@ -81,6 +81,18 @@ class Settings(BaseSettings):
+     # 담으면 목록 응답이 커진다. 프론트가 char_count 와 비교해 잘렸는지 안다.
+     SEARCH_SNIPPET_CHARS: int = 220
+ 
++    # --- 키워드 검색 (SRH-003) -----------------------------------------------
++    # 검색어 최소 길이. 트라이그램은 글자 3개씩 만들므로 3글자 미만이면
++    # ix_chunk_text_trgm 인덱스를 쓸 수 없고 순차 스캔으로 떨어진다.
++    #
++    # 그래도 2 로 두는 이유: "제1조" · "SI" · "VAT" 같은 실제 검색어가 짧다.
++    # 1글자는 막는다 — 어느 청크에나 있어서 결과가 사실상 전체가 된다.
++    SEARCH_KEYWORD_MIN_LENGTH: int = 2
++    # 키워드 결과의 원문 인용 길이(글자). 의미 검색보다 좁게 둔다 — 의미 검색은
++    # 청크의 주제를 보여주려고 앞부분을 주지만, 키워드는 "찾은 그 자리"를
++    # 보여주는 것이 목적이라 매치 주변만 있으면 된다.
++    SEARCH_KEYWORD_SNIPPET_CHARS: int = 160
++
+     # --- 청킹 규칙 (services/chunking.py 의 기본값을 환경에서 덮어쓴다) --------
+     # 임베딩 모델에 넣는 청크 하나의 최대 토큰 수. 우리 정확도 측정을
+     # max_seq_length=1024 로 했으므로 그 안에 들어와야 측정값을 그대로 쓸 수 있다.
+diff --git a/backend/app/core/error_codes.py b/backend/app/core/error_codes.py
+index 67ca17b..87d8434 100644
+--- a/backend/app/core/error_codes.py
++++ b/backend/app/core/error_codes.py
+@@ -88,6 +88,15 @@ class ErrorCode(Enum):
+     AI_INVALID_RESPONSE = ("AI_INVALID_RESPONSE", "AI 응답을 해석할 수 없습니다.", 502)
+     AI_ANALYZER_FAILED = ("AI_ANALYZER_FAILED", "일부 분석에 실패했습니다.", 502)
+ 
++    # ── 검색 (SRH-003 키워드 검색) ──
++    # 위 머리말이 "요청 형식 오류는 Pydantic 이 막으므로 코드를 두지 않는다" 고
++    # 했지만, 이건 예외다. 최소 길이가 settings.SEARCH_KEYWORD_MIN_LENGTH 로
++    # 환경에서 바뀌는 값이라 Pydantic Field 제약으로 굳힐 수 없다. 그리고 화면이
++    # 다르게 처리해야 한다 — 일반 오류가 아니라 입력창 아래 안내로 띄운다.
++    #
++    # 메시지에 글자 수를 적지 않는다. 설정을 바꾸면 메시지가 거짓이 되기 때문이다.
++    KEYWORD_TOO_SHORT = ("KEYWORD_TOO_SHORT", "검색어가 너무 짧습니다. 더 길게 입력해 주세요.", 400)
++
+     INTERNAL_ERROR = ("INTERNAL_ERROR", "서버 내부 오류가 발생했습니다.", 500)
+ 
+     def __init__(self, code: str, message: str, status_code: int):
+diff --git a/backend/app/models/chunk.py b/backend/app/models/chunk.py
+index e018928..bc2ad6e 100644
+--- a/backend/app/models/chunk.py
++++ b/backend/app/models/chunk.py
+@@ -84,6 +84,20 @@ class DocumentChunk(Base):
+         # 프로젝트가 아주 작을 때는 HNSW 를 훑는 것보다 이 인덱스로 그 프로젝트의
+         # 청크만 읽어 정확한 거리를 계산하는 편이 빠르다. 계획 선택지를 준다.
+         Index("ix_chunk_project", "project_id", "document_id"),
++        # 키워드 검색용 (SRH-003). ILIKE '%...%' 를 가속한다.
++        #
++        # 한국어는 PostgreSQL 에 전문검색 설정이 없다. simple 설정은 공백으로만
++        # 토큰을 나누므로 "계약금액" 과 "계약금액은" 이 다른 토큰이 된다.
++        # 트라이그램은 글자 3개씩 겹쳐 보므로 조사에 걸리지 않는다.
++        #
++        # ⚠ 검색어가 3글자 미만이면 트라이그램이 없어 이 인덱스를 못 쓴다.
++        # 리비전 0016 이 pg_trgm 확장과 함께 만든다.
++        Index(
++            "ix_chunk_text_trgm",
++            "text",
++            postgresql_using="gin",
++            postgresql_ops={"text": "gin_trgm_ops"},
++        ),
+     )
+ 
+     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+diff --git a/backend/app/repositories/chunk_repository.py b/backend/app/repositories/chunk_repository.py
+index 7c36c1e..b50e252 100644
+--- a/backend/app/repositories/chunk_repository.py
++++ b/backend/app/repositories/chunk_repository.py
+@@ -86,6 +86,29 @@ def summarize_plan(plan: str) -> str:
+     return "\n".join(kept) if kept else plan
+ 
+ 
++def like_pattern(term: str) -> str:
++    """검색어를 LIKE 패턴으로 만든다 (SRH-003).
++
++    **와일드카드를 반드시 죽여야 한다.** `%` 는 LIKE 에서 "아무 글자나 몇 개든"
++    이므로, 사용자가 `%` 하나만 넣으면 조건이 사실상 사라져 프로젝트의 모든
++    청크가 걸린다. `_` 는 한 글자 와일드카드다.
++
++        입력 "100%"   ->  "%100\\%%"      "100%" 를 글자 그대로 찾는다
++        이스케이프 없으면  "%100%%"        "100" 으로 시작하는 것 전부
++
++    역슬래시를 먼저 바꾼다. 나중에 바꾸면 우리가 방금 넣은 이스케이프 문자를
++    또 이스케이프해서 패턴이 망가진다.
++
++    SQL 주입과는 다른 문제다 — 바인드 파라미터로 넘기므로 주입은 안 된다.
++    여기서 막는 것은 **의미가 뒤바뀌는 것**이다.
++
++    Spring 비교: Spring Data JPA 에서 `Containing` 파생 질의를 쓰지 않고
++    `@Query` 에 `LIKE %:term%` 를 직접 쓸 때 겪는 것과 같은 문제다.
++    """
++    escaped = term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
++    return f"%{escaped}%"
++
++
+ class ChunkRepository:
+     def __init__(self, db: Session) -> None:
+         self._db = db
+@@ -271,6 +294,83 @@ class ChunkRepository:
+             for row in self._db.execute(stmt).all()
+         ]
+ 
++    # --- 키워드 검색 (SRH-003) ----------------------------------------------
++
++    def search_by_keyword(
++        self,
++        *,
++        project_ids: Sequence[int],
++        term: str,
++        embedding_model: str,
++        limit: int,
++        document_id: int | None = None,
++    ) -> list[tuple[DocumentChunk, str, int, str, float]]:
++        """본문에 term 이 그대로 들어 있는 청크를 찾는다.
++
++        벡터 검색과 **같은 모양**으로 돌려준다 —
++        (청크, 문서 파일명, 프로젝트 id, 프로젝트 이름, 점수).
++        하이브리드(SRH-004)가 두 결과를 한 순위로 합칠 때 모양이 같아야 한다.
++
++        정확성과 순서를 나눠서 본다
++          · **정확성은 ILIKE 가 보장한다.** 걸린 청크에는 term 이 반드시 있다.
++          · **순서는 word_similarity 가 정한다.** 이건 정확성 문제가 아니라
++            "어느 것을 먼저 보여줄까" 이므로, 나중에 바꿔도 결과 집합은 같다.
++
++        word_similarity(term, text) 를 쓰는 이유
++          similarity() 는 두 문자열 **전체**의 트라이그램을 비교한다. 짧은 검색어
++          와 900자 청크를 비교하면 값이 늘 0 에 가까워 순서를 못 정한다.
++          word_similarity 는 **본문 안의 한 구간**과 비교하므로 짧은 질의에 맞다.
++
++          ⚠ 한국어에서 조사가 붙으면 1.0 이 안 된다("계약금액" vs "계약금액은").
++          그래도 순서만 정하는 값이라 문제가 되지 않는다. 실제 분포는 DB 에
++          청크를 넣고 확인해야 안다 — 확인 전까지 이 값을 화면에 "정확도" 로
++          표시하지 않는다.
++
++        조건이 세 개다
++          1. project_id — 벡터 검색과 같다. document_chunks 자기 컬럼으로 건다.
++          2. text ILIKE — ix_chunk_text_trgm (GIN · gin_trgm_ops) 이 가속한다.
++             term 이 3글자 미만이면 트라이그램이 없어 순차 스캔으로 떨어진다.
++          3. embedding_model — **키워드 검색에 임베딩은 상관없지만 빼면 안 된다.**
++             같은 문서를 두 모델로 청킹해 두면 같은 본문이 여러 행으로 있어서,
++             조건을 빼면 같은 텍스트가 결과에 중복으로 나온다. 의미 검색은 이
++             조건으로 중복을 우연히 피하고 있었다.
++
++        _apply_scan_settings() 를 부르지 않는다
++          그건 HNSW(hnsw.ef_search · iterative_scan) 전용이다. 키워드 검색은
++          HNSW 를 쓰지 않으므로 불필요한 왕복 2회만 늘어난다.
++        """
++        if not project_ids:
++            return []
++
++        from app.models.document import Document
++        from app.models.project import Project
++
++        score = func.word_similarity(term, DocumentChunk.text).label("score")
++        stmt = (
++            select(
++                DocumentChunk,
++                Document.filename,
++                Project.id,
++                Project.name,
++                score,
++            )
++            .join(Document, Document.id == DocumentChunk.document_id)
++            .join(Project, Project.id == DocumentChunk.project_id)
++            .where(self._scope_condition(project_ids))
++            .where(DocumentChunk.embedding_model == embedding_model)
++            .where(DocumentChunk.text.ilike(like_pattern(term), escape="\\"))
++        )
++        if document_id is not None:
++            stmt = stmt.where(DocumentChunk.document_id == document_id)
++        # 점수가 같을 때 순서가 흔들리지 않게 seq 를 tie-break 로 둔다. 같은 질의에
++        # 다른 순서가 나오면 회귀 테스트를 쓸 수 없다.
++        stmt = stmt.order_by(score.desc(), DocumentChunk.seq).limit(limit)
++
++        return [
++            (row[0], row[1], int(row[2]), row[3], float(row[4]))
++            for row in self._db.execute(stmt).all()
++        ]
++
+     def explain_search(
+         self,
+         *,
+diff --git a/backend/app/schemas/search.py b/backend/app/schemas/search.py
+index 57bd244..90e52b8 100644
+--- a/backend/app/schemas/search.py
++++ b/backend/app/schemas/search.py
+@@ -54,6 +54,32 @@ class SearchRequest(BaseModel):
+     min_similarity: float | None = Field(default=None, ge=-1.0, le=1.0)
+ 
+ 
++class KeywordSearchRequest(BaseModel):
++    """키워드 검색(SRH-003) 요청.
++
++    SearchRequest 를 물려받지 않고 따로 둔다. query 의 뜻이 다르기 때문이다 —
++    의미 검색의 query 는 "대금은 언제 주나요" 같은 자연어 질문이고, 여기의
++    query 는 본문에 **그 글자가 그대로 있어야 하는** 문자열이다. 한 클래스로
++    묶으면 필드 설명을 둘 다 만족시킬 수 없다.
++
++    min_similarity 가 없는 것도 그래서다. 트라이그램 점수에 임계값을 두면
++    "찾았는데 안 보여주는" 일이 생긴다. 키워드는 있으면 보여주는 것이 맞다.
++    """
++
++    # 찾을 문자열. 문서번호("제2026-403호") · 고유명사 · 금액처럼 정확히
++    # 일치해야 하는 것을 넣는다. 앞뒤 공백은 서비스가 떼어낸다.
++    #
++    # 최소 길이는 settings.SEARCH_KEYWORD_MIN_LENGTH 로 서비스에서 검사한다.
++    # 여기서 min_length 를 올려 막지 않는 이유: 값을 환경에서 바꿀 수 있어야
++    # 하는데 Field 제약은 클래스 정의 시점에 굳는다.
++    query: str = Field(min_length=1, max_length=200)
++    project_ids: list[int] | None = Field(
++        default=None, min_length=1, max_length=MAX_SCOPE_PROJECTS
++    )
++    limit: int = Field(default=10, ge=1, le=MAX_SEARCH_LIMIT)
++    document_id: int | None = None
++
++
+ class SearchResultItem(BaseModel):
+     model_config = ConfigDict(from_attributes=True)
+ 
+@@ -85,6 +111,24 @@ class SearchResultItem(BaseModel):
+     content_start: int | None
+     content_end: int | None
+ 
++    # --- 키워드 검색(SRH-003)에서만 채워지는 필드 ---------------------------
++    # 의미 검색에서는 전부 None 이다. 하이브리드(SRH-004)가 두 결과를 한 순위로
++    # 합칠 때 같은 모양이어야 섞을 수 있으므로, 스키마를 나누지 않고 필드를
++    # 더했다. 어느 방식으로 걸린 결과인지는 match_kind 로 구분한다.
++    #
++    # "vector" | "keyword". None 이면 의미 검색이다(기존 응답과 호환).
++    match_kind: str | None = None
++    # 검색어가 이 청크에 몇 번 나오는가. 사람이 "많이 언급된 조각" 을 고르는
++    # 근거가 되고, 하이브리드에서 가중치 재료로도 쓸 수 있다.
++    match_count: int | None = None
++    # 검색어가 snippet 안에서 시작하는 위치(0부터). 프론트가 이 자리를
++    # 강조 표시한다.
++    #
++    # ⚠ content_start 에 더해서 원문 좌표로 쓸 수 없다. snippet 은 줄바꿈·연속
++    # 공백을 한 칸으로 눌러서 만들기 때문에 원문과 글자 수가 다르다. 원문 위
++    # 강조는 지금처럼 청크 단위(content_start~content_end)로 한다.
++    match_offset: int | None = None
++
+ 
+ class SearchResponse(BaseModel):
+     query: str
+diff --git a/backend/app/services/search_service.py b/backend/app/services/search_service.py
+index 62c414a..341fa80 100644
+--- a/backend/app/services/search_service.py
++++ b/backend/app/services/search_service.py
+@@ -48,7 +48,12 @@ from app.core.exceptions import BusinessError
+ from app.embedding.protocol import EmbeddingClientProtocol
+ from app.repositories.chunk_repository import ChunkRepository
+ from app.repositories.project_repository import ProjectRepository
+-from app.schemas.search import SearchRequest, SearchResponse, SearchResultItem
++from app.schemas.search import (
++    KeywordSearchRequest,
++    SearchRequest,
++    SearchResponse,
++    SearchResultItem,
++)
+ 
+ logger = logging.getLogger(__name__)
+ 
+@@ -139,6 +144,90 @@ class SearchService:
+             results=results,
+         )
+ 
++    def search_keyword(
++        self, user_id: int, request: KeywordSearchRequest
++    ) -> SearchResponse:
++        """키워드 검색을 한다 (SRH-003).
++
++        의미 검색과 다른 점은 셋이다.
++          1. **임베딩을 만들지 않는다.** 그래서 모델 서버가 떠 있지 않아도 된다.
++             `SYS-002-4` 임베딩 모델 서빙 경로가 미결인 상태에서도 이 기능은
++             동작한다 — 다른 팀원이 실제 검색을 처음 돌려 볼 수 있는 경로다.
++          2. **검색어 최소 길이를 검사한다.** 1글자는 어느 청크에나 있어서
++             결과가 사실상 전체가 된다.
++          3. **스니펫이 매치 자리를 보여준다.** 의미 검색은 질의 글자가 본문에
++             없어도 걸리므로 앞부분을 주지만, 키워드는 위치를 알 수 있다.
++
++        범위·권한 처리는 의미 검색과 **완전히 같다** — `_resolve_scope` 를 그대로
++        쓴다. 따로 구현하면 한쪽만 고쳐졌을 때 권한 구멍이 생긴다.
++        """
++        started = time.perf_counter()
++        term = request.query.strip()
++        if len(term) < settings.SEARCH_KEYWORD_MIN_LENGTH:
++            # 공백만 넣은 경우도 여기서 걸린다(strip 뒤 길이 0).
++            raise BusinessError(ErrorCode.KEYWORD_TOO_SHORT)
++
++        scope = self._resolve_scope(user_id, request.project_ids)
++        if not scope:
++            return self._empty_keyword(request, scope, started)
++
++        # 임베딩을 만들지 않지만 모델 이름은 필요하다. 같은 문서를 여러 모델로
++        # 청킹해 두면 같은 본문이 여러 행으로 있어서, 모델로 걸러야 결과에
++        # 중복이 나오지 않는다. settings 대신 클라이언트의 이름을 쓰는 이유는
++        # 의미 검색이 쓰는 값과 반드시 같아야 하기 때문이다.
++        model = self._embedder.model_name
++
++        rows = self._chunks.search_by_keyword(
++            project_ids=scope,
++            term=term,
++            embedding_model=model,
++            limit=request.limit,
++            document_id=request.document_id,
++        )
++
++        results: list[SearchResultItem] = []
++        for chunk, filename, project_id, project_name, score in rows:
++            snippet, offset = self._keyword_snippet(chunk.text, term)
++            results.append(
++                SearchResultItem(
++                    chunk_id=chunk.id,
++                    document_id=chunk.document_id,
++                    document_filename=filename,
++                    project_id=project_id,
++                    project_name=project_name,
++                    seq=chunk.seq,
++                    page_number=chunk.page_number,
++                    # 코사인 유사도가 아니라 트라이그램 낱말 유사도다. 어느
++                    # 쪽인지는 match_kind 로 구분한다.
++                    similarity=round(score, 6),
++                    snippet=snippet,
++                    char_count=chunk.char_count,
++                    content_start=chunk.content_start,
++                    content_end=chunk.content_end,
++                    match_kind="keyword",
++                    match_count=self._count_occurrences(chunk.text, term),
++                    match_offset=offset,
++                )
++            )
++
++        took_ms = int((time.perf_counter() - started) * 1000)
++        logger.info(
++            "키워드 검색 user_id=%s 범위=%s 결과=%d 길이=%d %dms",
++            user_id,
++            scope,
++            len(results),
++            len(term),
++            took_ms,
++        )
++        return SearchResponse(
++            query=request.query,
++            searched_project_ids=scope,
++            embedding_model=model,
++            took_ms=took_ms,
++            total=len(results),
++            results=results,
++        )
++
+     def explain(self, user_id: int, request: SearchRequest) -> str:
+         """검색 실행계획을 돌려준다. 리비전 0014 검증용이다."""
+         scope = self._resolve_scope(user_id, request.project_ids)
+@@ -203,6 +292,86 @@ class SearchService:
+             results=[],
+         )
+ 
++    def _empty_keyword(
++        self, request: KeywordSearchRequest, scope: list[int], started: float
++    ) -> SearchResponse:
++        return SearchResponse(
++            query=request.query,
++            searched_project_ids=scope,
++            embedding_model=self._embedder.model_name,
++            took_ms=int((time.perf_counter() - started) * 1000),
++            total=0,
++            results=[],
++        )
++
++    @staticmethod
++    def _count_occurrences(text: str, term: str) -> int:
++        """검색어가 본문에 몇 번 나오는지 센다 (SRH-003).
++
++        SQL 로도 셀 수 있지만(`length` 와 `replace` 조합) 파이썬으로 센다.
++        본문이 이미 손에 있어서 왕복이 늘지 않고, DB 없이 테스트할 수 있다.
++
++        대소문자를 무시한다 — 조회가 `ILIKE` 이므로 셈도 같은 기준이어야
++        "1건 걸렸는데 0번 나온다" 같은 모순이 안 생긴다.
++
++        `str.count` 는 겹치지 않게 센다("aa" 안의 "aaa" 는 1). LIKE 도 존재
++        여부만 보므로 이 차이가 결과 집합을 바꾸지 않는다.
++        """
++        if not term:
++            return 0
++        return text.lower().count(term.lower())
++
++    @staticmethod
++    def _keyword_snippet(text: str, term: str) -> tuple[str, int | None]:
++        """매치된 자리를 중심으로 원문 인용을 만든다 (SRH-003 + SRH-002-2).
++
++        (스니펫, 스니펫 안에서 검색어가 시작하는 위치) 를 돌려준다.
++
++        의미 검색의 `_snippet` 과 나눈 이유
++          그쪽은 **앞부분 220자**를 준다. 질의 글자가 본문에 없어도 걸리므로
++          "질의가 나온 자리" 가 없기 때문이다. 키워드는 자리가 있으니 그곳을
++          보여주는 것이 근거로서 쓸모가 있다.
++
++        먼저 공백을 누른 뒤에 위치를 찾는 순서가 중요하다
++          `text` 에서 위치를 찾고 나서 공백을 누르면, 누르는 과정에서 글자 수가
++          줄어들어 **위치가 어긋난다.** 그래서 누른 결과 안에서 찾는다.
++          그러면 돌려주는 offset 이 돌려주는 snippet 과 항상 맞는다.
++
++        ⚠ 이 offset 을 `content_start` 에 더해 원문 좌표로 쓸 수 없다. 공백을
++        눌렀으므로 원문과 글자 수가 다르다. 원문 위 강조는 지금처럼 청크 단위
++        (`content_start` ~ `content_end`)로 한다.
++
++        찾지 못하면 offset 이 None 이다. 조회가 `ILIKE` 로 걸러 왔으니 보통은
++        찾히지만, 검색어에 원문의 줄바꿈이 걸쳐 있으면(공백을 누르면서 한 칸이
++        된 자리) 어긋날 수 있다. 그때도 스니펫은 돌려준다 — 강조만 못 한다.
++        """
++        limit = settings.SEARCH_KEYWORD_SNIPPET_CHARS
++        flat = " ".join(text.split())
++        at = flat.lower().find(term.lower())
++
++        if at < 0:
++            # 매치 자리를 못 찾았다. 의미 검색과 같은 방식으로 앞부분을 준다.
++            head = flat if len(flat) <= limit else flat[:limit] + "…"
++            return head, None
++
++        if len(flat) <= limit:
++            return flat, at
++
++        # 검색어를 창의 가운데에 둔다. 앞뒤 맥락이 함께 보여야 근거가 된다.
++        # 검색어가 창보다 길면 앞을 맞춘다(term 이 잘려도 시작은 보인다).
++        room = max(limit - len(term), 0)
++        start = max(at - room // 2, 0)
++        end = min(start + limit, len(flat))
++        # 뒤쪽이 짧아 창을 못 채우면 앞으로 밀어 길이를 유지한다.
++        start = max(end - limit, 0)
++
++        cut = flat[start:end]
++        prefix = "…" if start > 0 else ""
++        suffix = "…" if end < len(flat) else ""
++        # 앞에 "…" 를 붙이면 그만큼 offset 이 밀린다. 이걸 빼먹으면 강조가
++        # 한 글자씩 어긋난다.
++        return prefix + cut + suffix, (at - start) + len(prefix)
++
+     @staticmethod
+     def _snippet(text: str) -> str:
+         """원문 인용을 만든다 (SRH-002-2).
+diff --git a/backend/migrations/versions/20260820_0016_chunk_text_search.py b/backend/migrations/versions/20260820_0016_chunk_text_search.py
+new file mode 100644
+index 0000000..4e12d51
+--- /dev/null
++++ b/backend/migrations/versions/20260820_0016_chunk_text_search.py
+@@ -0,0 +1,78 @@
++"""document_chunks.text 에 트라이그램 인덱스 추가 (키워드 검색 SRH-003)
++
++Revision ID: 20260820_0016
++Revises: 20260819_0015
++
++왜 필요한가
++  의미 검색(SRH-001)은 뜻이 비슷한 것을 찾는다. 그래서 고유명사·숫자·문서번호에
++  약하다. "제2026-403호" 를 물으면 벡터는 그 숫자를 특별하게 보지 않는다.
++
++  우리 평가셋 진단에서 **정답 청크의 숫자값이 다른 청크에도 그대로 다 있는 질의가
++  26~27%** 였다. 벡터가 가장 약한 자리이고, 키워드 검색이 그 자리를 메운다.
++
++왜 tsvector 가 아니라 트라이그램인가
++  PostgreSQL 에는 **한국어 전문검색 설정이 없다.** `simple` 설정은 공백으로만
++  토큰을 나누므로 조사가 붙은 한국어에서 어긋난다.
++
++      질의 "계약금액"  본문 "계약금액은"   -> simple tsvector 는 다른 토큰이다
++
++  트라이그램은 글자 3개씩 겹쳐 보므로 조사·붙여쓰기에 걸리지 않는다. 완료 판정이
++  "고유명사·숫자·문서번호처럼 **정확한 문자열**로 찾는다" 이므로, 형태소 분석이
++  아니라 부분 문자열 매칭이 목적에 맞다.
++
++  gin_trgm_ops 인덱스는 `ILIKE '%...%'` 를 가속한다. 이 인덱스가 없으면
++  청크 전체를 순차 훑으므로, 청크가 늘어날수록 그대로 느려진다.
++
++  ⚠ 검색어가 3글자 미만이면 트라이그램이 만들어지지 않아 **인덱스를 쓸 수 없다**
++  (순차 스캔으로 떨어진다). 그래서 앱에서 최소 길이를 두고, 2글자는 느릴 수
++  있다는 것을 알고 허용한다 — "제1조", "SI" 같은 실제 검색어가 2글자다.
++
++안전한 변경인 이유
++  기존 컬럼·제약·인덱스를 하나도 건드리지 않는다. 인덱스 하나와 확장 하나를
++  더할 뿐이다. 의미 검색(SRH-001)의 계획에는 영향이 없다 — 그쪽은 ix_chunk_vec
++  (HNSW)를 쓰고 이 인덱스는 text 컬럼에만 걸린다.
++
++  다만 **쓰기가 조금 느려진다.** 청크를 넣을 때 GIN 인덱스도 갱신해야 한다.
++  청킹은 배치 삽입(bulk_insert)이라 건당 비용이 작고, GIN 은 pending list 로
++  삽입을 모아 처리한다(fastupdate 기본 켬).
++
++다른 팀원이 해야 하는 것
++  **각자 `alembic upgrade head` 를 돌려야 한다.** 안 돌리면 키워드 검색 API 가
++  인덱스 없이 동작하거나(ILIKE 자체는 확장 없이도 된다) 오류가 난다.
++  `CREATE EXTENSION` 은 superuser 권한이 필요하다 — docker-compose 의
++  postgres 사용자는 superuser 이므로 로컬에서는 문제가 없다.
++
++downgrade 에서 확장을 지우지 않는 이유
++  리비전 0011 이 `vector` 확장에 대해 정한 관례를 따른다. 확장은 데이터베이스
++  전체의 것이라, 이 리비전만 되돌린다고 지우면 다른 것이 쓰고 있을 때 깨진다.
++"""
++
++from alembic import op
++
++revision = "20260820_0016"
++down_revision = "20260819_0015"
++branch_labels = None
++depends_on = None
++
++
++def upgrade() -> None:
++    # 트라이그램 연산자·인덱스 지원. 0011 의 vector 와 같은 방식으로 건다.
++    op.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
++
++    # models/chunk.py 의 ix_chunk_text_trgm 과 같아야 한다.
++    #
++    # 부분 인덱스로 좁히지 않는다. project_id 나 embedding_model 로 좁히고 싶지만,
++    # 그러면 조건이 인덱스에 박혀 다른 범위의 검색이 이 인덱스를 못 쓴다.
++    # 트라이그램 필터로 후보를 줄인 뒤 project_id 조건이 그 위에서 걸린다.
++    op.create_index(
++        "ix_chunk_text_trgm",
++        "document_chunks",
++        ["text"],
++        postgresql_using="gin",
++        postgresql_ops={"text": "gin_trgm_ops"},
++    )
++
++
++def downgrade() -> None:
++    op.drop_index("ix_chunk_text_trgm", table_name="document_chunks")
++    # pg_trgm 확장은 지우지 않는다 (0011 의 vector 와 같은 이유).
+diff --git a/backend/tests/test_search_keyword.py b/backend/tests/test_search_keyword.py
+new file mode 100644
+index 0000000..8b9a152
+--- /dev/null
++++ b/backend/tests/test_search_keyword.py
+@@ -0,0 +1,264 @@
++# =============================================================================
++# 이 파일의 책임: 키워드 검색(SRH-003)을 DB 없이 검증한다.
++#   검사하는 것 셋 —
++#     ① like_pattern 이 와일드카드를 죽이는가 (죽이지 않으면 조건이 사라진다)
++#     ② _keyword_snippet 의 offset 이 snippet 과 정확히 맞는가
++#     ③ 서비스가 범위·권한·최소 길이를 지키는가
++#
++# 다른 파일과의 관계:
++#   app/repositories/chunk_repository.py 의 like_pattern (순수 함수)
++#   app/services/search_service.py 의 SearchService (MagicMock 으로 조립)
++#
++# DB 를 띄우지 않는다. 레포 관례를 따른다 —
++#   MagicMock + SimpleNamespace 로 서비스만 조립한다(test_document_list_queries.py).
++#   ILIKE 가 실제로 ix_chunk_text_trgm 를 타는지는 여기서 알 수 없다.
++#   그건 DB 가 필요하고 EXPLAIN 으로 따로 확인한다.
++#
++# Spring 비교: @SpringBootTest 가 아니라 Mockito 로 의존성을 주입한
++#   서비스 단위 테스트다.
++# =============================================================================
++
++from types import SimpleNamespace
++from unittest.mock import MagicMock
++
++import pytest
++
++from app.core.error_codes import ErrorCode
++from app.core.exceptions import BusinessError
++from app.repositories.chunk_repository import like_pattern
++from app.schemas.search import KeywordSearchRequest
++from app.services.search_service import SearchService
++
++
++# --- ① like_pattern — 와일드카드를 죽인다 -----------------------------------
++
++
++def test_like_pattern_kills_wildcards():
++    # % 를 그대로 두면 "100" 으로 시작하는 것 전부가 걸린다.
++    assert like_pattern("100%") == "%100\\%%"
++    # _ 는 한 글자 와일드카드다.
++    assert like_pattern("제_조") == "%제\\_조%"
++    # 역슬래시를 먼저 바꿔야 우리가 넣은 이스케이프를 다시 이스케이프하지 않는다.
++    assert like_pattern("a\\b") == "%a\\\\b%"
++    # 평범한 검색어는 감싸기만 한다.
++    assert like_pattern("제2026-403호") == "%제2026-403호%"
++
++
++def test_like_pattern_only_wildcard_does_not_match_everything():
++    """검색어가 '%' 하나여도 조건이 사라지지 않아야 한다."""
++    # 이스케이프가 없으면 "%%%" 가 되어 모든 행이 걸린다.
++    assert like_pattern("%") == "%\\%%"
++
++
++# --- ② _keyword_snippet — offset 이 snippet 과 맞는다 ------------------------
++
++
++def _check_offset(text: str, term: str) -> tuple[str, int | None]:
++    """돌려준 offset 자리에 정말 검색어가 있는지 확인한다."""
++    snippet, offset = SearchService._keyword_snippet(text, term)
++    if offset is not None:
++        found = snippet[offset : offset + len(term)]
++        assert found.lower() == term.lower(), (
++            f"offset 이 어긋났다: snippet[{offset}:] = {found!r}, 기대 {term!r}"
++        )
++    return snippet, offset
++
++
++def test_keyword_snippet_short_text_returns_whole():
++    snippet, offset = _check_offset("계약금액은 1억원이다", "계약금액")
++    assert snippet == "계약금액은 1억원이다"
++    assert offset == 0
++
++
++def test_keyword_snippet_flattens_whitespace_before_locating():
++    """줄바꿈을 누른 뒤에 찾아야 offset 이 snippet 과 맞는다.
++
++    누르기 전에 찾으면 글자 수가 줄면서 위치가 어긋난다.
++    """
++    text = "제1조   목적\n\n이 계약의   계약금액은 1억원이다"
++    snippet, offset = _check_offset(text, "계약금액")
++    # 연속 공백이 한 칸으로 눌렸다.
++    assert "   " not in snippet
++    assert offset is not None
++
++
++def test_keyword_snippet_centers_match_and_marks_ellipsis():
++    """긴 본문에서는 매치를 가운데 두고 앞뒤에 … 를 붙인다."""
++    text = "가" * 500 + "계약금액" + "나" * 500
++    snippet, offset = _check_offset(text, "계약금액")
++    assert snippet.startswith("…")
++    assert snippet.endswith("…")
++    # 앞의 "…" 만큼 offset 이 밀려 있어야 한다. _check_offset 이 이미 확인했다.
++    assert offset is not None and offset > 0
++
++
++def test_keyword_snippet_match_at_start_has_no_leading_ellipsis():
++    text = "계약금액은 " + "가" * 500
++    snippet, offset = _check_offset(text, "계약금액")
++    assert not snippet.startswith("…")
++    assert offset == 0
++    assert snippet.endswith("…")
++
++
++def test_keyword_snippet_match_at_end_keeps_window_length():
++    text = "가" * 500 + "계약금액"
++    snippet, offset = _check_offset(text, "계약금액")
++    assert snippet.startswith("…")
++    assert not snippet.endswith("…")
++    assert offset is not None
++
++
++def test_keyword_snippet_is_case_insensitive():
++    snippet, offset = _check_offset("이것은 SI 사업이다", "si")
++    assert offset is not None
++    assert snippet[offset : offset + 2] == "SI"
++
++
++def test_keyword_snippet_not_found_still_returns_text():
++    """조회가 ILIKE 로 걸러 왔어도, 줄바꿈이 검색어에 걸치면 못 찾을 수 있다.
++
++    그때도 스니펫은 주고 offset 만 None 이다 — 강조만 못 한다.
++    """
++    snippet, offset = SearchService._keyword_snippet("가나다라마", "없는말")
++    assert offset is None
++    assert snippet == "가나다라마"
++
++
++# --- ② 매치 횟수 -------------------------------------------------------------
++
++
++def test_count_occurrences_ignores_case():
++    assert SearchService._count_occurrences("SI 사업 si 사업", "si") == 2
++
++
++def test_count_occurrences_zero_when_absent():
++    assert SearchService._count_occurrences("가나다", "라마") == 0
++
++
++def test_count_occurrences_empty_term_is_zero():
++    """빈 검색어에 str.count 는 글자수+1 을 준다. 그걸 그대로 쓰면 안 된다."""
++    assert SearchService._count_occurrences("가나다", "") == 0
++
++
++# --- ③ 서비스 — 범위·권한·최소 길이 ----------------------------------------
++
++
++def _service(member_project_ids=(1,), rows=()):
++    db = MagicMock()
++    chunks = MagicMock()
++    projects = MagicMock()
++    embedder = MagicMock()
++    embedder.model_name = "dragonkue/BGE-m3-ko"
++    projects.list_for_user.return_value = [
++        (SimpleNamespace(id=pid), SimpleNamespace(role="OWNER"))
++        for pid in member_project_ids
++    ]
++    chunks.search_by_keyword.return_value = list(rows)
++    return SearchService(db, chunks, projects, embedder), chunks, embedder
++
++
++def _chunk(text="계약금액은 1억원이다", **kw):
++    base = dict(
++        id=11,
++        document_id=22,
++        seq=3,
++        page_number=1,
++        text=text,
++        char_count=len(text),
++        content_start=100,
++        content_end=100 + len(text),
++    )
++    base.update(kw)
++    return SimpleNamespace(**base)
++
++
++def test_keyword_too_short_is_rejected():
++    service, chunks, _ = _service()
++    with pytest.raises(BusinessError) as err:
++        service.search_keyword(1, KeywordSearchRequest(query="가", project_ids=[1]))
++    assert err.value.error_code is ErrorCode.KEYWORD_TOO_SHORT
++    # 검색을 시도조차 하지 않아야 한다.
++    chunks.search_by_keyword.assert_not_called()
++
++
++def test_whitespace_only_query_is_rejected():
++    """Pydantic 은 min_length=1 만 보므로 공백 한 칸은 통과한다. 서비스가 막는다."""
++    service, chunks, _ = _service()
++    with pytest.raises(BusinessError) as err:
++        service.search_keyword(1, KeywordSearchRequest(query="   ", project_ids=[1]))
++    assert err.value.error_code is ErrorCode.KEYWORD_TOO_SHORT
++    chunks.search_by_keyword.assert_not_called()
++
++
++def test_non_member_project_is_404_not_403():
++    """남의 프로젝트 존재 자체를 알려주지 않는다. 의미 검색과 같은 규칙이다."""
++    service, chunks, _ = _service(member_project_ids=(1,))
++    with pytest.raises(BusinessError) as err:
++        service.search_keyword(
++            1, KeywordSearchRequest(query="계약금액", project_ids=[999])
++        )
++    assert err.value.error_code is ErrorCode.PROJECT_NOT_FOUND
++    assert err.value.error_code.status_code == 404
++    chunks.search_by_keyword.assert_not_called()
++
++
++def test_no_membership_returns_empty_not_error():
++    service, chunks, _ = _service(member_project_ids=())
++    response = service.search_keyword(1, KeywordSearchRequest(query="계약금액"))
++    assert response.total == 0
++    assert response.results == []
++    assert response.searched_project_ids == []
++    chunks.search_by_keyword.assert_not_called()
++
++
++def test_keyword_search_fills_match_fields():
++    text = "제1조 목적. 이 계약의 계약금액은 1억원이며 계약금액 변경은 협의한다."
++    service, chunks, _ = _service(rows=[(_chunk(text), "입찰공고.pdf", 1, "우리사업", 0.85)])
++
++    response = service.search_keyword(
++        1, KeywordSearchRequest(query="계약금액", project_ids=[1])
++    )
++
++    assert response.total == 1
++    item = response.results[0]
++    assert item.match_kind == "keyword"
++    # 본문에 두 번 나온다.
++    assert item.match_count == 2
++    # offset 자리에 검색어가 있어야 한다.
++    assert item.snippet[item.match_offset : item.match_offset + 4] == "계약금액"
++    # 기존 필드도 그대로 채워진다.
++    assert item.chunk_id == 11
++    assert item.document_filename == "입찰공고.pdf"
++    assert item.project_name == "우리사업"
++    assert item.content_start == 100
++    assert item.similarity == 0.85
++
++
++def test_keyword_search_passes_current_model_to_repository():
++    """모델 조건을 빼면 같은 본문이 모델별로 중복해서 나온다."""
++    service, chunks, embedder = _service(rows=[])
++    service.search_keyword(
++        1, KeywordSearchRequest(query="계약금액", project_ids=[1], limit=5)
++    )
++    kwargs = chunks.search_by_keyword.call_args.kwargs
++    assert kwargs["embedding_model"] == embedder.model_name
++    assert kwargs["project_ids"] == [1]
++    assert kwargs["limit"] == 5
++    # 앞뒤 공백을 떼고 넘긴다.
++    assert kwargs["term"] == "계약금액"
++
++
++def test_keyword_search_does_not_embed():
++    """임베딩을 만들지 않아야 한다 — 모델 서버 없이도 동작해야 하기 때문이다."""
++    service, _, embedder = _service(rows=[])
++    service.search_keyword(1, KeywordSearchRequest(query="계약금액", project_ids=[1]))
++    embedder.embed_query.assert_not_called()
++    embedder.embed_documents.assert_not_called()
++
++
++def test_keyword_search_trims_query_before_search():
++    service, chunks, _ = _service(rows=[])
++    service.search_keyword(
++        1, KeywordSearchRequest(query="  계약금액  ", project_ids=[1])
++    )
++    assert chunks.search_by_keyword.call_args.kwargs["term"] == "계약금액"

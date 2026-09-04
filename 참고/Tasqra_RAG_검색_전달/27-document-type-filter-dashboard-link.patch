@@ -1,0 +1,561 @@
+diff --git a/backend/app/repositories/document_repository.py b/backend/app/repositories/document_repository.py
+index 74a156fbc0ef53a3bc0c4da15a1311199c1ddea5..09bbfe6a9931e7bdbaf03eeb3e31532562c1394f 100644
+--- a/backend/app/repositories/document_repository.py
++++ b/backend/app/repositories/document_repository.py
+@@ -19,6 +19,9 @@ from app.models.document import Analysis, Document, DocumentPage, ExtractedText,
+ from app.models.user import User
+ 
+ 
++UNCLASSIFIED_DOCUMENT_TYPE_FILTER = "__UNCLASSIFIED__"
++
++
+ class DocumentRepository:
+     def __init__(self, db: Session) -> None:
+         self._db = db
+@@ -167,7 +170,11 @@ class DocumentRepository:
+                 )
+ 
+ 
+-        if document_type:
++        if document_type == UNCLASSIFIED_DOCUMENT_TYPE_FILTER:
++            # URL에서만 쓰는 필터 값이다. 저장된 문서 유형이 아니며, 유형이 아직
++            # 정해지지 않은 NULL 행을 대시보드 분포에서 그대로 열기 위해 번역한다.
++            query = query.filter(Document.document_type.is_(None))
++        elif document_type:
+             query = query.filter(Document.document_type == document_type)
+ 
+         if category:
+diff --git a/frontend/src/features/dashboard/DashboardView.jsx b/frontend/src/features/dashboard/DashboardView.jsx
+index 03e1cd386111dac86f39b1111dd72ab69fcfbe0c..4fdc30a89d7273ec6bf0e6ff226d6028136c98b8 100644
+--- a/frontend/src/features/dashboard/DashboardView.jsx
++++ b/frontend/src/features/dashboard/DashboardView.jsx
+@@ -25,7 +25,7 @@ import { getDashboard } from '../../api/dashboard'
+ import { listTasks } from '../../api/task'
+ import PageHeading from '../../components/common/PageHeading'
+ import { getDocumentPrimaryAction, getDocumentStatus, getReviewStatus } from '../../utils/documentStatus'
+-import { getDocumentTypeLabel } from '../../utils/documentType'
++import { getDocumentTypeLabel, isSupportedDocumentTypeFilter, UNCLASSIFIED_DOCUMENT_TYPE } from '../../utils/documentType'
+ import { formatDateShort, formatNumber } from '../../utils/format'
+ import ActionTaskPanel from './ActionTaskPanel'
+ 
+@@ -51,6 +51,11 @@ export default function DashboardView({ projectId, documents, members }) {
+   const data = dashboardQuery.data
+   const counts = data?.documents
+   const goDocuments = () => navigate(`/projects/${projectId}/documents`)
++  const goDocumentsByType = documentType => {
++    const filter = documentType ?? UNCLASSIFIED_DOCUMENT_TYPE
++    if (!isSupportedDocumentTypeFilter(filter)) return
++    navigate(`/projects/${projectId}/documents?document_type=${encodeURIComponent(filter)}`)
++  }
+ 
+   // 서버 건수를 우선 쓰고, 아직 안 왔으면 넘겨받은 목록으로 임시 표시한다.
+   const needsReview = documents.filter(document => ['PENDING', 'IN_PROGRESS'].includes(document.review_status))
+@@ -95,7 +100,7 @@ export default function DashboardView({ projectId, documents, members }) {
+       <ActionTaskPanel tasks={tasksQuery.data ?? []} loading={tasksQuery.isPending} onOpenBoard={() => navigate(`/projects/${projectId}/board`)}/>
+     </div>
+ 
+-    <DocumentTypePanel types={data?.document_types} total={counts?.total} loaded={Boolean(data)}/>
++    <DocumentTypePanel types={data?.document_types} total={counts?.total} loaded={Boolean(data)} onOpenType={goDocumentsByType}/>
+ 
+     <section className='panel dashboard-recent-panel'>
+       <div className='panel-head'><div><h2>최근 문서</h2><p>최근에 업로드된 문서의 현재 상태입니다.</p></div><span>{formatNumber(counts?.total ?? null)}건</span></div>
+@@ -120,23 +125,26 @@ function SummaryCard({ label, value, emphasis, note, onOpen }) {
+   return <button className={className} type='button' onClick={onOpen}>{body}</button>
+ }
+ 
+-// 문서 유형 분포.
+-//
+-// 각 칸에서 "그 유형만 걸러진 문서 목록" 으로 이동하지 않는다. DocumentsView 에
+-// 유형 필터가 없기 때문이다(GET /documents 는 document_type 파라미터를 받지만
+-// 화면이 쓰지 않는다). 이동할 수 없는 것을 누를 수 있게 두면 고장으로 읽히므로
+-// 지금은 표시만 한다 — DocumentsView 에 필터가 붙으면 그때 연결한다.
+-function DocumentTypePanel({ types, total, loaded }) {
++// 문서 유형 분포. 각 행은 그 유형만 걸러진 문서 목록으로 이동한다.
++// null은 URL 전용 __UNCLASSIFIED__ 값으로 보내고 Repository가 IS NULL로 번역한다.
++function DocumentTypePanel({ types, total, loaded, onOpenType }) {
+   const rows = types ?? []
+   const max = rows.reduce((top, row) => Math.max(top, row.count), 0)
+   return <section className='panel dashboard-type-panel'>
+-    <div className='panel-head'><div><h2>문서 유형 분포</h2><p>이 프로젝트에 쌓인 문서를 유형별로 셉니다.</p></div><span>{rows.length}종</span></div>
++    <div className='panel-head'><div><h2>문서 유형 분포</h2><p>유형을 선택하면 해당 문서만 모아 볼 수 있습니다.</p></div><span>{rows.length}종</span></div>
+     {rows.length
+-      ? <ul className='dashboard-type-list'>{rows.map(row => <li className='dashboard-type-item' key={row.document_type ?? '__unclassified__'}>
+-          <span className={'dashboard-type-name' + (row.document_type ? '' : ' is-unclassified')}>{getDocumentTypeLabel(row.document_type)}</span>
+-          <span className='dashboard-type-bar' aria-hidden='true'><i style={{ width: `${max ? (row.count / max) * 100 : 0}%` }}/></span>
+-          <span className='dashboard-type-count'>{formatNumber(row.count)}건{total ? ` · ${Math.round((row.count / total) * 100)}%` : ''}</span>
+-        </li>)}</ul>
++      ? <ul className='dashboard-type-list'>{rows.map(row => {
++          const filter = row.document_type ?? UNCLASSIFIED_DOCUMENT_TYPE
++          const supported = isSupportedDocumentTypeFilter(filter)
++          const label = getDocumentTypeLabel(row.document_type)
++          return <li key={filter}>
++            <button className='dashboard-type-item' type='button' disabled={!supported} onClick={() => onOpenType(filter)} title={supported ? undefined : '현재 지원하지 않는 문서 유형입니다.'} aria-label={supported ? `${label} 문서 ${formatNumber(row.count)}건 보기` : `${label} 문서 유형 필터 미지원`}>
++              <span className={'dashboard-type-name' + (row.document_type ? '' : ' is-unclassified')}>{label}</span>
++              <span className='dashboard-type-bar' aria-hidden='true'><i style={{ width: `${max ? (row.count / max) * 100 : 0}%` }}/></span>
++              <span className='dashboard-type-count'>{formatNumber(row.count)}건{total ? ` · ${Math.round((row.count / total) * 100)}%` : ''}</span>
++            </button>
++          </li>
++        })}</ul>
+       : <div className='dashboard-empty-state'><strong>{loaded ? '집계할 문서가 없습니다.' : '유형 분포를 불러오는 중입니다.'}</strong><p>문서를 업로드하면 유형별 건수가 표시됩니다.</p></div>}
+   </section>
+ }
+diff --git a/frontend/src/features/documents/DocumentsView.css b/frontend/src/features/documents/DocumentsView.css
+index 8d3f90e536e7881f3273dc5b8289e9c03820453f..5315c83db55489190af1e3b75efe67a3f7fd6359 100644
+--- a/frontend/src/features/documents/DocumentsView.css
++++ b/frontend/src/features/documents/DocumentsView.css
+@@ -1,7 +1,24 @@
++/* =============================================================================
++   이 파일의 책임: 문서 목록의 유형 필터·업로드·상태 표시 레이아웃을 담당한다.
++   다른 파일과의 관계: DocumentsView.jsx의 클래스만 표현하며 데이터 판단은 하지 않는다.
++   Spring 비교: 해당 없음(표현 전용).
++   ============================================================================= */
++
+ .document-drop-target {
+   position: relative;
+ }
+ 
++.document-filter-bar { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; padding: 13px 24px; border-top: 1px solid #e8edf4; border-bottom: 1px solid #e8edf4; background: #fafbfd; }
++.document-filter-bar label { display: grid; gap: 5px; }
++.document-filter-bar label > span { color: #65748a; font-size: 12px; font-weight: 700; }
++.document-filter-bar select { min-width: min(300px, 75vw); min-height: 38px; padding: 7px 32px 7px 10px; border: 1px solid #d2d9e7; border-radius: 8px; background: #fff; color: #2c326b; font: inherit; }
++.document-filter-bar select:focus-visible { border-color: #756de8; outline: none; }
++.document-filter-bar > button, .document-filter-empty button { min-height: 36px; padding: 8px 12px; border: 1px solid #d2d9e7; border-radius: 8px; background: #fff; color: #5148c8; font: inherit; font-weight: 700; cursor: pointer; }
++.document-filter-bar > button:hover, .document-filter-bar > button:focus-visible, .document-filter-empty button:hover, .document-filter-empty button:focus-visible { border-color: #756de8; background: #f5f4ff; }
++.document-filter-empty { display: grid; min-height: 190px; place-items: center; align-content: center; gap: 7px; padding: 28px; text-align: center; }
++.document-filter-empty strong { color: #36435a; }
++.document-filter-empty p { margin: 0 0 7px; color: #758197; font-size: 13px; }
++
+ .document-upload-dialog { width: min(560px, 100%); }
+ .document-upload-dialog label small { color: #758197; font-weight: 500; }
+ .document-upload-dialog label > small:last-child { margin-top: -2px; font-size: 12px; }
+@@ -79,4 +96,4 @@
+ .document-state-note { grid-column: 1 / -1; margin: -4px 0 0 48px; color: #65748a; font-size: 12px; }
+ .processing-document p { margin: 4px 0 0; color: #66748a; }
+ @media (max-width: 900px) { .document-list .document-row { grid-template-columns: minmax(0, 1fr) auto; gap: 12px; } .document-state-stack { grid-column: 1; grid-row: 2; grid-auto-flow: column; justify-items: start; } .document-secondary-meta { grid-column: 1; grid-row: 3; grid-auto-flow: column; align-items: center; } .document-actions { grid-column: 2; grid-row: 1 / span 3; } .document-state-note { grid-column: 1 / -1; margin-left: 0; } }
+-@media (max-width: 560px) { .document-row { padding: 13px; } .document-state-stack { grid-auto-flow: row; } .document-secondary-meta { grid-auto-flow: row; gap: 4px; } .document-open { align-self: end; } }
++@media (max-width: 560px) { .document-filter-bar { align-items: stretch; flex-direction: column; padding: 12px 13px; } .document-filter-bar select { width: 100%; min-width: 0; } .document-filter-bar > button { width: 100%; } .document-row { padding: 13px; } .document-state-stack { grid-auto-flow: row; } .document-secondary-meta { grid-auto-flow: row; gap: 4px; } .document-open { align-self: end; } }
+diff --git a/frontend/src/features/documents/DocumentsView.jsx b/frontend/src/features/documents/DocumentsView.jsx
+index fa364c0cfbf910108763e5e585672201a3787bce..7bba87658c3beeeb74b3b235bc05d03982a9757c 100644
+--- a/frontend/src/features/documents/DocumentsView.jsx
++++ b/frontend/src/features/documents/DocumentsView.jsx
+@@ -1,18 +1,31 @@
+-﻿import { useState } from 'react'
+-import { useNavigate } from 'react-router-dom'
++﻿// =============================================================================
++// 이 파일의 책임: 프로젝트 문서 목록과 유형 필터, 처리·검수 상태 및 업로드
++//   진입점을 표시한다.
++// 다른 파일과의 관계: WorkspacePage가 URL의 document_type과 서버 조회 결과를
++//   넘기며, documentType.js의 공용 코드명을 사용한다.
++// Spring 비교: 서버의 Page 응답을 표시하는 목록 View이며 필터 조건은 URL query와
++//   Controller 요청 파라미터에 대응한다.
++// =============================================================================
++
++import { useState } from 'react'
++import { useLocation, useNavigate } from 'react-router-dom'
+ import PageHeading from '../../components/common/PageHeading'
+ import { getDocumentCharacterCounts, getDocumentPrimaryAction, getDocumentStatus, getReviewStatus } from '../../utils/documentStatus'
++import { DOCUMENT_TYPES, getDocumentTypeFilterLabel, UNCLASSIFIED_DOCUMENT_TYPE } from '../../utils/documentType'
+ import { formatNumber } from '../../utils/format'
+ import './DocumentsView.css'
+ import './DocumentReviewBadge.css'
+ 
+-export default function DocumentsView({ projectId, documents, canEdit, onUpload, onFileDrop, uploadQueue, onRetryUpload, onClearUploadQueue, onRetry, retryingDocumentId }) {
++export default function DocumentsView({ projectId, documents, documentsTotal, documentType, onDocumentTypeChange, canEdit, onUpload, onFileDrop, uploadQueue, onRetryUpload, onClearUploadQueue, onRetry, retryingDocumentId }) {
+   const [dragging, setDragging] = useState(false)
++  const location = useLocation()
+   const navigate = useNavigate()
+-  const openDocument = documentId => navigate('/projects/' + projectId + '/documents/' + documentId)
++  const selectedTypeLabel = documentType ? getDocumentTypeFilterLabel(documentType) : null
++  const documentListUrl = location.pathname + location.search
++  const openDocument = documentId => navigate('/projects/' + projectId + '/documents/' + documentId, { state: { documentListUrl } })
+   const openPrimaryAction = document => {
+     if (['PENDING', 'IN_PROGRESS', 'COMPLETED'].includes(document.review_status)) {
+-      navigate('/projects/' + projectId + '/documents/' + document.id + '/review')
++      navigate('/projects/' + projectId + '/documents/' + document.id + '/review', { state: { documentListUrl } })
+       return
+     }
+     openDocument(document.id)
+@@ -37,9 +50,21 @@ export default function DocumentsView({ projectId, documents, canEdit, onUpload,
+   return <><PageHeading eyebrow='PROJECT DOCUMENTS' title='문서' description='문서의 처리와 OCR 검수 상태를 확인하고 다음 작업을 이어가세요.' action={action}/>
+     <section className={'panel table-panel document-drop-target' + (dragging ? ' is-dragging' : '')} onDragEnter={handleDragOver} onDragOver={handleDragOver} onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget)) setDragging(false) }} onDrop={handleDrop}>
+       {dragging && <div className='drop-overlay'>여기에 파일을 놓아 업로드하세요.</div>}
+-      <div className='panel-head'><div><h2>전체 문서</h2><p>상태 배지와 설명은 현재 서버가 제공한 값에 따라 표시됩니다.</p></div><span>{documents.length}건</span></div>
++      <div className='panel-head'><div><h2>{selectedTypeLabel ? `${selectedTypeLabel} 문서` : '전체 문서'}</h2><p>{selectedTypeLabel ? '선택한 유형에 해당하는 문서만 표시합니다.' : '상태 배지와 설명은 현재 서버가 제공한 값에 따라 표시됩니다.'}</p></div><span>{formatNumber(documentsTotal)}건</span></div>
++      <div className='document-filter-bar'>
++        <label><span>문서 유형</span><select value={documentType} onChange={event => onDocumentTypeChange(event.target.value)}>
++          <option value=''>전체 유형</option>
++          {DOCUMENT_TYPES.map(([value, label]) => <option value={value} key={value}>{label}</option>)}
++          <option value={UNCLASSIFIED_DOCUMENT_TYPE}>미분류</option>
++        </select></label>
++        {selectedTypeLabel && <button type='button' onClick={() => onDocumentTypeChange('')}>필터 해제</button>}
++      </div>
+       {uploadQueue.length > 0 && <UploadQueue items={uploadQueue} onRetry={onRetryUpload} onClear={onClearUploadQueue}/>}
+-      {documents.length ? <DocumentList documents={documents} canEdit={canEdit} onOpen={openDocument} onPrimaryAction={openPrimaryAction} onRetry={onRetry} retryingDocumentId={retryingDocumentId}/> : !uploadQueue.some(item => ['QUEUED', 'UPLOADING'].includes(item.status)) && <EmptyDocuments onUpload={onUpload} canEdit={canEdit}/>}
++      {documents.length
++        ? <DocumentList documents={documents} canEdit={canEdit} onOpen={openDocument} onPrimaryAction={openPrimaryAction} onRetry={onRetry} retryingDocumentId={retryingDocumentId}/>
++        : selectedTypeLabel
++          ? <EmptyFilteredDocuments label={selectedTypeLabel} onClear={() => onDocumentTypeChange('')}/>
++          : !uploadQueue.some(item => ['QUEUED', 'UPLOADING'].includes(item.status)) && <EmptyDocuments onUpload={onUpload} canEdit={canEdit}/>}
+       {canEdit && documents.length > 0 && <UploadDropHint onUpload={onUpload}/>}
+     </section>
+   </>
+@@ -59,7 +84,7 @@ function DocumentList({ documents, canEdit, onOpen, onPrimaryAction, onRetry, re
+         <StatusBadge label={documentStatus.label} description={documentStatus.description} tone={documentStatus.tone}/>
+         <StatusBadge label={reviewStatus.label} description={reviewStatus.description} tone={reviewStatus.tone}/>
+       </div>
+-      <div className='document-secondary-meta'><span className='type-pill'>{document.document_type || '미분류'}</span><time dateTime={document.created_at}>{new Date(document.created_at).toLocaleDateString()}</time></div>
++      <div className='document-secondary-meta'><span className='type-pill'>{getDocumentTypeFilterLabel(document.document_type)}</span><time dateTime={document.created_at}>{new Date(document.created_at).toLocaleDateString()}</time></div>
+       <div className='document-actions'>
+         {document.status === 'FAILED' && canEdit ? <button className='document-open' disabled={retryingDocumentId === document.id} onClick={() => onRetry(document)}>{retryingDocumentId === document.id ? '재처리 요청 중' : '다시 처리'}</button> : document.review_status === 'COMPLETED' ? <><button className='document-open' onClick={() => onPrimaryAction(document)}>재검수하기</button><button className='document-open' onClick={() => onOpen(document.id)}>상세보기</button></> : <button className='document-open' onClick={() => onPrimaryAction(document)}>{getDocumentPrimaryAction(document)}</button>}
+       </div>
+@@ -101,6 +126,10 @@ function EmptyDocuments({ onUpload, canEdit }) {
+   return <div className='drop-zone'><b aria-hidden='true'>↑</b><h2>아직 등록된 문서가 없습니다.</h2><p>PDF, DOCX, HWPX, JPG 또는 PNG 파일을 업로드하면 처리와 검수 상태를 이곳에서 확인할 수 있습니다.</p>{canEdit && <button onClick={onUpload}>파일 선택</button>}</div>
+ }
+ 
++function EmptyFilteredDocuments({ label, onClear }) {
++  return <div className='document-filter-empty'><strong>{label} 문서가 없습니다.</strong><p>다른 유형을 선택하거나 전체 문서를 확인해 주세요.</p><button type='button' onClick={onClear}>전체 문서 보기</button></div>
++}
++
+ function UploadDropHint({ onUpload }) {
+   return <div className='upload-drop-hint'><span>추가 문서가 있나요?</span><button onClick={onUpload}>파일 업로드</button></div>
+ }
+diff --git a/frontend/src/hooks/useWorkspaceData.js b/frontend/src/hooks/useWorkspaceData.js
+index 17cf76567ca675fb1acb526bdf6ebeec42a429c5..bfef0b2a97f4fdf7a4655e683cb1652274fd53d8 100644
+--- a/frontend/src/hooks/useWorkspaceData.js
++++ b/frontend/src/hooks/useWorkspaceData.js
+@@ -1,18 +1,26 @@
++// =============================================================================
++// 이 파일의 책임: 워크스페이스의 멤버·문서·초대 조회와 변경 mutation을 묶는다.
++// 다른 파일과의 관계: WorkspacePage가 URL 문서 유형을 넘기고, api/document.js의
++//   서버 필터 응답을 유형별 React Query 캐시에 저장한다.
++// Spring 비교: 여러 Application Service 호출을 화면 단위로 조합하는 Facade에 가깝다.
++// =============================================================================
++
+ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+-import { cancelProjectInvitation, inviteMember, listMembers, listProjectDocuments, listProjectInvitations, removeMember, updateMember, updateProject, uploadProjectDocument } from '../api/project'
+-import { retryDocumentProcessing } from '../api/document'
++import { cancelProjectInvitation, inviteMember, listMembers, listProjectInvitations, removeMember, updateMember, updateProject, uploadProjectDocument } from '../api/project'
++import { listDocuments, retryDocumentProcessing } from '../api/document'
+ 
+ const FALLBACK_ERROR = '요청 처리 중 오류가 발생했습니다.'
+ 
+-export function useWorkspaceData(project, notify) {
++export function useWorkspaceData(project, notify, { documentType = '' } = {}) {
+   const queryClient = useQueryClient()
+   const membersKey = ['projects', project.id, 'members']
+-  const documentsKey = ['projects', project.id, 'documents']
++  const documentsPrefix = ['projects', project.id, 'documents']
++  const documentsKey = [...documentsPrefix, documentType || 'all']
+   const invitationsKey = ['projects', project.id, 'invitations']
+   const membersQuery = useQuery({ queryKey: membersKey, queryFn: () => listMembers(project.id) })
+   const documentsQuery = useQuery({
+     queryKey: documentsKey,
+-    queryFn: () => listProjectDocuments(project.id),
++    queryFn: () => listDocuments(project.id, { documentType }),
+     refetchInterval: query => query.state.data?.items?.some(item => ['PENDING', 'EXTRACTING'].includes(item.status)) ? 3_000 : false,
+   })
+   const invitationsQuery = useQuery({ queryKey: invitationsKey, queryFn: () => listProjectInvitations(project.id), enabled: project.role === 'OWNER' })
+@@ -68,7 +76,10 @@ export function useWorkspaceData(project, notify) {
+   const uploadMutation = useMutation({
+     mutationFn: ({ file, extractionStrategy, documentType }) => uploadProjectDocument(project.id, file, extractionStrategy, documentType),
+     onSuccess: document => {
+-      queryClient.setQueryData(documentsKey, current => ({ ...(current ?? {}), items: [document, ...(current?.items ?? [])], total: (current?.total ?? 0) + 1 }))
++      // 유형별 목록 캐시가 나뉘므로 현재 화면 하나에 억지로 끼워 넣지 않는다.
++      // 프로젝트의 모든 문서 목록을 무효화해 각 필터가 서버 기준으로 다시 세게 한다.
++      queryClient.invalidateQueries({ queryKey: documentsPrefix })
++      queryClient.invalidateQueries({ queryKey: ['projects', project.id, 'dashboard'] })
+       notify('success', '문서 업로드 접수', `${document.filename} 처리를 시작했습니다.`)
+     },
+     onError: error => notify('error', '문서 업로드 실패', error.message || FALLBACK_ERROR),
+@@ -76,7 +87,8 @@ export function useWorkspaceData(project, notify) {
+   const retryDocumentMutation = useMutation({
+     mutationFn: document => retryDocumentProcessing(project.id, document.id),
+     onSuccess: (_, document) => {
+-      queryClient.setQueryData(documentsKey, current => ({ ...current, items: current?.items?.map(item => item.id === document.id ? { ...item, status: 'PENDING', processing_error: null } : item) ?? [] }))
++      queryClient.invalidateQueries({ queryKey: documentsPrefix })
++      queryClient.invalidateQueries({ queryKey: ['projects', project.id, 'dashboard'] })
+       notify('success', '문서 재처리 접수', `${document.filename} 처리를 다시 시작했습니다.`)
+     },
+     onError: error => notify('error', '문서 재처리 실패', error.message || FALLBACK_ERROR),
+@@ -89,7 +101,7 @@ export function useWorkspaceData(project, notify) {
+   }
+ 
+   return {
+-    members: membersQuery.data ?? [], documents: documentsQuery.data?.items ?? [], invitations: invitationsQuery.data ?? [],
++    members: membersQuery.data ?? [], documents: documentsQuery.data?.items ?? [], documentsTotal: documentsQuery.data?.total ?? 0, invitations: invitationsQuery.data ?? [],
+     loading: membersQuery.isPending || documentsQuery.isPending,
+     error: membersQuery.error || documentsQuery.error,
+     invite, cancelInvitation: invitation => cancelInvitationMutation.mutate(invitation),
+diff --git a/frontend/src/pages/DocumentDetailPage.jsx b/frontend/src/pages/DocumentDetailPage.jsx
+index 3d3f4186d0b91947a9b5934f15a41c5619ad42d3..ceaffbca22193ce3ba4e9bacb1eaa312c2856cc6 100644
+--- a/frontend/src/pages/DocumentDetailPage.jsx
++++ b/frontend/src/pages/DocumentDetailPage.jsx
+@@ -1,6 +1,14 @@
++// =============================================================================
++// 이 파일의 책임: 문서 상세 정보와 내용·OCR 검수·분석·변경 이력 탭을 보여준다.
++// 다른 파일과의 관계: 문서 목록이 router state로 넘긴 복귀 URL을 상세와 OCR 검수
++//   화면까지 유지해, 사용자가 기존 유형 필터가 적용된 목록으로 돌아가게 한다.
++// Spring 비교: 문서 상세 Controller와 탭별 View를 조합한 화면이며, 목록 복귀 URL은
++//   RedirectAttributes처럼 다음 화면 이동에만 쓰는 탐색 상태다.
++// =============================================================================
++
+ import { useState } from 'react'
+ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
++import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+ import { analyzeDocument, deleteDocument, downloadDocumentSource, downloadSummary, getDocument, retryDocumentProcessing } from '../api/document'
+ import { getProject } from '../api/project'
+ import AppHeader from '../components/common/AppHeader'
+@@ -16,9 +24,16 @@ import '../styles/document-detail-updates.css'
+ 
+ const TABS = [['content', '문서 내용'], ['review', 'OCR 검수'], ['analysis', '분석 결과'], ['history', '변경 이력']]
+ 
++function getDocumentListUrl(projectId, candidate) {
++  const fallback = `/projects/${projectId}/documents`
++  return candidate === fallback || candidate?.startsWith(`${fallback}?`) ? candidate : fallback
++}
++
+ export default function DocumentDetailPage({ user, onLogout, notify }) {
+   const { projectId, documentId } = useParams()
++  const location = useLocation()
+   const navigate = useNavigate()
++  const documentListUrl = getDocumentListUrl(projectId, location.state?.documentListUrl)
+   const queryClient = useQueryClient()
+   const [params, setParams] = useSearchParams()
+   const [deleteOpen, setDeleteOpen] = useState(false)
+@@ -29,21 +44,22 @@ export default function DocumentDetailPage({ user, onLogout, notify }) {
+   const document = documentQuery.data
+   const canEdit = projectQuery.data?.role !== 'VIEWER'
+   const analyzeMutation = useMutation({ mutationFn: () => analyzeDocument(projectId, documentId), onSuccess: () => { queryClient.invalidateQueries({ queryKey: documentKey }); notify('success', '문서 분석 완료', '현재 텍스트를 기준으로 분석 결과를 생성했습니다.') }, onError: error => notify('error', '문서 분석 실패', error.message) })
+-  const deleteMutation = useMutation({ mutationFn: () => deleteDocument(projectId, documentId), onSuccess: () => { queryClient.removeQueries({ queryKey: documentKey }); queryClient.invalidateQueries({ queryKey: ['projects', Number(projectId), 'documents'] }); notify('success', '문서 삭제 완료', `${document.filename} 문서를 삭제했습니다.`); navigate(`/projects/${projectId}/documents`, { replace: true }) }, onError: error => notify('error', '문서 삭제 실패', error.message) })
++  const deleteMutation = useMutation({ mutationFn: () => deleteDocument(projectId, documentId), onSuccess: () => { queryClient.removeQueries({ queryKey: documentKey }); queryClient.invalidateQueries({ queryKey: ['projects', Number(projectId), 'documents'] }); queryClient.invalidateQueries({ queryKey: ['projects', Number(projectId), 'dashboard'] }); notify('success', '문서 삭제 완료', `${document.filename} 문서를 삭제했습니다.`); navigate(documentListUrl, { replace: true }) }, onError: error => notify('error', '문서 삭제 실패', error.message) })
+   const downloadMutation = useMutation({ mutationFn: () => downloadDocumentSource(projectId, documentId, document.filename), onError: error => notify('error', '원본 다운로드 실패', error.message) })
+   const summaryDownloadMutation = useMutation({ mutationFn: () => downloadSummary(projectId, documentId, `${document.filename.replace(/\.[^.]+$/, '')}_요약.txt`), onSuccess: () => notify('success', '분석 결과 다운로드 완료', '최신 요약과 분류 결과를 저장했습니다.'), onError: error => notify('error', '분석 결과 다운로드 실패', error.message) })
+-  const retryMutation = useMutation({ mutationFn: () => retryDocumentProcessing(projectId, documentId), onSuccess: () => { queryClient.setQueryData(documentKey, current => ({ ...current, status: 'PENDING', processing_error: null })); queryClient.invalidateQueries({ queryKey: ['projects', Number(projectId), 'documents'] }); notify('success', '문서 재처리 접수', `${document.filename} 처리를 다시 시작했습니다.`) }, onError: error => notify('error', '문서 재처리 실패', error.message) })
++  const retryMutation = useMutation({ mutationFn: () => retryDocumentProcessing(projectId, documentId), onSuccess: () => { queryClient.setQueryData(documentKey, current => ({ ...current, status: 'PENDING', processing_error: null })); queryClient.invalidateQueries({ queryKey: ['projects', Number(projectId), 'documents'] }); queryClient.invalidateQueries({ queryKey: ['projects', Number(projectId), 'dashboard'] }); notify('success', '문서 재처리 접수', `${document.filename} 처리를 다시 시작했습니다.`) }, onError: error => notify('error', '문서 재처리 실패', error.message) })
+ 
+   if (projectQuery.isPending || documentQuery.isPending) return <LoadingState label="문서 상세 화면을 불러오는 중..."/>
+-  if (projectQuery.isError || documentQuery.isError || !document) return <div className="detail-not-found"><h1>문서를 열 수 없습니다.</h1><p>문서가 없거나 프로젝트 접근 권한이 없습니다.</p><button onClick={() => navigate('/projects')}>내 프로젝트로 이동</button></div>
++  if (projectQuery.isError) return <div className="detail-not-found"><h1>프로젝트에 접근할 수 없습니다.</h1><p>프로젝트가 없거나 접근 권한이 없습니다.</p><button onClick={() => navigate('/projects')}>내 프로젝트로 이동</button></div>
++  if (documentQuery.isError || !document) return <div className="detail-not-found"><h1>문서를 열 수 없습니다.</h1><p>문서가 없거나 삭제되었을 수 있습니다.</p><button onClick={() => navigate(documentListUrl)}>문서 목록으로 돌아가기</button></div>
+   return <div className="document-detail-page">
+     <AppHeader user={user} onLogout={onLogout} notify={notify} project={projectQuery.data}/>
+     <div className="document-detail-shell">
+-      <DocumentHeader document={document} canEdit={canEdit} busy={deleteMutation.isPending || downloadMutation.isPending || retryMutation.isPending} onBack={() => navigate(`/projects/${projectId}/documents`)} onDownload={() => downloadMutation.mutate()} onRetry={() => retryMutation.mutate()} onDelete={() => setDeleteOpen(true)}/>
+-      <nav className="document-detail-tabs">{TABS.map(([key, label]) => <button className={activeTab === key ? 'active' : ''} key={key} onClick={() => setParams({ tab: key })}>{label}{key === 'analysis' && document.analyses.length > 0 && <b>{document.analyses.length}</b>}</button>)}</nav>
++      <DocumentHeader document={document} canEdit={canEdit} busy={deleteMutation.isPending || downloadMutation.isPending || retryMutation.isPending} onBack={() => navigate(documentListUrl)} onDownload={() => downloadMutation.mutate()} onRetry={() => retryMutation.mutate()} onDelete={() => setDeleteOpen(true)}/>
++      <nav className="document-detail-tabs">{TABS.map(([key, label]) => <button className={activeTab === key ? 'active' : ''} key={key} onClick={() => setParams({ tab: key }, { state: { documentListUrl } })}>{label}{key === 'analysis' && document.analyses.length > 0 && <b>{document.analyses.length}</b>}</button>)}</nav>
+       <main className="document-tab-body">
+         {activeTab === 'content' && <DocumentContentTab document={document}/>}
+-        {activeTab === 'review' && <DocumentReviewTab document={document} onOpenReview={() => navigate(`/projects/${projectId}/documents/${documentId}/review`)}/>}
++        {activeTab === 'review' && <DocumentReviewTab document={document} onOpenReview={() => navigate(`/projects/${projectId}/documents/${documentId}/review`, { state: { documentListUrl } })}/>}
+         {activeTab === 'analysis' && <DocumentAnalysisTab document={document} canAnalyze={canEdit} analyzing={analyzeMutation.isPending} onAnalyze={() => analyzeMutation.mutate()} downloading={summaryDownloadMutation.isPending} onDownload={() => summaryDownloadMutation.mutate()}/>}
+         {activeTab === 'history' && <DocumentHistoryTab projectId={projectId} document={document}/>}
+       </main>
+diff --git a/frontend/src/pages/OcrReviewPage.jsx b/frontend/src/pages/OcrReviewPage.jsx
+index 68d2056011413bc13799e46bf3331544302b483e..5de430a4d336252bcd19d03ce96f7ede9fcbb453 100644
+--- a/frontend/src/pages/OcrReviewPage.jsx
++++ b/frontend/src/pages/OcrReviewPage.jsx
+@@ -1,7 +1,15 @@
+-﻿import { useEffect, useMemo, useState } from 'react'
++﻿// =============================================================================
++// 이 파일의 책임: OCR 페이지의 텍스트·구조·좌표를 검수하고 최종 본문에 반영한다.
++// 다른 파일과의 관계: 문서 목록 또는 상세 화면이 router state로 넘긴 목록 복귀
++//   URL을 유지하며, 저장하지 않은 변경이 있으면 useBlocker로 이탈을 확인한다.
++// Spring 비교: 검수용 Controller/View에 해당하며, 목록 복귀 URL은
++//   RedirectAttributes처럼 화면 이동 동안만 전달하는 탐색 상태다.
++// =============================================================================
++
++import { useEffect, useMemo, useState } from 'react'
+ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+ import { useRef } from 'react'
+-import { useBlocker, useNavigate, useParams } from 'react-router-dom'
++import { useBlocker, useLocation, useNavigate, useParams } from 'react-router-dom'
+ import { completeOcrReview, createOcrElement, getDocument, getOcrPageImage, getOcrReview, mergeOcrElementGroups, mergeOcrElements, reprocessOcrElement, setOcrElementDeletion, setOcrElementExclusion, undoOcrElementMerge, updateOcrElementsBatch } from '../api/document'
+ import { getProject } from '../api/project'
+ import AppHeader from '../components/common/AppHeader'
+@@ -11,9 +19,16 @@ import '../styles/ocr-review.css'
+ import '../styles/ocr-review-adjustments.css'
+ import '../styles/ocr-exclusion.css'
+ 
++function getDocumentListUrl(projectId, candidate) {
++  const fallback = `/projects/${projectId}/documents`
++  return candidate === fallback || candidate?.startsWith(`${fallback}?`) ? candidate : fallback
++}
++
+ export default function OcrReviewPage({ user, onLogout, notify }) {
+   const { projectId, documentId } = useParams()
++  const location = useLocation()
+   const navigate = useNavigate()
++  const documentListUrl = getDocumentListUrl(projectId, location.state?.documentListUrl)
+   const queryClient = useQueryClient()
+   const [pageIndex, setPageIndex] = useState(0)
+   const [selectedId, setSelectedId] = useState(null)
+@@ -95,7 +110,7 @@ export default function OcrReviewPage({ user, onLogout, notify }) {
+   function goBack() {
+     if (!confirmDiscard('저장하지 않은 수정 내용이 있습니다. 문서 목록으로 돌아갈까요?')) return
+     allowNavigationRef.current = true
+-    navigate('/projects/' + projectId + '/documents')
++    navigate(documentListUrl)
+   }
+ 
+   function updateStructure(element, patch) {
+@@ -276,7 +291,7 @@ export default function OcrReviewPage({ user, onLogout, notify }) {
+ 
+   const completeMutation = useMutation({
+     mutationFn: () => completeOcrReview(projectId, documentId),
+-    onSuccess: result => { setDrafts({}); setStructureDrafts({}); setGeometryDrafts({}); setReOcrDrafts({}); queryClient.setQueryData(reviewKey, result); queryClient.invalidateQueries({ queryKey: ['projects', Number(projectId), 'documents'] }); queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'documents', documentId], exact: true }); notify('success', 'OCR 검수 완료', '검수 결과가 최종 텍스트에 반영되었습니다.') },
++    onSuccess: result => { setDrafts({}); setStructureDrafts({}); setGeometryDrafts({}); setReOcrDrafts({}); queryClient.setQueryData(reviewKey, result); queryClient.invalidateQueries({ queryKey: ['projects', Number(projectId), 'documents'] }); queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'documents', documentId], exact: true }); queryClient.invalidateQueries({ queryKey: ['projects', Number(projectId), 'dashboard'] }); notify('success', 'OCR 검수 완료', '검수 결과가 최종 텍스트에 반영되었습니다.') },
+     onError: error => notify('error', '검수 완료 처리 실패', error.message),
+   })
+ 
+@@ -287,7 +302,7 @@ export default function OcrReviewPage({ user, onLogout, notify }) {
+ 
+   if (projectQuery.isError) return <div className='center'><p>프로젝트에 접근할 수 없습니다.</p><button onClick={() => navigate('/projects')}>내 프로젝트로 이동</button></div>
+   if (documentQuery.isPending || reviewQuery.isPending) return <LoadingState label='OCR 검수 데이터를 불러오는 중...'/>
+-  if (documentQuery.isError || reviewQuery.isError || !page) return <div className='ocr-review-error'><h1>OCR 검수 화면을 열 수 없습니다.</h1><p>문서가 없거나 검수할 OCR 페이지가 없습니다.</p><button onClick={() => navigate('/projects/' + projectId + '/documents/' + documentId)}>문서 상세로 돌아가기</button></div>
++  if (documentQuery.isError || reviewQuery.isError || !page) return <div className='ocr-review-error'><h1>OCR 검수 화면을 열 수 없습니다.</h1><p>문서가 없거나 검수할 OCR 페이지가 없습니다.</p><button onClick={() => navigate('/projects/' + projectId + '/documents/' + documentId, { state: { documentListUrl } })}>문서 상세로 돌아가기</button></div>
+ 
+   const documentPageCount = documentQuery.data?.page_count ?? pages.length
+   const selectedIndex = effectivePageElements.findIndex(element => element.id === effectiveSelectedId)
+diff --git a/frontend/src/pages/WorkspacePage.jsx b/frontend/src/pages/WorkspacePage.jsx
+index a38088921f6477a4ead651bf80c789e52637babc..ad00826e27964af7782f917e5e56c422bae8bfe8 100644
+--- a/frontend/src/pages/WorkspacePage.jsx
++++ b/frontend/src/pages/WorkspacePage.jsx
+@@ -1,6 +1,14 @@
++// =============================================================================
++// 이 파일의 책임: 프로젝트 탭 URL과 공통 워크스페이스 데이터를 연결하고 각 기능
++//   화면에 필요한 props를 전달한다.
++// 다른 파일과의 관계: document_type query를 useWorkspaceData와 DocumentsView에
++//   전달하며 DashboardView·BoardView 등 탭 화면의 조립점이다.
++// Spring 비교: 라우팅과 화면 조립을 담당하는 MVC Controller에 가깝다.
++// =============================================================================
++
+ import { useEffect, useRef, useState } from 'react'
+ import { useQuery } from '@tanstack/react-query'
+-import { Navigate, useNavigate, useParams } from 'react-router-dom'
++import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+ import { getProject } from '../api/project'
+ import AppHeader from '../components/common/AppHeader'
+ import LoadingState from '../components/common/LoadingState'
+@@ -17,6 +25,7 @@ import { isImageUpload } from '../features/document-upload/uploadValidation'
+ import { useInvitationsQuery } from '../hooks/useInvitationsQuery'
+ import { useProjectsQuery } from '../hooks/useProjectsQuery'
+ import { useWorkspaceData } from '../hooks/useWorkspaceData'
++import { normalizeDocumentTypeFilter } from '../utils/documentType'
+ import { clearRecentProjectId, setRecentProjectId } from '../utils/recentProject'
+ import '../styles/workspace.css'
+ 
+@@ -49,7 +58,12 @@ function WorkspaceContent({ project, projects, tab, navigate, notify, user, onLo
+   const [creating, setCreating] = useState(false)
+   const [uploadFiles, setUploadFiles] = useState([])
+   const [uploadQueue, setUploadQueue] = useState([])
+-  const data = useWorkspaceData(project, notify)
++  const [searchParams, setSearchParams] = useSearchParams()
++  const documentType = normalizeDocumentTypeFilter(searchParams.get('document_type'))
++  // 문서 탭에서만 query를 목록 조회에 적용한다. 다른 탭의 URL에 같은 query가
++  // 붙어도 대시보드 OCR 미리보기까지 유형별로 좁아지면 안 된다.
++  const activeDocumentType = tab === 'documents' ? documentType : ''
++  const data = useWorkspaceData(project, notify, { documentType: activeDocumentType })
+   const fileInputRef = useRef(null)
+   const uploadSequenceRef = useRef(Promise.resolve())
+   const scheduledUploadIdsRef = useRef(new Set())
+@@ -116,13 +130,19 @@ function WorkspaceContent({ project, projects, tab, navigate, notify, user, onLo
+       navigate('/projects', { replace: true })
+     } catch { /* 공통 토스트에서 처리 */ }
+   }
++  function changeDocumentType(documentType) {
++    const nextSearchParams = new URLSearchParams(searchParams)
++    if (documentType) nextSearchParams.set('document_type', documentType)
++    else nextSearchParams.delete('document_type')
++    setSearchParams(nextSearchParams)
++  }
+ 
+   return <div className="app-frame"><AppHeader user={user} onLogout={onLogout} notify={notify} project={project}/><input ref={fileInputRef} hidden type="file" multiple accept=".pdf,.docx,.hwpx,.png,.jpg,.jpeg" onChange={upload}/>
+     <div className="workspace-shell">
+       <ProjectSidebar projects={projects} activeProjectId={project.id} onSelect={selected => navigate(`/projects/${selected.id}/dashboard`)} onCreate={() => setCreating(true)}/>
+       <section className="workspace-content">
+         <nav className="tabs" aria-label="프로젝트 메뉴">{TABS.map(([key,label]) => <button className={tab === key ? 'active' : ''} onClick={() => navigate(`/projects/${project.id}/${key}`)} key={key}>{label}</button>)}</nav>
+-        <main className="workspace-main">{data.loading ? <LoadingState label="프로젝트 데이터를 불러오는 중..."/> : <TabContent tab={tab} project={project} data={data} canEdit={canEdit} notify={notify} onUpload={openUpload} onFileDrop={requestUpload} uploadQueue={uploadQueue.filter(item => item.projectId === project.id)} onRetryUpload={scheduleUpload} onClearUploadQueue={() => setUploadQueue(current => current.filter(item => item.projectId !== project.id || ['QUEUED', 'UPLOADING'].includes(item.status)))} onDeleteProject={deleteCurrentProject} deleting={deleteMutation.isPending}/>}</main>
++        <main className="workspace-main">{data.loading ? <LoadingState label="프로젝트 데이터를 불러오는 중..."/> : <TabContent tab={tab} project={project} data={data} documentType={documentType} onDocumentTypeChange={changeDocumentType} canEdit={canEdit} notify={notify} onUpload={openUpload} onFileDrop={requestUpload} uploadQueue={uploadQueue.filter(item => item.projectId === project.id)} onRetryUpload={scheduleUpload} onClearUploadQueue={() => setUploadQueue(current => current.filter(item => item.projectId !== project.id || ['QUEUED', 'UPLOADING'].includes(item.status)))} onDeleteProject={deleteCurrentProject} deleting={deleteMutation.isPending}/>}</main>
+       </section>
+     </div>
+     <ProjectCreateModal open={creating} recentInvitees={recentInvitees} pending={createMutation.isPending} onClose={() => setCreating(false)} onSubmit={createNewProject}/>
+@@ -130,8 +150,8 @@ function WorkspaceContent({ project, projects, tab, navigate, notify, user, onLo
+   </div>
+ }
+ 
+-function TabContent({ tab, project, data, canEdit, notify, onUpload, onFileDrop, uploadQueue, onRetryUpload, onClearUploadQueue, onDeleteProject, deleting }) {
+-  if (tab === 'documents') return <DocumentsView projectId={project.id} documents={data.documents} canEdit={canEdit} onUpload={onUpload} onFileDrop={onFileDrop} uploadQueue={uploadQueue} onRetryUpload={onRetryUpload} onClearUploadQueue={onClearUploadQueue} onRetry={data.retryDocument} retryingDocumentId={data.retryingDocumentId}/>
++function TabContent({ tab, project, data, documentType, onDocumentTypeChange, canEdit, notify, onUpload, onFileDrop, uploadQueue, onRetryUpload, onClearUploadQueue, onDeleteProject, deleting }) {
++  if (tab === 'documents') return <DocumentsView projectId={project.id} documents={data.documents} documentsTotal={data.documentsTotal} documentType={documentType} onDocumentTypeChange={onDocumentTypeChange} canEdit={canEdit} onUpload={onUpload} onFileDrop={onFileDrop} uploadQueue={uploadQueue} onRetryUpload={onRetryUpload} onClearUploadQueue={onClearUploadQueue} onRetry={data.retryDocument} retryingDocumentId={data.retryingDocumentId}/>
+   if (tab === 'settings') return <MembersView project={project} members={data.members} invitations={data.invitations} onUpdateProject={data.updateProject} updatingProject={data.updatingProject} onInvite={data.invite} onCancelInvitation={data.cancelInvitation} onRole={data.changeRole} onRemove={data.excludeMember} onDeleteProject={onDeleteProject} deleting={deleting}/>
+   if (tab === 'dashboard') return <DashboardView projectId={project.id} documents={data.documents} members={data.members}/>
+   // 검색은 워크스페이스 데이터(문서 목록 · 멤버)를 쓰지 않는다. 자기 상태만
+diff --git a/frontend/src/styles/workspace.css b/frontend/src/styles/workspace.css
+index 074da2f322340a5328aefaf23f45b22ceed4c631..561b1727a35c91aa029c294917157eea2daa3c5b 100644
+--- a/frontend/src/styles/workspace.css
++++ b/frontend/src/styles/workspace.css
+@@ -1,3 +1,9 @@
++/* =============================================================================
++   이 파일의 책임: 워크스페이스 공통 레이아웃과 대시보드 구성요소를 표현한다.
++   다른 파일과의 관계: WorkspacePage와 DashboardView가 정의한 클래스에 적용된다.
++   Spring 비교: 해당 없음(표현 전용).
++   ============================================================================= */
++
+ .app-frame{width:100%;min-height:100vh;margin:0;background:#f4f7fc;overflow:visible}.app-frame>.app-header{position:sticky;top:0;z-index:30}.workspace-shell{display:grid;grid-template-columns:280px minmax(0,1fr);min-height:calc(100vh - 84px);align-items:start}.workspace-content{min-width:0;background:#f4f7fc}.project-sidebar{position:sticky;top:84px;display:flex;height:calc(100vh - 84px);min-height:0;padding:28px 16px 22px;flex-direction:column;overflow:hidden;border-right:1px solid #dce3ee;background:#fff}.project-sidebar__heading{display:flex;flex:0 0 auto;align-items:center;justify-content:space-between;padding:0 12px 14px;color:#68768b;font-size:13px;font-weight:800}.project-sidebar__heading strong{display:grid;min-width:24px;height:24px;padding:0 7px;place-items:center;border-radius:99px;background:#f0f3f8;color:#6c788b;font-size:12px}.project-sidebar__list{display:flex;min-height:0;flex:1 1 auto;flex-direction:column;gap:6px;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain}.project-sidebar__list button{display:flex;width:100%;min-height:46px;padding:10px 12px;align-items:center;gap:11px;border:0;border-radius:11px;background:transparent;color:#3f4b60;text-align:left;cursor:pointer}.project-sidebar__list button:hover{background:#f5f6fb}.project-sidebar__list button.is-active{background:#f0efff;color:#4338ad;font-weight:800}.project-sidebar__list button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.project-sidebar__list p{padding:8px 12px;color:#8a95a6;font-size:13px;line-height:1.6}.project-sidebar__marker{width:10px;height:10px;flex:0 0 auto;border-radius:3px;background:#675ee5}.project-sidebar__marker.marker-1{background:#ef6b3d}.project-sidebar__marker.marker-2{background:#20a25a}.project-sidebar__marker.marker-3{background:#db9b09}.project-sidebar__marker.marker-4{background:#3281db}.project-sidebar__create{display:flex;width:100%;min-height:44px;margin-top:18px;padding:10px 12px;flex:0 0 auto;align-items:center;gap:8px;border:1px dashed #b9c4d6;border-radius:11px;background:#fafbfe;color:#4c5d76;font-weight:750;cursor:pointer}.project-sidebar__create:hover{border-color:#756de8;background:#f5f4ff;color:#4a43ae}.tabs{position:sticky;top:84px;z-index:20;height:68px;display:flex;gap:32px;padding:0 40px;background:white;border-bottom:1px solid #dce3ee}.tabs button{border:0;border-bottom:3px solid transparent;background:none;color:#66748a;font-weight:700;cursor:pointer}.tabs button.active{border-color:#355ad9;color:#355ad9}.workspace-main{width:100%;max-width:1500px;margin:auto;padding:40px}.project-empty-main{display:grid;min-width:0;place-items:center;padding:40px;background:#f4f7fc}.project-empty-state{max-width:520px;text-align:center}.project-empty-state>span{display:grid;width:64px;height:64px;margin:0 auto 20px;place-items:center;border-radius:18px;background:#eae9ff;color:#5148c8;font-size:34px}.project-empty-state h1{margin-bottom:12px;color:#1b2435;font-size:28px}.project-empty-state p{margin-bottom:24px;color:#718097;line-height:1.7}
+ @media(max-width:900px){.workspace-shell{grid-template-columns:1fr;min-height:calc(100vh - 72px)}.project-sidebar{position:sticky;top:72px;z-index:15;height:auto;min-height:auto;padding:12px 18px;overflow:visible;border-right:0;border-bottom:1px solid #dce3ee}.project-sidebar__heading{padding:0 0 8px}.project-sidebar__list{flex-direction:row;overflow-x:auto;overflow-y:hidden}.project-sidebar__list button{width:auto;max-width:220px;flex:0 0 auto}.project-sidebar__list p{padding:4px 0}.project-sidebar__create{width:auto;align-self:flex-start;margin-top:10px}.workspace-main{padding:24px}.tabs{top:72px;padding:0 18px;overflow:auto}.stat-grid,.board,.dashboard-grid{grid-template-columns:1fr}.document-list time,.document-list .type-pill{display:none}}
+ .project-sidebar__list button span{min-width:0;flex:1}.project-sidebar__list button small{flex:0 0 auto;padding:2px 6px;border-radius:99px;background:#eef1f5;color:#788599;font-size:10px;font-weight:750}
+@@ -94,9 +100,13 @@
+ 
+ .dashboard-type-panel { margin-top: 18px; }
+ .dashboard-type-list { margin: 0; padding: 0; list-style: none; }
+-/* 이름 · 막대 · 건수 세 칸. 막대만 남는 폭을 먹는다. */
+-.dashboard-type-item { display: grid; grid-template-columns: minmax(120px, 190px) minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 11px 0; border-top: 1px solid #e8edf4; }
+-.dashboard-type-item:first-child { border-top: 0; }
++/* 이름 · 막대 · 건수 세 칸. 막대만 남는 폭을 먹는다. 각 행 전체가 해당 유형의
++   문서 목록으로 가는 버튼이라 키보드 포커스와 hover에서도 이동 가능함을 보인다. */
++.dashboard-type-item { display: grid; width: 100%; grid-template-columns: minmax(120px, 190px) minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 11px 0; border: 0; border-top: 1px solid #e8edf4; background: transparent; font: inherit; text-align: left; cursor: pointer; }
++.dashboard-type-list > li:first-child .dashboard-type-item { border-top: 0; }
++.dashboard-type-item:not(:disabled):hover, .dashboard-type-item:not(:disabled):focus-visible { background: #f7f6ff; outline: 2px solid #756de8; outline-offset: -2px; }
++.dashboard-type-item:not(:disabled):hover .dashboard-type-name, .dashboard-type-item:not(:disabled):focus-visible .dashboard-type-name { color: #5148c8; }
++.dashboard-type-item:disabled { cursor: not-allowed; opacity: .55; }
+ .dashboard-type-name { overflow: hidden; color: #36435a; font-size: 13px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+ /* 미분류는 유형 이름이 아니라 유형이 없는 상태다. 흐리게 둬서 구별한다. */
+ .dashboard-type-name.is-unclassified { color: #8a96a6; font-weight: 600; font-style: italic; }
+diff --git a/frontend/src/utils/documentType.js b/frontend/src/utils/documentType.js
+index e09c8d95868396439c3d544f1ce4b1351085950d..97271d0f83a794d99dbefdcf81b4d417841f1ff9 100644
+--- a/frontend/src/utils/documentType.js
++++ b/frontend/src/utils/documentType.js
+@@ -17,6 +17,8 @@
+ 
+ // [값, 표시명]. 순서는 업로드 모달의 선택 순서이기도 하다 — 문서가 만들어지는
+ // 흐름(제안요청서 → 제안서 → 산출내역서 → 계약서 → ...)에 맞춰 둔 것이다.
++export const UNCLASSIFIED_DOCUMENT_TYPE = '__UNCLASSIFIED__'
++
+ export const DOCUMENT_TYPES = [
+   ['RFP', '제안요청서·입찰공고'],
+   ['PROPOSAL', '제안서·기술제안서'],
+@@ -30,6 +32,22 @@ export const DOCUMENT_TYPES = [
+ ]
+ 
+ const LABELS = Object.fromEntries(DOCUMENT_TYPES)
++const FILTER_VALUES = new Set([...DOCUMENT_TYPES.map(([value]) => value), UNCLASSIFIED_DOCUMENT_TYPE])
++
++export function isSupportedDocumentTypeFilter(documentType) {
++  return FILTER_VALUES.has(documentType)
++}
++
++/** URL query의 문서 유형 필터를 저장 가능한 9종 또는 미분류 값으로 제한한다. */
++export function normalizeDocumentTypeFilter(documentType) {
++  return isSupportedDocumentTypeFilter(documentType) ? documentType : ''
++}
++
++/** 필터 값을 화면 문구로. URL 전용 미분류 값은 실제 저장값 null과 같은 뜻이다. */
++export function getDocumentTypeFilterLabel(documentType) {
++  if (documentType === UNCLASSIFIED_DOCUMENT_TYPE) return '미분류'
++  return getDocumentTypeLabel(documentType)
++}
+ 
+ /** 문서 유형 값을 표시명으로. null·빈 값은 "미분류" 다.
+  *

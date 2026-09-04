@@ -1,0 +1,370 @@
+--- a/backend/app/services/chat_service.py
++++ b/backend/app/services/chat_service.py
+@@ -46,6 +46,10 @@
+ UNVERIFIED_UNIT_PRICE_ANSWER = (
+     "검색 근거와 승인된 금액 항목을 함께 대조했지만 단가를 하나로 확정하지 못했습니다."
+ )
++AMBIGUOUS_PERSON_COUNT_ANSWER = (
++    "인원 수만으로는 총 인건비를 계산할 수 없습니다. 투입 기간을 포함해 "
++    "'특급기술자 2인월 금액'처럼 질문해 주세요."
++)
+ # OpenAI 호환 chat template가 덧붙이는 role marker·메시지 separator·assistant
+ # generation prefix는 provider가 tokenizer를 노출하지 않아 정확히 셀 수 없다.
+ # 두 메시지 호출에 충분한 고정 여유를 보수적으로 먼저 뺀다.
+@@ -127,8 +131,35 @@
+         if self._counter.count(assembled.text) > assembled.budget_tokens:
+             raise BusinessError(ErrorCode.AI_INPUT_TOO_LARGE)
+ 
+-        # 단가 질문만 승인된 구조화 금액과 원문 청크를 함께 대조해 직접 답한다.
+-        # `3 / 인 / 월` 같은 문서별 표기법은 범용 프롬프트에 넣지 않는다.
++        # 인월 수량이 명시되고 금액 의도가 있을 때만 승인 단가로 파생 금액을
++        # 계산한다. `2명`처럼 기간 없는 인원 수는 계산하지 않고 인월을 다시 묻는다.
++        has_amount_intent = self._has_amount_calculation_intent(question)
++        if has_amount_intent:
++            person_months = self._requested_person_months(question)
++            if person_months is not None:
++                return self._answer_unit_price(
++                    project_id=project_id,
++                    question=question,
++                    assembled=assembled,
++                    searched_project_ids=search.searched_project_ids,
++                    requested_person_months=person_months,
++                )
++            if self._has_person_month_expression(question):
++                return self._clarification_response(
++                    answer="인월 수량을 하나로 확정하지 못했습니다. 항목마다 나누어 질문해 주세요.",
++                    assembled=assembled,
++                    searched_project_ids=search.searched_project_ids,
++                )
++            if self._has_ambiguous_person_count(question):
++                return self._clarification_response(
++                    answer=AMBIGUOUS_PERSON_COUNT_ANSWER,
++                    assembled=assembled,
++                    searched_project_ids=search.searched_project_ids,
++                )
++
++        # 단가 질문은 일반 LLM이 표의 마지막 숫자(총액)를 단가로 오인할 수 있다.
++        # 이 좁은 경우만 승인된 구조화 금액과 원문 청크를 함께 대조해 직접 답한다.
++        # "3/인/월" 같은 문서별 표기법을 범용 프롬프트에 계속 추가하지 않는다.
+         if self._is_unit_price_question(question):
+             return self._answer_unit_price(
+                 project_id=project_id,
+@@ -192,6 +223,47 @@
+         )
+ 
+     @staticmethod
++    def _has_amount_calculation_intent(question: str) -> bool:
++        return any(
++            marker in question
++            for marker in ("인건비", "금액", "비용", "계산", "얼마")
++        )
++
++    @classmethod
++    def _person_month_quantities(cls, question: str) -> set[Decimal]:
++        """`2인월`, `1.5 / 인 / 월`처럼 명시된 인월 수량을 읽는다."""
++        raw_values = re.findall(
++            r"(?<![\d.])(\d+(?:\.\d+)?)\s*(?:/\s*)?인\s*(?:/\s*)?월",
++            question,
++        )
++        return {
++            value
++            for raw in raw_values
++            if (value := Decimal(raw)) > 0
++        }
++
++    @classmethod
++    def _requested_person_months(cls, question: str) -> Decimal | None:
++        quantities = cls._person_month_quantities(question)
++        return next(iter(quantities)) if len(quantities) == 1 else None
++
++    @classmethod
++    def _has_person_month_expression(cls, question: str) -> bool:
++        return bool(re.search(
++            r"(?<![\d.])\d+(?:\.\d+)?\s*(?:/\s*)?인\s*(?:/\s*)?월",
++            question,
++        ))
++
++    @staticmethod
++    def _has_ambiguous_person_count(question: str) -> bool:
++        if not any(word in question for word in ("인건비", "금액", "비용")):
++            return False
++        for raw in re.findall(r"(?<![\d.])(\d+(?:\.\d+)?)\s*(?:명|인)(?:당)?", question):
++            if Decimal(raw) != Decimal("1"):
++                return True
++        return False
++
++    @staticmethod
+     def _is_unit_price_question(question: str) -> bool:
+         """부정·총액 혼합이 없는 명확한 단가 질문만 구조화 경로로 보낸다."""
+         has_unit_price = any(marker in question for marker in UNIT_PRICE_MARKERS)
+@@ -206,8 +278,9 @@
+         question: str,
+         assembled: AssembledContext,
+         searched_project_ids: list[int],
++        requested_person_months: Decimal | None = None,
+     ) -> ChatResponse:
+-        """승인 금액 행과 원문을 대조해 단일·복수 기술자 단가를 직접 답한다."""
++        """승인 금액 행과 원문을 대조해 단가 또는 명시한 인월 금액을 답한다."""
+         evidence_document_ids = {
+             evidence.document_id for evidence in assembled.evidences
+         }
+@@ -271,6 +344,10 @@
+                 or item.amount is None
+                 or item.unit_price != item.unit_price.to_integral_value()
+                 or item.amount != item.amount.to_integral_value()
++                or (
++                    requested_person_months is not None
++                    and self._compact(item.unit) != "인월"
++                )
+             ):
+                 return self._unverified_unit_price_response(
+                     assembled=assembled,
+@@ -345,7 +422,42 @@
+                 )
+             )
+ 
+-        if len(verified_rows) == 1:
++        if requested_person_months is not None:
++            if any(row[4] != row[3] for row in verified_rows):
++                return self._unverified_unit_price_response(
++                    assembled=assembled,
++                    searched_project_ids=searched_project_ids,
++                )
++            quantity_text = self._format_decimal(requested_person_months)
++            lines = []
++            for item, _source_quantity, unit_price, _stated, _expected in (
++                verified_rows
++            ):
++                currency_suffix = (
++                    "원" if item.currency == "KRW" else f" {item.currency}"
++                )
++                calculated = self._calculate_amount(
++                    requested_person_months,
++                    unit_price,
++                )
++                lines.append(
++                    f"- {item.item_name}: {quantity_text}인월 × "
++                    f"{unit_price:,}{currency_suffix} = "
++                    f"{calculated:,}{currency_suffix}"
++                )
++            if len(lines) == 1:
++                answer = (
++                    "문서에서 검증한 1인월 단가를 기준으로 계산하면 "
++                    + lines[0].removeprefix("- ")
++                    + "입니다."
++                )
++            else:
++                answer = (
++                    f"문서에서 검증한 1인월 단가로 {quantity_text}인월 금액을 "
++                    "계산하면 다음과 같습니다.\n"
++                    + "\n".join(lines)
++                )
++        elif len(verified_rows) == 1:
+             item, quantity_text, unit_price, stated_amount, expected_amount = (
+                 verified_rows[0]
+             )
+@@ -438,6 +550,28 @@
+             f"{expected_amount:,}{currency_suffix}이고 문서 총액은 "
+             f"{stated_amount:,}{currency_suffix}으로 "
+             f"{abs(difference):,}{currency_suffix} 차이가 있어 확인이 필요합니다."
++        )
++
++    def _clarification_response(
++        self,
++        *,
++        answer: str,
++        assembled: AssembledContext,
++        searched_project_ids: list[int],
++    ) -> ChatResponse:
++        """계산 조건이 부족할 때 문서 숫자를 추측하지 않고 확인을 요청한다."""
++        return ChatResponse(
++            answer=answer,
++            evidence=[],
++            searched_project_ids=searched_project_ids,
++            model_name=None,
++            token_counter=self._counter.name,
++            token_count_is_exact=self._counter.is_exact,
++            context_limit_tokens=self._settings.AI_CONTEXT_TOKENS,
++            answer_reserved_tokens=self._settings.AI_MAX_OUTPUT_TOKENS,
++            message_framing_reserved_tokens=CHAT_MESSAGE_FRAMING_RESERVE_TOKENS,
++            evidence_budget_tokens=assembled.budget_tokens,
++            evidence_used_tokens=0,
+         )
+ 
+     def _unverified_unit_price_response(
+@@ -477,6 +611,14 @@
+         return tokens
+ 
+     @staticmethod
++    def _calculate_amount(quantity: Decimal, unit_price: int) -> int:
++        return int(
++            (quantity * Decimal(unit_price)).quantize(
++                Decimal("1"), rounding=ROUND_HALF_UP
++            )
++        )
++
++    @staticmethod
+     def _format_decimal(value: Decimal) -> str:
+         return format(value.normalize(), "f")
+ 
+--- a/backend/tests/test_chat_service.py
++++ b/backend/tests/test_chat_service.py
+@@ -97,12 +97,12 @@
+     return (model, filename, 1, "테스트 프로젝트")
+ 
+ 
+-def _amount_item(name, quantity, unit_price, amount):
+-    row = f"{name} | {quantity} / 인 / 월 | {unit_price:,} | {amount:,}"
++def _amount_item(name, quantity, unit_price, amount, *, unit="인월"):
++    row = f"{name} | {quantity} / {unit} | {unit_price:,} | {amount:,}"
+     return SimpleNamespace(
+         item_name=name,
+         quantity=Decimal(str(quantity)),
+-        unit="인월",
++        unit=unit,
+         unit_price=Decimal(str(unit_price)),
+         amount=Decimal(str(amount)),
+         currency="KRW",
+@@ -349,6 +349,142 @@
+     assert response.evidence == []
+ 
+ 
++def test_explicit_person_month_quantity_calculates_single_amount_without_llm():
++    item = _amount_item("특급기술자", 3, 9_500_000, 28_500_000)
++    ai = _FakeAI()
++    service, _, _, _ = _service(
++        search_response=_search_response([_search_item(11)]),
++        rows=[_chunk(11, item.source_quote)],
++        amount_rows=[(item, 10, "계약서.pdf")],
++        ai=ai,
++    )
++
++    response = asyncio.run(service.ask(
++        user_id=7,
++        project_id=1,
++        question="특급기술자 2인월 인건비는?",
++    ))
++
++    assert ai.requests == []
++    assert "특급기술자: 2인월 × 9,500,000원 = 19,000,000원" in response.answer
++    assert len(response.evidence) == 1
++
++
++def test_person_month_quantity_calculates_each_technician_amount():
++    first = _amount_item("특급기술자", 3, 9_500_000, 28_500_000)
++    second = _amount_item("고급기술자", 6, 7_200_000, 43_200_000)
++    table = f"{first.source_quote}\n{second.source_quote}"
++    ai = _FakeAI()
++    service, _, _, _ = _service(
++        search_response=_search_response([_search_item(11)]),
++        rows=[_chunk(11, table)],
++        amount_rows=[(first, 10, "계약서.pdf"), (second, 10, "계약서.pdf")],
++        ai=ai,
++    )
++
++    response = asyncio.run(service.ask(
++        user_id=7,
++        project_id=1,
++        question="기술자들별로 2인월 인건비를 계산해줘",
++    ))
++
++    assert ai.requests == []
++    assert "특급기술자: 2인월 × 9,500,000원 = 19,000,000원" in response.answer
++    assert "고급기술자: 2인월 × 7,200,000원 = 14,400,000원" in response.answer
++
++
++def test_person_count_without_duration_requests_person_month_quantity():
++    item = _amount_item("특급기술자", 3, 9_500_000, 28_500_000)
++    ai = _FakeAI()
++    service, _, _, _ = _service(
++        search_response=_search_response([_search_item(11)]),
++        rows=[_chunk(11, item.source_quote)],
++        amount_rows=[(item, 10, "계약서.pdf")],
++        ai=ai,
++    )
++
++    response = asyncio.run(service.ask(
++        user_id=7,
++        project_id=1,
++        question="특급기술자 2명 인건비는?",
++    ))
++
++    assert ai.requests == []
++    assert "인원 수만으로는 총 인건비를 계산할 수 없습니다" in response.answer
++    assert "2인월" in response.answer
++    assert response.evidence == []
++
++
++def test_different_person_month_quantities_request_separate_questions():
++    first = _amount_item("특급기술자", 3, 9_500_000, 28_500_000)
++    second = _amount_item("고급기술자", 6, 7_200_000, 43_200_000)
++    table = f"{first.source_quote}\n{second.source_quote}"
++    ai = _FakeAI()
++    service, _, _, _ = _service(
++        search_response=_search_response([_search_item(11)]),
++        rows=[_chunk(11, table)],
++        amount_rows=[(first, 10, "계약서.pdf"), (second, 10, "계약서.pdf")],
++        ai=ai,
++    )
++
++    response = asyncio.run(service.ask(
++        user_id=7,
++        project_id=1,
++        question="특급기술자 2인월, 고급기술자 3인월 인건비는?",
++    ))
++
++    assert ai.requests == []
++    assert "인월 수량을 하나로 확정하지 못했습니다" in response.answer
++    assert response.evidence == []
++
++
++def test_person_month_fact_question_does_not_trigger_amount_calculation():
++    item = _amount_item("특급기술자", 3, 9_500_000, 28_500_000)
++    ai = _FakeAI()
++    service, _, _, _ = _service(
++        search_response=_search_response([_search_item(11)]),
++        rows=[_chunk(11, item.source_quote)],
++        amount_rows=[(item, 10, "계약서.pdf")],
++        ai=ai,
++    )
++
++    response = asyncio.run(service.ask(
++        user_id=7,
++        project_id=1,
++        question="특급기술자 투입 기간이 2인월이야?",
++    ))
++
++    assert len(ai.requests) == 1
++    assert response.answer == "문서 근거에 따른 답변입니다."
++
++
++def test_person_month_calculation_rejects_non_person_month_unit():
++    item = _amount_item(
++        "특급기술자",
++        3,
++        500_000,
++        1_500_000,
++        unit="인일",
++    )
++    ai = _FakeAI()
++    service, _, _, _ = _service(
++        search_response=_search_response([_search_item(11)]),
++        rows=[_chunk(11, item.source_quote)],
++        amount_rows=[(item, 10, "계약서.pdf")],
++        ai=ai,
++    )
++
++    response = asyncio.run(service.ask(
++        user_id=7,
++        project_id=1,
++        question="특급기술자 2인월 인건비는?",
++    ))
++
++    assert ai.requests == []
++    assert "단가를 하나로 확정하지 못했습니다" in response.answer
++    assert response.evidence == []
++
++
+ def test_final_evidence_and_full_prompt_fit_calculated_budget():
+     text = " ".join(
+         f"{index}번째 대금은 검수 완료 후 30일 이내 지급한다."

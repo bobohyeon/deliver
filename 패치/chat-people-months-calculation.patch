@@ -1,0 +1,169 @@
+--- a/backend/app/services/chat_service.py
++++ b/backend/app/services/chat_service.py
+@@ -143,8 +143,8 @@
+         if self._counter.count(assembled.text) > assembled.budget_tokens:
+             raise BusinessError(ErrorCode.AI_INPUT_TOO_LARGE)
+ 
+-        # 인월 수량이 명시되고 금액 의도가 있을 때만 승인 단가로 파생 금액을
+-        # 계산한다. `2명`처럼 기간 없는 인원 수는 계산하지 않고 인월을 다시 묻는다.
++        # 금액 의도가 있을 때만 명시 인월 또는 `인원 × 개월`을 승인 단가로
++        # 계산한다. 기간 없는 `2명`은 계산하지 않고 인월 수량을 다시 묻는다.
+         has_amount_intent = self._has_amount_calculation_intent(question)
+         if has_amount_intent:
+             person_month_assignments = self._requested_person_month_assignments(
+@@ -177,6 +177,22 @@
+             if self._has_person_month_expression(question):
+                 return self._clarification_response(
+                     answer="인월 수량을 하나로 확정하지 못했습니다. 항목마다 나누어 질문해 주세요.",
++                    assembled=assembled,
++                    searched_project_ids=search.searched_project_ids,
++                )
++            people_and_months = self._requested_people_and_months(question)
++            if people_and_months is not None:
++                return self._answer_unit_price(
++                    project_id=project_id,
++                    question=question,
++                    assembled=assembled,
++                    searched_project_ids=search.searched_project_ids,
++                    requested_people_and_months=people_and_months,
++                )
++            if self._has_person_count_and_month_duration(question):
++                return self._clarification_response(
++                    answer="인원과 개월을 하나의 기술자 항목에 연결하지 못했습니다. "
++                    "'특급기술자 2명이 3개월 일하면 인건비는?'처럼 질문해 주세요.",
+                     assembled=assembled,
+                     searched_project_ids=search.searched_project_ids,
+                 )
+@@ -318,6 +334,52 @@
+             question,
+         ))
+ 
++    @classmethod
++    def _requested_people_and_months(
++        cls,
++        question: str,
++    ) -> tuple[str, Decimal, Decimal] | None:
++        """`기술자 N명이 M개월`이 하나로 확정될 때만 총투입량 계산값을 만든다."""
++        person_expressions = re.findall(
++            r"(?<![\d.])(\d+(?:\.\d+)?)\s*(?:명|인)(?!\s*월)",
++            question,
++        )
++        month_expressions = re.findall(
++            r"(?<![\d.])(\d+(?:\.\d+)?)\s*개월",
++            question,
++        )
++        pairs = re.findall(
++            r"([가-힣A-Za-z0-9]+기술자)\s*"
++            r"(\d+)\s*(?:명|인)(?!\s*월)(?:이|가|은|는)?\s*"
++            r"(\d+(?:\.\d+)?)\s*개월",
++            question,
++        )
++        if (
++            len(person_expressions) != 1
++            or len(month_expressions) != 1
++            or len(pairs) != 1
++        ):
++            return None
++
++        item_name, raw_people, raw_months = pairs[0]
++        people = Decimal(raw_people)
++        months = Decimal(raw_months)
++        if people <= 0 or months <= 0:
++            return None
++        return cls._compact(item_name), people, months
++
++    @staticmethod
++    def _has_person_count_and_month_duration(question: str) -> bool:
++        has_person_count = bool(re.search(
++            r"(?<![\d.])\d+(?:\.\d+)?\s*(?:명|인)(?!\s*월)",
++            question,
++        ))
++        has_month_duration = bool(re.search(
++            r"(?<![\d.])\d+(?:\.\d+)?\s*개월",
++            question,
++        ))
++        return has_person_count and has_month_duration
++
+     @staticmethod
+     def _has_ambiguous_person_count(question: str) -> bool:
+         if not any(word in question for word in ("인건비", "금액", "비용")):
+@@ -344,6 +406,7 @@
+         searched_project_ids: list[int],
+         requested_person_months: Decimal | None = None,
+         requested_person_months_by_name: dict[str, Decimal] | None = None,
++        requested_people_and_months: tuple[str, Decimal, Decimal] | None = None,
+     ) -> ChatResponse:
+         """승인 금액 행과 원문을 대조해 단가 또는 명시한 인월 금액을 답한다."""
+         evidence_document_ids = {
+@@ -406,6 +469,14 @@
+         candidate_names = [self._compact(row[0].item_name) for row in candidates]
+         candidate_documents = {row[1] for row in candidates}
+         if (
++            requested_people_and_months is not None
++            and set(candidate_names) != {requested_people_and_months[0]}
++        ):
++            return self._unverified_unit_price_response(
++                assembled=assembled,
++                searched_project_ids=searched_project_ids,
++            )
++        if (
+             requested_person_months_by_name is not None
+             and set(candidate_names) != set(requested_person_months_by_name)
+         ):
+@@ -437,6 +508,7 @@
+                     (
+                         requested_person_months is not None
+                         or requested_person_months_by_name is not None
++                        or requested_people_and_months is not None
+                     )
+                     and self._compact(item.unit) != "인월"
+                 )
+@@ -514,15 +586,42 @@
+                 )
+             )
+ 
+-        if (
++        has_requested_calculation = (
++            requested_person_months is not None
++            or requested_person_months_by_name is not None
++            or requested_people_and_months is not None
++        )
++        if has_requested_calculation and any(
++            row[4] != row[3] for row in verified_rows
++        ):
++            return self._unverified_unit_price_response(
++                assembled=assembled,
++                searched_project_ids=searched_project_ids,
++            )
++
++        if requested_people_and_months is not None:
++            _requested_name, people, months = requested_people_and_months
++            item, _source_quantity, unit_price, _stated, _expected = (
++                verified_rows[0]
++            )
++            total_person_months = people * months
++            people_text = self._format_decimal(people)
++            months_text = self._format_decimal(months)
++            total_text = self._format_decimal(total_person_months)
++            currency_suffix = (
++                "원" if item.currency == "KRW" else f" {item.currency}"
++            )
++            calculated = self._calculate_amount(total_person_months, unit_price)
++            answer = (
++                f"전일 투입 기준으로 계산하면 {item.item_name}: 1인월 단가 "
++                f"{unit_price:,}{currency_suffix} × {people_text}명 × "
++                f"{months_text}개월 = {calculated:,}{currency_suffix}이며, "
++                f"총투입량은 {total_text}인월입니다."
++            )
++        elif (
+             requested_person_months is not None
+             or requested_person_months_by_name is not None
+         ):
+-            if any(row[4] != row[3] for row in verified_rows):
+-                return self._unverified_unit_price_response(
+-                    assembled=assembled,
+-                    searched_project_ids=searched_project_ids,
+-                )
+             lines = []
+             requested_values: list[Decimal] = []
+             for item, _source_quantity, unit_price, _stated, _expected in (

@@ -1,0 +1,190 @@
+diff --git a/frontend/src/features/board/BoardView.css b/frontend/src/features/board/BoardView.css
+index a1ba2f1..dc97fd5 100644
+--- a/frontend/src/features/board/BoardView.css
++++ b/frontend/src/features/board/BoardView.css
+@@ -13,3 +13,16 @@
+    고른 색에서 만들어 주므로 어느 테마에서도 어울린다. 빨강은 쓰지 않는다:
+    여기는 오류가 아니라 상태 알림이고, 빨강은 삭제·위험에 이미 쓰고 있다. */
+ .task-board-note { margin: 9px 0 0 !important; padding: 8px 10px; border-left: 3px solid var(--c-accent-strong); border-radius: 0 8px 8px 0; background: var(--c-accent-bg); color: var(--c-accent-strong) !important; font-size: 12px !important; font-weight: 700; line-height: 1.5; white-space: pre-wrap; }
++
++
++
++/* 캘린더에서 들어온 태스크를 찾을 수 있게 스크롤 후 잠시 강조한다. */
++.task-board-card.is-calendar-target { animation: task-calendar-target 2.4s ease-out; outline: 3px solid #5148c8; outline-offset: 3px; }
++@keyframes task-calendar-target {
++  0%, 100% { box-shadow: 0 4px 12px #26344c0d; transform: translateY(0); }
++  18%, 52% { box-shadow: 0 0 0 7px #5148c833, 0 12px 24px #26344c24; transform: translateY(-3px); }
++  35%, 70% { box-shadow: 0 0 0 2px #5148c81f, 0 6px 14px #26344c14; transform: translateY(0); }
++}
++@media (prefers-reduced-motion: reduce) {
++  .task-board-card.is-calendar-target { animation: none; box-shadow: 0 0 0 7px #5148c833; }
++}
+diff --git a/frontend/src/features/board/BoardView.jsx b/frontend/src/features/board/BoardView.jsx
+index 61fe50c..a37730a 100644
+--- a/frontend/src/features/board/BoardView.jsx
++++ b/frontend/src/features/board/BoardView.jsx
+@@ -1,7 +1,7 @@
+ // =============================================================================
+ // 이 파일의 책임: 프로젝트 태스크를 상태별 보드와 기존 상세 편집 흐름으로 보여준다.
+ // 다른 파일과의 관계: api/task.js로 CRUD하고, 대시보드 캘린더의 task_id를 받아
+-//   해당 태스크의 기존 TaskDialog를 연다.
++//   해당 태스크 카드로 스크롤한 뒤 잠시 강조한다.
+ // Spring 비교: 태스크 목록 Controller와 편집 View를 합친 화면 컴포넌트다.
+ // =============================================================================
+ 
+@@ -19,7 +19,8 @@ const TYPE_LABELS = { DEVELOPMENT: '개발', DESIGN: '디자인', INFRA: '인프
+ export default function BoardView({ projectId, members, canEdit, notify }) {
+   const queryClient = useQueryClient()
+   const [searchParams, setSearchParams] = useSearchParams()
+-  const openedTaskIdRef = useRef(null)
++  const taskCardRefs = useRef(new Map())
++  const [highlightedTaskId, setHighlightedTaskId] = useState(null)
+   const tasksKey = ['projects', projectId, 'tasks']
+   const activityKey = ['projects', projectId, 'task-activity']
+   const tasksQuery = useQuery({ queryKey: tasksKey, queryFn: () => listTasks(projectId) })
+@@ -67,15 +68,33 @@ export default function BoardView({ projectId, members, canEdit, notify }) {
+     onSettled: () => { setDraggingTaskId(null); setDragOverStatus(null) },
+   })
+   const tasks = tasksQuery.data ?? []
++  const requestedTaskIdParam = searchParams.get('task_id')
++  const requestedTaskId = Number(requestedTaskIdParam)
+ 
+   useEffect(() => {
+-    const requestedTaskId = Number(searchParams.get('task_id'))
+-    if (!tasksQuery.isSuccess || !Number.isInteger(requestedTaskId) || openedTaskIdRef.current === requestedTaskId) return
++    if (!requestedTaskIdParam || !tasksQuery.isSuccess || !Number.isInteger(requestedTaskId)) return
+     const requestedTask = tasks.find(task => task.id === requestedTaskId)
+     if (!requestedTask) return
+-    openedTaskIdRef.current = requestedTaskId
+-    setEditingTask(requestedTask)
+-  }, [searchParams, tasks, tasksQuery.isSuccess])
++
++    setHighlightedTaskId(requestedTaskId)
++    const frame = window.requestAnimationFrame(() => {
++      const card = taskCardRefs.current.get(requestedTaskId)
++      card?.scrollIntoView({ behavior: 'smooth', block: 'center' })
++      card?.focus({ preventScroll: true })
++    })
++    const timer = window.setTimeout(() => {
++      setHighlightedTaskId(current => current === requestedTaskId ? null : current)
++      setSearchParams(current => {
++        const next = new URLSearchParams(current)
++        next.delete('task_id')
++        return next
++      }, { replace: true })
++    }, 2_400)
++    return () => {
++      window.cancelAnimationFrame(frame)
++      window.clearTimeout(timer)
++    }
++  }, [requestedTaskId, requestedTaskIdParam, setSearchParams, tasks, tasksQuery.isSuccess])
+ 
+   function closeEditingTask() {
+     setEditingTask(null)
+@@ -107,7 +126,7 @@ export default function BoardView({ projectId, members, canEdit, notify }) {
+     {tasksQuery.isSuccess && <div className='board task-board'>{COLUMNS.map(([status, label]) => {
+       const columnTasks = tasks.filter(task => task.status === status)
+       const activeDrop = canEdit && draggingTaskId && dragOverStatus === status
+-      return <section key={status} className={`task-column task-column-${status.toLowerCase()}${activeDrop ? ' is-drag-over' : ''}`} onDragOver={event => { if (canEdit) { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; setDragOverStatus(status) } }} onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget)) setDragOverStatus(null) }} onDrop={event => dropTask(event, status)}><header><div><h2>{label}</h2><span>{columnTasks.length}</span></div></header>{columnTasks.length ? <div className='task-card-list'>{columnTasks.map(task => <TaskCard key={task.id} task={task} canEdit={canEdit} dragging={draggingTaskId === task.id} onDragStart={event => startDragging(event, task)} onDragEnd={() => { setDraggingTaskId(null); setDragOverStatus(null) }} onEdit={() => setEditingTask(task)} onDelete={() => setDeletingTask(task)}/>)}</div> : <p className='task-column-empty'>{activeDrop ? '여기에 놓아 상태를 변경합니다.' : '등록된 태스크가 없습니다.'}</p>}</section>
++      return <section key={status} className={`task-column task-column-${status.toLowerCase()}${activeDrop ? ' is-drag-over' : ''}`} onDragOver={event => { if (canEdit) { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; setDragOverStatus(status) } }} onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget)) setDragOverStatus(null) }} onDrop={event => dropTask(event, status)}><header><div><h2>{label}</h2><span>{columnTasks.length}</span></div></header>{columnTasks.length ? <div className='task-card-list'>{columnTasks.map(task => <TaskCard key={task.id} task={task} canEdit={canEdit} dragging={draggingTaskId === task.id} highlighted={highlightedTaskId === task.id} cardRef={element => { if (element) taskCardRefs.current.set(task.id, element); else taskCardRefs.current.delete(task.id) }} onDragStart={event => startDragging(event, task)} onDragEnd={() => { setDraggingTaskId(null); setDragOverStatus(null) }} onEdit={() => setEditingTask(task)} onDelete={() => setDeletingTask(task)}/>)}</div> : <p className='task-column-empty'>{activeDrop ? '여기에 놓아 상태를 변경합니다.' : '등록된 태스크가 없습니다.'}</p>}</section>
+     })}</div>}
+     {editingTask && <TaskDialog task={editingTask} members={members} readOnly={!canEdit} pending={saveMutation.isPending} onClose={closeEditingTask} onSubmit={values => saveMutation.mutate(values)}/>}
+     {deletingTask && <DeleteDialog task={deletingTask} pending={deleteMutation.isPending} onClose={() => setDeletingTask(null)} onDelete={() => deleteMutation.mutate(deletingTask)}/>}
+@@ -115,8 +134,9 @@ export default function BoardView({ projectId, members, canEdit, notify }) {
+   </>
+ }
+ 
+-function TaskCard({ task, canEdit, dragging, onDragStart, onDragEnd, onEdit, onDelete }) {
+-  return <article className={`task-board-card task-board-card-${task.type.toLowerCase()}${dragging ? ' is-dragging' : ''}`} draggable={canEdit} onDragStart={onDragStart} onDragEnd={onDragEnd}><div className='task-board-card-top'><span>{TYPE_LABELS[task.type] ?? '기타'}</span>{canEdit && <div><button onClick={onEdit}>수정</button><button className='danger-text' onClick={onDelete}>삭제</button></div>}</div><h3>{task.title}</h3><TaskDescription text={task.description}/><footer><span>{task.assignee?.name ?? '담당자 미정'}</span><time dateTime={task.due_on ?? undefined}>{task.due_on ? `~ ${task.due_on}` : '마감 미정'}</time></footer></article>
++function TaskCard({ task, canEdit, dragging, highlighted, cardRef, onDragStart, onDragEnd, onEdit, onDelete }) {
++  const className = `task-board-card task-board-card-${task.type.toLowerCase()}${dragging ? ' is-dragging' : ''}${highlighted ? ' is-calendar-target' : ''}`
++  return <article ref={cardRef} tabIndex={-1} className={className} draggable={canEdit} onDragStart={onDragStart} onDragEnd={onDragEnd}><div className='task-board-card-top'><span>{TYPE_LABELS[task.type] ?? '기타'}</span>{canEdit && <div><button onClick={onEdit}>수정</button><button className='danger-text' onClick={onDelete}>삭제</button></div>}</div><h3>{task.title}</h3><TaskDescription text={task.description}/><footer><span>{task.assignee?.name ?? '담당자 미정'}</span><time dateTime={task.due_on ?? undefined}>{task.due_on ? `~ ${task.due_on}` : '마감 미정'}</time></footer></article>
+ }
+ 
+ // 설명을 그린다. 끝에 붙은 **자동 기록 블록**은 사람이 쓴 것과 구분해 색으로 낸다.
+diff --git a/frontend/src/features/dashboard/DashboardView.jsx b/frontend/src/features/dashboard/DashboardView.jsx
+index 290edde..347a181 100644
+--- a/frontend/src/features/dashboard/DashboardView.jsx
++++ b/frontend/src/features/dashboard/DashboardView.jsx
+@@ -90,7 +90,7 @@ export default function DashboardView({ projectId, documents }) {
+       <ActionTaskPanel tasks={tasksQuery.data ?? []} loading={tasksQuery.isPending} onOpenBoard={() => navigate(`/projects/${projectId}/board`)}/>
+     </div>
+ 
+-    <ProjectCalendar projectId={projectId}/>
++    <ProjectCalendar projectId={projectId} tasks={tasksQuery.data ?? []}/>
+ 
+     <div className='dashboard-distribution-grid'><DocumentTypePanel types={data?.document_types} total={counts?.total} loaded={Boolean(data)} onOpenType={goDocumentsByType}/><ProcessingStatusPanel counts={counts} loaded={Boolean(data)} onOpen={goDocuments}/></div>
+ 
+diff --git a/frontend/src/features/dashboard/ProjectCalendar.jsx b/frontend/src/features/dashboard/ProjectCalendar.jsx
+index 1a383f3..b2da6ee 100644
+--- a/frontend/src/features/dashboard/ProjectCalendar.jsx
++++ b/frontend/src/features/dashboard/ProjectCalendar.jsx
+@@ -20,8 +20,9 @@ const KIND_LABELS = {
+   PERIOD: '기간',
+ }
+ const TASK_STATUS_LABELS = { TODO: '할 일', IN_PROGRESS: '진행 중', DONE: '완료' }
++const TASK_TYPE_LABELS = { DEVELOPMENT: '개발', DESIGN: '디자인', INFRA: '인프라', DOCUMENT: '문서', OTHER: '기타' }
+ 
+-export default function ProjectCalendar({ projectId }) {
++export default function ProjectCalendar({ projectId, tasks }) {
+   const navigate = useNavigate()
+   const [month, setMonth] = useState(() => startOfMonth(new Date()))
+   const [selectedDate, setSelectedDate] = useState(() => toDateKey(new Date()))
+@@ -88,7 +89,7 @@ export default function ProjectCalendar({ projectId }) {
+             return <div className={`project-calendar__day${outside ? ' is-outside' : ''}${selected ? ' is-selected' : ''}${today ? ' is-today' : ''}`} key={dateKey}>
+               <button type='button' className='project-calendar__date' aria-pressed={selected} onClick={() => selectDate(dateKey)}><span>{day.getDate()}</span>{today && <small>오늘</small>}</button>
+               <div className='project-calendar__events'>
+-                {preview && <button type='button' className={calendarEventClass(preview, dateKey, day)} aria-label={`${KIND_LABELS[preview.kind] ?? preview.kind} ${preview.title}, ${formatDate(dateKey)} 항목 보기`} onClick={() => selectDate(dateKey)}><span>{KIND_LABELS[preview.kind] ?? preview.kind}</span><b>{showEventTitle(preview, dateKey, day) ? preview.title : '\u00a0'}</b></button>}
++                {preview && <button type='button' className={calendarEventClass(preview, dateKey, day, tasks)} aria-label={`${calendarItemLabel(preview, tasks)} ${preview.title}, ${formatDate(dateKey)} 항목 보기`} onClick={() => selectDate(dateKey)}><span>{calendarItemLabel(preview, tasks)}</span><b>{showEventTitle(preview, dateKey, day) ? preview.title : '\u00a0'}</b></button>}
+                 {dayItems.length > 1 && <button type='button' className='project-calendar__more' onClick={() => selectDate(dateKey)}>+{dayItems.length - 1}개 더 보기</button>}
+               </div>
+             </div>
+@@ -107,7 +108,7 @@ export default function ProjectCalendar({ projectId }) {
+           : <>
+               <header><span>{formatDate(selectedDate)}</span><strong>{selectedItems.length}개 항목</strong></header>
+               {selectedItems.length > 0
+-                ? <ul>{selectedItems.map(item => <li key={item.id}><button type='button' className={`kind-${item.kind.toLowerCase()}`} onClick={() => openListItem(item)}><span>{item.item_type === 'TASK' ? '태스크' : '일정'} · {KIND_LABELS[item.kind] ?? item.kind}</span><strong>{item.title}</strong><small>{item.item_type === 'TASK' ? `${TASK_STATUS_LABELS[item.status] ?? item.status} · 보드에서 상세 보기 →` : formatEventDate(item)}</small></button></li>)}</ul>
++                ? <ul>{selectedItems.map(item => <li key={item.id}><button type='button' className={calendarItemToneClass(item, tasks)} onClick={() => openListItem(item)}><span>{item.item_type === 'TASK' ? `태스크 · ${calendarItemLabel(item, tasks)}` : `일정 · ${KIND_LABELS[item.kind] ?? item.kind}`}</span><strong>{item.title}</strong><small>{item.item_type === 'TASK' ? `${TASK_STATUS_LABELS[item.status] ?? item.status} · 보드에서 상세 보기 →` : formatEventDate(item)}</small></button></li>)}</ul>
+                 : <div className='project-calendar__empty'><strong>이 날짜에는 항목이 없습니다.</strong><p>마감일이 있는 태스크나 승인된 일정이 생기면 자동으로 표시됩니다.</p></div>}
+             </>}
+       </aside>
+@@ -158,8 +159,20 @@ function calendarItemOrder(left, right) {
+   return left.id.localeCompare(right.id)
+ }
+ 
+-function calendarEventClass(item, dateKey, day) {
+-  const classes = ['project-calendar__event', `kind-${item.kind.toLowerCase()}`]
++function calendarItemToneClass(item, tasks) {
++  if (item.item_type !== 'TASK') return `kind-${item.kind.toLowerCase()}`
++  const type = tasks.find(task => task.id === item.source_id)?.type ?? 'OTHER'
++  return `task-type-${type.toLowerCase()}`
++}
++
++function calendarItemLabel(item, tasks) {
++  if (item.item_type !== 'TASK') return KIND_LABELS[item.kind] ?? item.kind
++  const type = tasks.find(task => task.id === item.source_id)?.type ?? 'OTHER'
++  return `${TASK_TYPE_LABELS[type] ?? TASK_TYPE_LABELS.OTHER} · 마감`
++}
++
++function calendarEventClass(item, dateKey, day, tasks) {
++  const classes = ['project-calendar__event', calendarItemToneClass(item, tasks)]
+   if (item.kind !== 'PERIOD') return classes.join(' ')
+   classes.push('is-period')
+   if (item.starts_on === dateKey || day.getDay() === 0) classes.push('is-period-start')
+diff --git a/frontend/src/styles/workspace.css b/frontend/src/styles/workspace.css
+index 4bdf2f3..03dfd89 100644
+--- a/frontend/src/styles/workspace.css
++++ b/frontend/src/styles/workspace.css
+@@ -210,7 +210,11 @@
+ .project-calendar__event span { display: block; color: #65748a; font-size: 9px; font-weight: 850; }
+ .project-calendar__event b { display: block; margin-top: 2px; overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+ .project-calendar__event { border-left: 3px solid var(--calendar-accent, #65748a); background: var(--calendar-bg, #f5f7fa); }
+-.project-calendar__event.kind-task_due, .project-calendar__detail .kind-task_due { --calendar-accent: #3d72d3; --calendar-bg: #eef4ff; }
++.project-calendar__event.task-type-development, .project-calendar__detail .task-type-development { --calendar-accent: #3d72d3; --calendar-bg: #eef4ff; }
++.project-calendar__event.task-type-design, .project-calendar__detail .task-type-design { --calendar-accent: #8750cc; --calendar-bg: #f5efff; }
++.project-calendar__event.task-type-infra, .project-calendar__detail .task-type-infra { --calendar-accent: #c27622; --calendar-bg: #fff4e8; }
++.project-calendar__event.task-type-document, .project-calendar__detail .task-type-document { --calendar-accent: #288a5a; --calendar-bg: #eaf8f0; }
++.project-calendar__event.task-type-other, .project-calendar__detail .task-type-other { --calendar-accent: #7b8798; --calendar-bg: #f1f3f6; }
+ .project-calendar__event.kind-meeting, .project-calendar__detail .kind-meeting { --calendar-accent: #8750cc; --calendar-bg: #f5efff; }
+ .project-calendar__event.kind-milestone, .project-calendar__detail .kind-milestone { --calendar-accent: #288a5a; --calendar-bg: #eaf8f0; }
+ .project-calendar__event.kind-deadline, .project-calendar__detail .kind-deadline { --calendar-accent: #c15f2b; --calendar-bg: #fff2ea; }

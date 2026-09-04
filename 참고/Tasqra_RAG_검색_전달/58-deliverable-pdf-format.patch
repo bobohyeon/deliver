@@ -1,0 +1,261 @@
+diff --git a/backend/Dockerfile b/backend/Dockerfile
+index 8dd4d51..c87630c 100644
+--- a/backend/Dockerfile
++++ b/backend/Dockerfile
+@@ -11,7 +11,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
+         libgl1 \
+         libglib2.0-0 \
+         libgomp1 \
+-    && rm -rf /var/lib/apt/lists/*
++        # 산출물 PDF(weasyprint) 런타임 의존성. weasyprint 53+ 는 cairo/gdk-pixbuf
++        # 없이 Pango 만 있으면 된다. libharfbuzz-subset0 은 폰트 서브셋용이다.
++        libpango-1.0-0 \
++        libpangoft2-1.0-0 \
++        libharfbuzz-subset0 \
++        # PDF 안의 한글 폰트. 없으면 한글이 네모(□)로 나온다.
++        fonts-nanum \
++    && rm -rf /var/lib/apt/lists/* \
++    && fc-cache -f
+ 
+ COPY requirements.txt .
+ RUN pip install --no-cache-dir --upgrade pip \
+diff --git a/backend/app/api/routes/deliverable_router.py b/backend/app/api/routes/deliverable_router.py
+index 1efccdd..3c50eb6 100644
+--- a/backend/app/api/routes/deliverable_router.py
++++ b/backend/app/api/routes/deliverable_router.py
+@@ -22,10 +22,10 @@
+ #   이므로 미리보기가 먼저 있었고, 만들기는 그것을 전제로 설계했다. 만들기는
+ #   자기만의 집계를 갖지 않는다 — 그러면 "미리보기는 12건, 보고서는 9건" 이 생긴다.
+ #
+-# ⚠ 지금 만들 수 있는 형식은 Markdown 하나다
+-#   DB 는 XLSX·HTML·MD·PDF 를 허용하지만(리비전 0021) 만드는 코드는 MD 만 있다.
+-#   나머지는 501 로 분명히 알린다. 형식을 늘리는 것은 별도 작업이고, XLSX·PDF 는
+-#   새 라이브러리가 필요해 팀 이미지 크기에 영향을 준다.
++# ⚠ 이제 DB 허용값 넷(MD·HTML·XLSX·PDF)을 모두 만든다
++#   리비전 0021 이 허용한 네 형식에 모두 생성기가 붙었다(XLSX 2026-08-26, PDF 뒤이어).
++#   XLSX·PDF 는 새 라이브러리(openpyxl·weasyprint)가 필요해 팀 이미지에 영향을 준다 —
++#   requirements.txt·Dockerfile 을 함께 본다. 형식 검사(400 대 501)의 구분은 남겨 둔다.
+ # =============================================================================
+ 
+ from datetime import date
+@@ -142,12 +142,12 @@ async def create_deliverable(
+     **미리보기와 같은 규칙으로 센다.** 만들기가 자기만의 집계를 갖지 않으므로
+     "미리보기는 12건이라 했는데 보고서는 9건" 이 생기지 않는다.
+ 
+-    ⚠️ 지금 만들 수 있는 형식은 **`MD`·`HTML`** 둘이다. `XLSX`·`PDF` 는 DB 가
+-    허용하는 값이지만 만드는 코드가 아직 없어 `501` 을 낸다. 값이 틀린 것(400)과
+-    서버가 아직 못 하는 것(501)은 다른 상황이라 구분한다.
++    ⚠️ 이제 **`MD`·`HTML`·`XLSX`·`PDF`** 넷을 모두 만든다(DB 허용값 전부). 값이
++    틀린 것은 400, 아직 못 만드는 형식은 501 로 구분하는 판단은 남겨 둔다 — 다음에
++    DB 가 새 형식을 허용하면 다시 벌어질 수 있어서다.
+ 
+-    두 형식은 **같은 내용**이다. 절을 고르는 규칙이 한 곳(build_document)에 있고
+-    형식별 파일은 표를 그리는 방법만 안다.
++    네 형식은 **같은 내용**이다. 절을 고르는 규칙이 한 곳(build_document)에 있고
++    형식별 파일은 표현만 안다 — PDF 는 HTML 을 그대로 구워 만든다(deliverable_pdf.py).
+ 
+     ⚠️ 개요 문장은 `WEEKLY_REPORT`·`PROJECT_STATUS` 에서 LLM 을 **1회** 불러
+     채운다(`DLV-002-1`·`DLV-002-2`, "LLM 호출은 개요 1회"). 표는 예나 지금이나
+diff --git a/backend/app/schemas/deliverable.py b/backend/app/schemas/deliverable.py
+index 82cda8a..6335ed1 100644
+--- a/backend/app/schemas/deliverable.py
++++ b/backend/app/schemas/deliverable.py
+@@ -43,13 +43,14 @@ PERIOD_REQUIRED_KINDS = ("WEEKLY_REPORT",)
+ 
+ # models/deliverable.py 의 _FORMAT 과 같아야 한다. 리비전 0021 이 PDF 를 더했다.
+ DELIVERABLE_FORMATS = ("XLSX", "HTML", "MD", "PDF")
+-# 실제로 만들 수 있는 형식. **DB 가 허용하는 것과 다르다** — 허용값은 넷인데
+-# 만드는 코드는 아직 둘이다. 나머지는 501 로 분명히 알린다. 값이 틀린 것(400)과
+-# 서버가 아직 못 하는 것(501)은 다른 상황이다.
++# 실제로 만들 수 있는 형식. 2026-08-26 에 PDF 가 붙어 **DB 허용값 넷과 같아졌다**
++# (리비전 0021 의 넷 = MD·HTML·XLSX·PDF). 이제 "DB 는 허용하는데 서버가 못 만드는"
++# 형식이 없다. 값이 틀린 것(400)과 서버가 아직 못 하는 것(501)을 구분하는 판단은
++# 그대로 둔다 — 다음에 DB 가 새 형식을 허용하면 다시 벌어질 수 있어서다.
+ #
+-# PDF 를 아직 안 한 이유는 한글 폰트까지 붙어야 해서 XLSX 와 다른 방에서
+-# 한다(2026-08-25 판단). XLSX 는 openpyxl 로 만든다(requirements.txt 추가).
+-SUPPORTED_DELIVERABLE_FORMATS = ("MD", "HTML", "XLSX")
++# PDF 는 HTML→PDF 변환(weasyprint)이다. render_html 의 print CSS 를 그대로 쓰고
++# 한글은 이미지에 깐 fonts-nanum 으로 그린다(deliverable_pdf.py 머리말 참고).
++SUPPORTED_DELIVERABLE_FORMATS = ("MD", "HTML", "XLSX", "PDF")
+ 
+ # 본문을 **문자열로 돌려주는** 형식. `DeliverableContentResponse.body` 가 `str`
+ # 이라 XLSX(바이너리) 는 여기 없다 — `preview_deliverable_content` 가 이 상수로
+@@ -67,6 +68,7 @@ FORMAT_FILE_TYPES = {
+         "xlsx",
+         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     ),
++    "PDF": ("pdf", "application/pdf"),
+ }
+ 
+ # 제목에 쓰는 사람이 읽는 이름. 화면의 KINDS 목록과 문구를 맞춘다.
+diff --git a/backend/app/services/deliverable_html.py b/backend/app/services/deliverable_html.py
+index 82f064f..1eae8b3 100644
+--- a/backend/app/services/deliverable_html.py
++++ b/backend/app/services/deliverable_html.py
+@@ -22,7 +22,8 @@
+ # ⚠ 왜 HTML 만 꾸미는가 (2026-08-26 판단)
+ #   `XLSX`·`MD` 는 **받아서 더 가공하는** 형식이다. 셀 배경이나 글꼴을 넣으면
+ #   붙여 쓸 때 오히려 방해가 되므로 무채색·최소 서식으로 둔다.
+-#   `HTML`(그리고 나중의 `PDF`)은 **그대로 보내고 그대로 인쇄하는** 형식이다.
++#   `HTML`·`PDF` 는 **그대로 보내고 그대로 인쇄하는** 형식이다(PDF 는 이 HTML 을
++#   그대로 구워 만든다 — deliverable_pdf.py).
+ #   그래서 이 파일만 표지·절 번호·머리글 대비 같은 짜임을 갖는다.
+ #
+ # ⚠ 색은 여전히 쓰지 않는다 — 무채색 안에서 짜임으로만 정리한다
+@@ -58,7 +59,8 @@ STYLE = """
+ * { box-sizing: border-box; }
+ html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+ body { margin: 0; background: #ffffff; color: #1b1b1b; font-size: 14px; line-height: 1.65;
+-  font-family: -apple-system, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; }
++  font-family: -apple-system, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo",
++    "NanumGothic", "Nanum Gothic", sans-serif; }
+ 
+ /* 표지 띠. 제목을 면으로 눌러 첫 화면에서 문서의 격을 만든다. */
+ .cover { padding: 38px 44px 30px; background: #1b1b1b; color: #ffffff; }
+diff --git a/backend/app/services/deliverable_pdf.py b/backend/app/services/deliverable_pdf.py
+new file mode 100644
+index 0000000..dfa77b8
+--- /dev/null
++++ b/backend/app/services/deliverable_pdf.py
+@@ -0,0 +1,57 @@
++# =============================================================================
++# 이 파일의 책임: 산출물 문서를 PDF 바이트로 만든다. 절을 고르는 규칙도, 표를
++#   그리는 방법도 여기 없다 — HTML 한 장을 그대로 받아 PDF 로 굽기만 한다.
++#   그래서 HTML 과 PDF 는 언제나 같은 짜임·같은 내용이다.
++#
++# 다른 파일과의 관계
++#   services/deliverable_html.py     render_html 이 만든 완전한 HTML 문서를 입력으로 쓴다
++#   services/deliverable_markdown.py 문서 구조(build_document) — 여기서 직접 부르지 않는다
++#   services/deliverable_service.py  RENDERERS["PDF"] 로 이 함수를 고른다
++#
++# Spring 비교: 같은 모델을 다른 View 로 그리는 것이다. HTML 뷰가 이미 있고,
++#   이 파일은 그 HTML 을 PDF 로 내보내는 export 뷰다(뷰 리졸버가 PDF 뷰를 고르는 것과
++#   같다). MD·HTML·XLSX 형제 렌더러와 나란히 놓인다.
++#
++# ⚠ HTML 을 다시 그리지 않고 재사용한다 (2026-08-26 판단, A안)
++#   deliverable_html.STYLE 에 이미 @media print · @page(여백 14mm) · page-break
++#   규칙이 들어 있다. WeasyPrint 는 print 미디어로 렌더하므로 그 규칙이 그대로
++#   먹는다. 표지·절 번호·흑백 짜임을 PDF 에서 새로 짤 이유가 없다 — HTML 이
++#   바뀌면 PDF 도 저절로 따라간다.
++#
++# ⚠ weasyprint 는 함수 안에서 import 한다 — 모듈 import 를 깨지 않기 위해서다
++#   weasyprint 는 시스템 라이브러리(libpango 등)에 의존한다. 그것이 없는 환경
++#   (단위 테스트·라이브러리 미설치)에서 이 모듈을 import 하는 것만으로 죽으면
++#   deliverable_service 전체가, 나아가 산출물 API 전체가 못 뜬다. 그래서 최상단에서
++#   import 하지 않고 **실제로 PDF 를 만들 때** 부른다. XLSX 가 아니라 여기만 이렇게
++#   하는 이유: openpyxl 은 순수 파이썬이라 import 만으로 죽지 않지만, weasyprint 는
++#   네이티브 라이브러리가 없으면 import 시점에 OSError 를 낸다.
++#
++# ⚠ 한글 폰트는 이미지에 깔려 있어야 한다
++#   WeasyPrint 는 시스템 폰트(fontconfig)로 글자를 그린다. Dockerfile 이 fonts-nanum
++#   을 설치하고, deliverable_html.STYLE 의 font-family 마지막에 NanumGothic 을
++#   넣어 뒀다. 폰트가 없으면 한글이 네모(□)로 나온다 — 코드가 아니라 이미지 문제다.
++# =============================================================================
++
++from __future__ import annotations
++
++from typing import Any
++
++from app.services.deliverable_html import render_html
++
++__all__ = ["render_pdf"]
++
++
++def render_pdf(**kwargs: Any) -> bytes:
++    """산출물 본문을 PDF 바이트로. 인자는 build_document·render_html 과 같다.
++
++    HTML 한 장을 만들어 WeasyPrint 로 굽는다. `_write_file` 이 bytes 를 그대로
++    `"wb"` 로 저장하므로(XLSX 와 같은 경로) 돌려주는 타입이 bytes 여야 한다.
++    """
++    # 파일 머리말 참고: 시스템 라이브러리에 의존하므로 여기서 import 한다.
++    from weasyprint import HTML
++
++    html = render_html(**kwargs)
++    # render_html 이 <!doctype> 부터 <style> 까지 담은 완전한 문서를 주므로
++    # 외부 CSS·base_url 없이 문자열만으로 굽는다. @media print 규칙은 WeasyPrint 가
++    # print 미디어로 렌더하며 자동 적용한다.
++    return HTML(string=html).write_pdf()
+diff --git a/backend/app/services/deliverable_service.py b/backend/app/services/deliverable_service.py
+index 355bdf2..af0f0ce 100644
+--- a/backend/app/services/deliverable_service.py
++++ b/backend/app/services/deliverable_service.py
+@@ -73,17 +73,20 @@ from app.services.deliverable_markdown import (
+     build_title,
+     render_markdown,
+ )
++from app.services.deliverable_pdf import render_pdf
+ from app.services.deliverable_xlsx import render_xlsx
+ 
+ # 형식별 본문 생성 함수. 형식을 늘릴 때 **여기와 SUPPORTED_DELIVERABLE_FORMATS**
+ # 두 곳만 고치면 된다. if 문으로 늘리면 형식이 늘 때마다 분기가 깊어진다.
+ # Spring 비교: Map<String, Renderer> 로 전략을 주입하는 것과 같다.
+ #
+-# ⚠ MD·HTML 은 str 을, XLSX 는 bytes 를 돌려준다. _write_file 이 둘 다 받는다.
++# ⚠ MD·HTML 은 str 을, XLSX·PDF 는 bytes 를 돌려준다. _write_file 이 둘 다 받는다.
++#   PDF 는 render_html 을 감싸 WeasyPrint 로 굽는다(deliverable_pdf.py).
+ RENDERERS = {
+     "MD": render_markdown,
+     "HTML": render_html,
+     "XLSX": render_xlsx,
++    "PDF": render_pdf,
+ }
+ 
+ logger = logging.getLogger(__name__)
+diff --git a/backend/requirements.txt b/backend/requirements.txt
+index f119144..7fa3bff 100644
+--- a/backend/requirements.txt
++++ b/backend/requirements.txt
+@@ -28,6 +28,11 @@ python-docx
+ # --- 산출물 XLSX 출력 (DLV-002-1) ---
+ openpyxl==3.1.5
+ 
++# --- 산출물 PDF 출력 (DLV-002 계열, HTML→PDF 변환) ---
++# ⚠️ 시스템 라이브러리(libpango 등)와 한글 폰트가 필요하다 — Dockerfile 을 함께 본다.
++#   순수 pip 만으로는 못 돈다. 로컬에서 재빌드해야 실제 렌더가 확인된다.
++weasyprint==62.3
++
+ # --- AI ---
+ openai
+ 
+diff --git a/backend/tests/test_deliverable_generate.py b/backend/tests/test_deliverable_generate.py
+index 97d6957..35b71e7 100644
+--- a/backend/tests/test_deliverable_generate.py
++++ b/backend/tests/test_deliverable_generate.py
+@@ -161,19 +161,25 @@ def test_period_required_is_checked_before_writing():
+ # --- ② 형식 ------------------------------------------------------------------
+ 
+ 
+-def test_unsupported_format_is_not_ready_not_invalid():
+-    """DB 가 허용하는 값이다. 값이 틀린 것과 서버가 아직 못 하는 것을 구분한다.
++def test_every_db_format_has_a_renderer():
++    """DB 가 허용하는 형식마다 만드는 코드가 있다.
+ 
+-    XLSX 는 2026-08-26 부터 만들 수 있어 여기서 뺐다 — 501 은 이제 PDF 만.
++    2026-08-26 에 PDF 가 붙어 XLSX 에 이어 501(DELIVERABLE_FORMAT_NOT_READY)이
++    사라졌다 — 이제 DELIVERABLE_FORMATS(리비전 0021 의 넷)과
++    SUPPORTED_DELIVERABLE_FORMATS 가 같고, RENDERERS 가 그 넷을 모두 덮는다.
++    새 형식을 DB 만 허용하고 생성기를 안 붙이면 이 테스트가 먼저 깨진다.
++
++    (형식이 아직 미지원일 때 501 을 내는 분기 자체는 generate 에 그대로 있다.
++    지금은 겹치는 형식이 없어 도달하지 않을 뿐이라, 값 오류(400)와의 구분은 유지된다.)
+     """
+-    for unsupported in ("PDF",):
+-        service, repo = _service(documents=3)
+-        with pytest.raises(BusinessError) as err:
+-            _gen(service, kind="WEEKLY_REPORT", deliverable_format=unsupported, **WEEK)
+-        assert err.value.error_code is ErrorCode.DELIVERABLE_FORMAT_NOT_READY, unsupported
+-        # 형식을 먼저 보므로 DB 조회도 하지 않는다.
+-        repo.count_documents.assert_not_called()
+-        repo.add.assert_not_called()
++    from app.schemas.deliverable import (
++        DELIVERABLE_FORMATS,
++        SUPPORTED_DELIVERABLE_FORMATS,
++    )
++    from app.services.deliverable_service import RENDERERS
++
++    assert set(SUPPORTED_DELIVERABLE_FORMATS) == set(DELIVERABLE_FORMATS)
++    assert set(RENDERERS) == set(SUPPORTED_DELIVERABLE_FORMATS)
+ 
+ 
+ def test_unknown_format_is_invalid():

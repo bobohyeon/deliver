@@ -1,0 +1,346 @@
+diff --git a/backend/app/models/deliverable.py b/backend/app/models/deliverable.py
+index fa286df..a01a559 100644
+--- a/backend/app/models/deliverable.py
++++ b/backend/app/models/deliverable.py
+@@ -1,9 +1,8 @@
+ # =============================================================================
+ # 이 파일의 책임: 만들어 낸 산출물 파일 한 건을 엔티티로 정의한다.
+ #   "8월 11~17일 주간 보고서 XLSX" 한 건이 이 테이블의 한 행이다.
+-#   리비전 0007 이 만든 deliverables 에 대응한다.
+-#
+-#   **테이블은 이미 있다. 이 파일은 매핑만 더한다.** 마이그레이션이 필요 없다.
++#   리비전 0007 이 만든 deliverables 에 대응하며, 리비전 0021 이 출력 형식에
++#   PDF 를 추가한다. 테이블 구조는 그대로이고 CHECK 값만 확장된다.
+ #
+ #   위 세 모델(amount·decision·schedule)과 성격이 다르다 — 이건 **AI 제안이
+ #   아니다.** 우리가 만든 결과물이므로 승인 컬럼(decision·reason 등)이 없다.
+@@ -57,9 +56,9 @@ from app.db.base import Base
+ 
+ __all__ = ["Deliverable"]
+ 
+-# 리비전 0007 의 DELIVERABLE_KIND · DELIVERABLE_FORMAT 과 같은 값이다.
++# 유형은 리비전 0007, 출력 형식은 최신 리비전 0021 의 CHECK 와 같은 값이다.
+ _KIND = ("WEEKLY_REPORT", "DECISION_LOG", "MEETING_AGENDA", "PROJECT_STATUS")
+-_FORMAT = ("XLSX", "HTML", "MD")
++_FORMAT = ("XLSX", "HTML", "MD", "PDF")
+ 
+ # 기간이 필수인 유형. DB CHECK 와 같은 판단을 코드에서도 쓸 수 있게 둔다.
+ PERIOD_REQUIRED_KINDS = ("WEEKLY_REPORT",)
+diff --git a/backend/migrations/versions/20260824_0021_deliverable_pdf_format.py b/backend/migrations/versions/20260824_0021_deliverable_pdf_format.py
+new file mode 100644
+index 0000000..e8a748f
+--- /dev/null
++++ b/backend/migrations/versions/20260824_0021_deliverable_pdf_format.py
+@@ -0,0 +1,61 @@
++"""산출물 출력 형식에 PDF 추가
++
++이 파일의 책임: deliverables.format CHECK에 PDF를 추가한다. 테이블이나 컬럼은
++  바꾸지 않고 허용값만 XLSX·HTML·MD·PDF 네 종류로 확장한다.
++다른 파일과의 관계: 액션 태스크 활동 기록 리비전 0020 뒤에 적용되며, ORM의
++  app/models/deliverable.py와 같은 형식 목록을 유지한다. 최초 테이블을 만든
++  0007은 과거 이력이므로 수정하지 않는다.
++Spring 비교: Flyway V21__deliverable_pdf_format.sql처럼 기존 CHECK 제약을 같은
++  이름으로 교체하는 데이터베이스 스키마 변경이다.
++
++Revision ID: 20260824_0021
++Revises: 20260824_0020
++"""
++
++import sqlalchemy as sa
++from alembic import op
++
++revision = "20260824_0021"
++down_revision = "20260824_0020"
++branch_labels = None
++depends_on = None
++
++DELIVERABLE_FORMAT = ("XLSX", "HTML", "MD", "PDF")
++PREVIOUS_DELIVERABLE_FORMAT = ("XLSX", "HTML", "MD")
++
++
++def _format_check(values: tuple[str, ...]) -> str:
++    joined = ", ".join(f"'{value}'" for value in values)
++    return f"format IN ({joined})"
++
++
++def _replace_format_check(values: tuple[str, ...]) -> None:
++    op.drop_constraint(
++        "ck_deliverable_format",
++        "deliverables",
++        type_="check",
++    )
++    op.create_check_constraint(
++        "ck_deliverable_format",
++        "deliverables",
++        _format_check(values),
++    )
++
++
++def upgrade() -> None:
++    _replace_format_check(DELIVERABLE_FORMAT)
++
++
++def downgrade() -> None:
++    # 확인과 제약 교체 사이에 PDF 행이 추가되지 않도록 쓰기를 잠근다.
++    op.execute("LOCK TABLE deliverables IN SHARE ROW EXCLUSIVE MODE")
++    bind = op.get_bind()
++    pdf_exists = bind.execute(
++        sa.text("SELECT 1 FROM deliverables WHERE format = 'PDF' LIMIT 1")
++    ).scalar_one_or_none()
++    if pdf_exists is not None:
++        raise RuntimeError(
++            "PDF 산출물이 있어 0020으로 내릴 수 없습니다. "
++            "PDF 행을 보존하거나 변환한 뒤 다시 시도하세요."
++        )
++    _replace_format_check(PREVIOUS_DELIVERABLE_FORMAT)
+diff --git a/backend/tests/test_suggestion_models.py b/backend/tests/test_suggestion_models.py
+index 3b69cde..dfbf8ce 100644
+--- a/backend/tests/test_suggestion_models.py
++++ b/backend/tests/test_suggestion_models.py
+@@ -1,10 +1,10 @@
+ # =============================================================================
+-# 이 파일의 책임: 리비전 0007 테이블 셋의 ORM 매핑이 마이그레이션과 어긋나지
+-#   않는지 DB 없이 검증한다 — decisions · schedule_items · deliverables.
++# 이 파일의 책임: 리비전 0007이 만든 테이블과 리비전 0021이 확장한 산출물
++#   형식을 ORM 매핑과 대조한다 — decisions · schedule_items · deliverables.
+ #
+-#   **테이블은 이미 있고 모델만 새로 넣었다.** 그래서 가장 큰 위험은 "컬럼 이름이
+-#   하나 틀렸다" 나 "CHECK 문구가 달라 Alembic 이 매번 제약을 다시 만든다" 다.
+-#   둘 다 에러 없이 조용히 어긋나는 종류다.
++#   테이블 구조는 0007에 있고 산출물 형식의 최신 CHECK는 0021에 있다. 그래서
++#   가장 큰 위험은 "컬럼 이름이 하나 틀렸다" 또는 "최신 CHECK 값이 모델과
++#   달라 Alembic이 매번 제약을 다시 만든다"는 것이다.
+ #
+ #   검사하는 것
+ #     ① 마이그레이션의 컬럼 이름·개수와 모델이 같은가
+@@ -14,9 +14,11 @@
+ #
+ # 다른 파일과의 관계
+ #   app/models/decision.py · schedule.py · deliverable.py
+-#   migrations/versions/20260811_0007_analysis_artifacts.py  ← 유일한 근거
++#   migrations/versions/20260811_0007_analysis_artifacts.py  ← 테이블 생성 근거
++#   migrations/versions/20260824_0021_deliverable_pdf_format.py
++#     ← 산출물 출력 형식의 최신 근거
+ #
+-#   **마이그레이션 파일을 읽어서 비교한다.** 기대값을 손으로 적으면 두 곳을
++#   **마이그레이션 파일을 읽어서 비교한다.** 기대값을 손으로 적으면 여러 곳을
+ #   고쳐야 하고, 한쪽만 고치면 테스트가 거짓으로 통과한다.
+ #
+ # Spring 비교: @Entity 와 Flyway 스크립트가 어긋나지 않는지 보는 검사다.
+@@ -37,6 +39,12 @@ MIGRATION = (
+     / "versions"
+     / "20260811_0007_analysis_artifacts.py"
+ )
++FORMAT_MIGRATION = (
++    Path(__file__).resolve().parents[1]
++    / "migrations"
++    / "versions"
++    / "20260824_0021_deliverable_pdf_format.py"
++)
+ 
+ # 리비전 0007 의 suggestion_columns() · timestamps() 가 더하는 컬럼.
+ # 마이그레이션이 함수로 펼치므로 정규식으로는 안 잡힌다.
+@@ -145,15 +153,22 @@ def test_partial_index_on_open_decisions():
+ # --- ③ 값 목록이 마이그레이션과 같다 ----------------------------------------
+ 
+ 
+-def migration_tuple(name: str) -> tuple[str, ...]:
+-    """마이그레이션 상단의 값 목록 상수를 읽는다."""
+-    tree = ast.parse(MIGRATION.read_text(encoding="utf-8"))
++def migration_assignment(name: str, source: Path = MIGRATION):
++    """지정한 마이그레이션 상단의 상수 값을 읽는다."""
++    tree = ast.parse(source.read_text(encoding="utf-8"))
+     for node in tree.body:
+         if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", "") == name:
+-            return tuple(ast.literal_eval(node.value))
++            return ast.literal_eval(node.value)
+     raise AssertionError(f"{name} 을 못 찾았다")
+ 
+ 
++def migration_tuple(name: str, source: Path = MIGRATION) -> tuple[str, ...]:
++    """지정한 마이그레이션 상단의 값 목록 상수를 읽는다."""
++    value = migration_assignment(name, source)
++    assert isinstance(value, tuple), f"{name} 이 tuple 이 아니다"
++    return tuple(value)
++
++
+ def check_values(model, constraint: str) -> set[str]:
+     """CHECK 문구에서 'A', 'B' 형태의 값을 뽑는다."""
+     target = next(c for c in model.__table__.constraints if c.name == constraint)
+@@ -184,10 +199,18 @@ def test_deliverable_kind_and_format_values():
+         migration_tuple("DELIVERABLE_KIND")
+     )
+     assert check_values(Deliverable, "ck_deliverable_format") == set(
+-        migration_tuple("DELIVERABLE_FORMAT")
++        migration_tuple("DELIVERABLE_FORMAT", FORMAT_MIGRATION)
+     )
+ 
+ 
++def test_deliverable_format_migration_follows_tasks_and_preserves_old_values():
++    """0021은 액션 태스크 활동 기록 0020 뒤에 오고, 기존 3종을 보존한다."""
++    assert migration_assignment("down_revision", FORMAT_MIGRATION) == "20260824_0020"
++    assert migration_tuple(
++        "PREVIOUS_DELIVERABLE_FORMAT", FORMAT_MIGRATION
++    ) == migration_tuple("DELIVERABLE_FORMAT")
++
++
+ # --- ④ 헬퍼의 판단 ----------------------------------------------------------
+ 
+ 
+diff --git a/frontend/src/features/deliverables/DeliverablesView.css b/frontend/src/features/deliverables/DeliverablesView.css
+index 833797c..9b8a5b0 100644
+--- a/frontend/src/features/deliverables/DeliverablesView.css
++++ b/frontend/src/features/deliverables/DeliverablesView.css
+@@ -1,5 +1,6 @@
+ /* =============================================================================
+-   이 파일의 책임: 산출물 미리보기 화면(DLV-001-2)의 표현만 담는다.
++   이 파일의 책임: 산출물 조건 선택(DLV-001-1)과 생성 대상 미리보기
++     (DLV-001-2) 화면의 표현을 담는다.
+    다른 파일과의 관계: DeliverablesView.jsx 가 import 한다. 색·반경·그림자는
+      대시보드(styles/workspace.css)와 같은 값을 쓴다 — 두 화면이 나란히 쓰이므로
+      따로 정하면 같은 제품이 아닌 것처럼 보인다.
+@@ -29,6 +30,19 @@
+ .deliverable-period-note { flex: 1 1 240px; margin: 0 0 9px; color: #758197; font-size: 12px; line-height: 1.5; }
+ .deliverable-period-note strong { color: #2c326b; }
+ 
++/* 출력 형식 선택. DB CHECK 값(XLSX·HTML·MD·PDF)을 그대로 쓰고 기본 선택은 없다.
++   유형 버튼과 같은 상호작용을 쓰되, 형식은 넷이라 별도 그룹으로 분리한다. */
++.deliverable-format-fieldset { display: grid; gap: 10px; padding-top: 16px; border-top: 1px solid #e8edf4; }
++.deliverable-control-heading { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; }
++.deliverable-control-heading > strong { color: #2c326b; font-size: 14px; }
++.deliverable-control-heading > span { color: #758197; font-size: 12px; }
++.deliverable-format-group { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
++.deliverable-format { display: block; min-height: 66px; padding: 11px 13px; border: 1px solid #d2d9e7; border-radius: 10px; background: #fff; font: inherit; text-align: left; cursor: pointer; }
++.deliverable-format:hover, .deliverable-format:focus-visible { border-color: #756de8; background: #f7f6ff; }
++.deliverable-format.is-active { border-color: #4a43ae; background: #f5f4ff; box-shadow: inset 0 0 0 1px #4a43ae; }
++.deliverable-format strong { display: block; color: #2c326b; font-size: 14px; }
++.deliverable-format span { display: block; margin-top: 4px; color: #758197; font-size: 12px; line-height: 1.4; }
++
+ /* 건수 카드. "담길 내용" 과 "담기지 않는 것" 을 나눠서, 승인 대기가 4건인데
+    못 만드는 상황이 모순처럼 보이지 않게 한다. */
+ .deliverable-count-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 18px; }
+@@ -55,9 +69,9 @@
+ .deliverable-generate-button:disabled { border-color: #d2d9e7; background: #eef1f6; color: #97a1b3; cursor: not-allowed; }
+ 
+ @media (max-width: 900px) {
+-  .deliverable-kind-group, .deliverable-count-grid { grid-template-columns: repeat(2, 1fr); }
++  .deliverable-kind-group, .deliverable-format-group, .deliverable-count-grid { grid-template-columns: repeat(2, 1fr); }
+   .deliverable-generate { flex-direction: column; align-items: stretch; }
+ }
+ @media (max-width: 560px) {
+-  .deliverable-kind-group, .deliverable-count-grid, .deliverable-count-grid--aside { grid-template-columns: 1fr; }
++  .deliverable-kind-group, .deliverable-format-group, .deliverable-count-grid, .deliverable-count-grid--aside { grid-template-columns: 1fr; }
+ }
+diff --git a/frontend/src/features/deliverables/DeliverablesView.jsx b/frontend/src/features/deliverables/DeliverablesView.jsx
+index a994a3e..f975f2c 100644
+--- a/frontend/src/features/deliverables/DeliverablesView.jsx
++++ b/frontend/src/features/deliverables/DeliverablesView.jsx
+@@ -1,6 +1,7 @@
+ // =============================================================================
+-// 이 파일의 책임: 산출물 생성 대상 미리보기 화면이다(DLV-001-2). 산출물 유형과
+-//   기간을 고르면 담길 내용이 몇 건인지 보여주고, 담을 것이 없으면 생성을 막는다.
++// 이 파일의 책임: 산출물 조건 선택(DLV-001-1)과 생성 대상 미리보기
++//   (DLV-001-2) 화면이다. 유형·기간·출력 형식을 고르고, 담길 내용이 몇 건인지
++//   확인한 뒤 조건이 빠졌거나 담을 것이 없으면 생성을 막는다.
+ // 다른 파일과의 관계: api/deliverable.js 로 건수를 받는다. 표기 규칙은
+ //   utils/format.js 를 쓴다. WorkspacePage 의 '산출물' 탭에서 그린다.
+ // Spring 비교: 서버가 만든 뷰 모델을 그대로 그리는 화면이다. 판단을 화면에서
+@@ -48,6 +49,16 @@ const KINDS = [
+   ['PROJECT_STATUS', '프로젝트 현황', '지금 상태 전부'],
+ ]
+ 
++// 출력 형식. 값은 Deliverable 모델의 ck_deliverable_format CHECK 와 같아야 한다.
++// 기본 선택을 두지 않는다 — DLV-001-1 완료 판정이 "형식을 고르지 않으면 생성
++// 버튼이 비활성화된다" 이므로, 사용자가 한 번 명시적으로 골라야 한다.
++const FORMATS = [
++  ['XLSX', 'XLSX', '표 계산과 편집에 적합'],
++  ['HTML', 'HTML', '브라우저에서 바로 확인'],
++  ['MD', 'Markdown', '텍스트 기반 기록과 공유'],
++  ['PDF', 'PDF', '인쇄와 최종본 공유에 적합'],
++]
++
+ // 산출물에 실제로 담기는 재료.
+ const CONTENT_COUNTS = [
+   ['documents', '문서'],
+@@ -85,6 +96,8 @@ const [DEFAULT_FROM, DEFAULT_TO] = thisWeek()
+ 
+ export default function DeliverablesView({ projectId, notify }) {
+   const [kind, setKind] = useState('WEEKLY_REPORT')
++  // 기본값 없음. 사용자가 출력 형식을 명시적으로 골라야 한다(DLV-001-1).
++  const [format, setFormat] = useState('')
+   const [periodFrom, setPeriodFrom] = useState(DEFAULT_FROM)
+   const [periodTo, setPeriodTo] = useState(DEFAULT_TO)
+ 
+@@ -136,6 +149,22 @@ export default function DeliverablesView({ projectId, notify }) {
+           <strong>{selected?.[1]}</strong>은 기간을 쓰지 않습니다. 날짜를 바꿔도 결과가 같습니다.
+         </p>}
+       </div>
++
++      <div className='deliverable-format-fieldset'>
++        <div className='deliverable-control-heading'>
++          <strong>출력 형식</strong>
++          <span>하나를 선택해야 만들 수 있습니다.</span>
++        </div>
++        <div className='deliverable-format-group' role='group' aria-label='출력 형식'>
++          {FORMATS.map(([value, label, description]) => <button
++            className={'deliverable-format' + (value === format ? ' is-active' : '')}
++            type='button'
++            key={value}
++            aria-pressed={value === format}
++            onClick={() => setFormat(value)}
++          ><strong>{label}</strong><span>{description}</span></button>)}
++        </div>
++      </div>
+     </section>
+ 
+     {previewQuery.isError && <section className='panel deliverable-notice'>
+@@ -167,7 +196,7 @@ export default function DeliverablesView({ projectId, notify }) {
+       />)}
+     </section>
+ 
+-    <GeneratePanel preview={preview} loading={previewQuery.isPending} notify={notify}/>
++    <GeneratePanel preview={preview} loading={previewQuery.isPending} format={format} notify={notify}/>
+   </>
+ }
+ 
+@@ -191,23 +220,31 @@ function CountCard({ label, value, note, unknown }) {
+ // 알린다. 버튼을 아예 없애지 않는 이유: 없으면 "대상이 없으면 생성이 방지된다" 를
+ // 화면에서 확인할 수 없다. 대신 **버튼 아래에 준비 중임을 늘 적어** 눌러 보고 나서
+ // 알게 되는 일이 없게 한다.
+-function GeneratePanel({ preview, loading, notify }) {
+-  const blocked = preview ? !preview.can_generate : true
++//
++// `format` 은 서버 미리보기와 무관한 **사용자 입력 조건**이다. can_generate 는
++// 담을 내용이 있는지만 판단하므로, 화면이 형식 누락을 별도로 막아야 한다.
++// 기본값을 두지 않아 사용자가 한 번 명시적으로 고르게 한다(DLV-001-1).
++function GeneratePanel({ preview, loading, format, notify }) {
++  const contentBlocked = preview ? !preview.can_generate : true
++  const formatMissing = !format
++  const disabled = loading || contentBlocked || formatMissing
+   return <section className='panel deliverable-generate'>
+     <div>
+       <h2>산출물 만들기</h2>
+       {loading
+         ? <p>담길 내용을 확인하는 중입니다.</p>
+-        : blocked
+-          ? <p className='deliverable-blocked'>{preview?.blocked_reason ?? '담길 내용을 확인한 뒤 만들 수 있습니다.'}</p>
+-          : <p>담길 내용이 있습니다. 만들 수 있습니다.</p>}
+-      <p className='deliverable-generate-note'>만들기 기능은 아직 붙지 않았습니다. 지금은 담길 내용 확인까지만 됩니다.</p>
++        : formatMissing
++          ? <p className='deliverable-blocked'>출력 형식을 선택해야 만들 수 있습니다.</p>
++          : contentBlocked
++            ? <p className='deliverable-blocked'>{preview?.blocked_reason ?? '담길 내용을 확인한 뒤 만들 수 있습니다.'}</p>
++            : <p>출력 형식 선택 완료: <strong>{format}</strong></p>}
++      <p className='deliverable-generate-note'>실제 파일 생성 기능은 아직 준비 중입니다. 현재 버튼은 선택 조건 확인용입니다.</p>
+     </div>
+     <button
+       type='button'
+       className='deliverable-generate-button'
+-      disabled={blocked || loading}
+-      onClick={() => notify?.('info', '준비 중입니다', '담길 내용 확인까지만 되어 있습니다. 만들기는 다음 작업에서 붙습니다.')}
+-    >만들기</button>
++      disabled={disabled}
++      onClick={() => notify?.('info', '선택 조건 확인', `${format} 형식을 선택했습니다. 실제 파일 생성은 다음 작업에서 붙습니다.`)}
++    >{disabled ? '만들기' : '만들기 (준비 중)'}</button>
+   </section>
+ }

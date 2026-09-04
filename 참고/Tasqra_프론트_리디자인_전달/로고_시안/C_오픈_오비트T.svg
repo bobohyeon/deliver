@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">시안 C 오픈 오비트 T</title>
+  <defs>
+    <linearGradient id="c-line" x1="10" y1="52" x2="55" y2="10" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#173cff"/>
+      <stop offset=".55" stop-color="#087ff4"/>
+      <stop offset="1" stop-color="#08d7e5"/>
+    </linearGradient>
+  </defs>
+  <path d="M48 15a22 22 0 1 0 4 31" fill="none" stroke="url(#c-line)" stroke-width="6" stroke-linecap="round"/>
+  <path fill="url(#c-line)" d="M18 20h31l-5 8H35l-7 23h-9l7-23H13z"/>
+  <path d="M8 39c10 12 36 15 50-4" fill="none" stroke="url(#c-line)" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="53" cy="14" r="3.5" fill="#08c7e7"/>
+</svg>

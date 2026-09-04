@@ -1,0 +1,367 @@
+diff --git a/backend/app/api/routes/deliverable_router.py b/backend/app/api/routes/deliverable_router.py
+index 83abc55..41aabe6 100644
+--- a/backend/app/api/routes/deliverable_router.py
++++ b/backend/app/api/routes/deliverable_router.py
+@@ -274,6 +274,11 @@ def preview_deliverable_content(
+         None, description="주간 보고서만 필수. 다른 유형에서는 무시된다"
+     ),
+     period_to: date | None = Query(None, description="같음"),
++    deliverable_format: str = Query(
++        "HTML",
++        alias="format",
++        description="MD · HTML. XLSX·PDF 는 아직 501 이다(만들기와 같다)",
++    ),
+     access: ProjectAccess = Depends(get_project_access),
+     service: DeliverableService = Depends(get_deliverable_service),
+ ) -> DeliverableContentResponse:
+@@ -300,11 +305,21 @@ def preview_deliverable_content(
+     파일을 만들지 않으므로 응답에 `id`·`file_size`·`download_url` 이 없습니다.
+     이력에도 남지 않습니다 — 그것이 요점입니다.
+ 
+-    ### `format` 을 받지 않습니다
++    ### 형식 검사가 만들기와 같습니다
++
++    없는 형식은 `422 INVALID_DOCUMENT_TYPE`, 아직 못 만드는 형식은
++    `501 DELIVERABLE_FORMAT_NOT_READY` 입니다. **미리보기만 되고 만들기는 안 되는
++    형식을 두지 않습니다** — 미리 본 뒤 만들기에서 처음 막히면 헛수고입니다.
++
++    `XLSX`·`PDF` 가 준비되면 이 엔드포인트는 **고칠 것 없이** 그 형식을 돌려줍니다.
++    형식별 생성기를 `RENDERERS` 에서 고르는 구조입니다.
++
++    ### 화면이 HTML 을 안전하게 그리는 방법
+ 
+-    본문은 늘 `MD` 로 옵니다. 형식과 무관하게 **담길 내용이 같고**(절을 고르는 규칙이
+-    `build_document` 하나입니다), 화면이 `HTML` 을 직접 심는 것을 피하려는 것입니다.
+-    화면은 이 본문을 **글자 그대로** 그립니다.
++    `HTML` 본문은 `<!doctype>` 부터 `<style>` 까지 담긴 **완전한 문서**입니다.
++    화면은 이것을 **`<iframe sandbox srcDoc>`** 에 넣습니다 —
++    `dangerouslySetInnerHTML` 로 심지 않습니다. `sandbox` 가 스크립트·폼·부모 접근을
++    모두 막으므로, 혹시 `render_html` 의 escape 에 구멍이 생겨도 실행되지 않습니다.
+ 
+     ### 담을 것이 없으면 막습니다
+ 
+@@ -313,14 +328,16 @@ def preview_deliverable_content(
+ 
+     ### 오류
+ 
+-      `422 DELIVERABLE_EMPTY`         담을 것이 없다
+-      `422 INVALID_DOCUMENT_TYPE`     없는 유형
+-      `422 PERIOD_REQUIRED`           주간 보고서인데 기간이 없다
+-      `404`                           내가 멤버가 아닌 프로젝트
++      `422 DELIVERABLE_EMPTY`              담을 것이 없다
++      `422 INVALID_DOCUMENT_TYPE`          없는 유형 · 없는 형식
++      `422 PERIOD_REQUIRED`                주간 보고서인데 기간이 없다
++      `501 DELIVERABLE_FORMAT_NOT_READY`   XLSX·PDF — 만들기와 같다
++      `404`                                내가 멤버가 아닌 프로젝트
+     """
+     return service.preview_content(
+         access.project.id,
+         kind=kind,
++        deliverable_format=deliverable_format,
+         period_from=period_from,
+         period_to=period_to,
+     )
+diff --git a/backend/app/schemas/deliverable.py b/backend/app/schemas/deliverable.py
+index 7df3c97..1ef7272 100644
+--- a/backend/app/schemas/deliverable.py
++++ b/backend/app/schemas/deliverable.py
+@@ -203,21 +203,24 @@ class DeliverableContentResponse(BaseModel):
+     내용을 볼 수 있었고, 확인하려고 만든 산출물이 이력에 쌓이는 것을 막을 방법이
+     없었다.
+ 
+-    `format` 이 늘 `MD` 다. 형식과 무관하게 담길 내용이 같고(절을 고르는 규칙이
+-    `build_document` 하나다), 화면이 HTML 본문을 심는 것을 피하려는 것이다.
+-    그래서 **이 값을 골라 보낼 수 없다** — 서버가 정한다.
+-
+     파일을 만들지 않으므로 `file_size`·`download_url`·`id` 가 없다. 이력에도 남지
+     않는다. 그것이 이 응답의 요점이다.
++
++    `format` 은 요청한 그대로다. 만들기와 **같은 형식 검사**를 거치므로 미리 본 형식은
++    반드시 만들 수도 있다 — 미리보기만 되고 만들기는 안 되는 형식을 두지 않는다.
+     """
+ 
+     kind: str
+     title: str
+-    # 늘 "MD" 다. 화면이 이 값을 보고 «어느 형식으로 그릴까» 를 판단하지 않게
+-    # 하려고 담는다 — 나중에 형식이 늘어도 화면이 먼저 알 수 있다.
++    # 요청한 형식 그대로. 화면이 이 값을 보고 «어떻게 그릴까» 를 정한다 —
++    # HTML 이면 iframe, MD 면 글자다. 화면이 스스로 추측하지 않게 서버가 담아 준다.
+     format: str
+     period_from: date | None
+     period_to: date | None
+-    # 본문 그대로. 화면은 이것을 **글자로** 그린다(<pre>). 마크다운을 HTML 로
+-    # 바꾸지 않는다 — 그러면 심어야 하고, 심을 이유가 없다.
++    # 본문 그대로.
++    #
++    # HTML 이면 `<!doctype>` 부터 `<style>` 까지 담긴 **완전한 문서**다
++    # (deliverable_html.render_html). 화면은 이것을 `<iframe sandbox srcDoc>` 에
++    # 넣는다 — dangerouslySetInnerHTML 로 심지 않는다. sandbox 가 스크립트·폼·부모
++    # 접근을 막으므로 escape 에 구멍이 생겨도 실행되지 않는다.
+     body: str
+diff --git a/backend/app/services/deliverable_service.py b/backend/app/services/deliverable_service.py
+index 6c83dc0..121599a 100644
+--- a/backend/app/services/deliverable_service.py
++++ b/backend/app/services/deliverable_service.py
+@@ -69,14 +69,6 @@ from app.services.deliverable_markdown import (
+ # 형식별 본문 생성 함수. 형식을 늘릴 때 **여기와 SUPPORTED_DELIVERABLE_FORMATS**
+ # 두 곳만 고치면 된다. if 문으로 늘리면 형식이 늘 때마다 분기가 깊어진다.
+ # Spring 비교: Map<String, Renderer> 로 전략을 주입하는 것과 같다.
+-# 본문 미리보기에 쓰는 형식. **MD 하나다.**
+-#
+-# 형식과 무관하게 담길 내용이 같기 때문이다 — 절을 고르는 규칙이 build_document
+-# 하나다. 그리고 화면이 HTML 본문을 심으려면 dangerouslySetInnerHTML 이 필요하고,
+-# 그 안에 문서에서 뽑은 항목명·근거 문장이 들어간다. escape 를 하더라도 화면에서
+-# HTML 을 직접 심는 것은 피한다.
+-PREVIEW_FORMAT = "MD"
+-
+ RENDERERS = {
+     "MD": render_markdown,
+     "HTML": render_html,
+@@ -269,6 +261,7 @@ class DeliverableService:
+         project_id: int,
+         *,
+         kind: str,
++        deliverable_format: str,
+         period_from: date | None = None,
+         period_to: date | None = None,
+     ) -> DeliverableContentResponse:
+@@ -288,18 +281,43 @@ class DeliverableService:
+         다). 본문 미리보기는 명세에 없던 것이고, 같은 목적(빈 보고서 방지)을 한
+         걸음 더 밀어 준다.
+ 
+-        ### `MD` 로만 돌려준다
++        ### 형식 검사도 `generate` 와 똑같다
++
++        없는 형식은 `INVALID_DOCUMENT_TYPE`, 아직 못 만드는 형식은
++        `DELIVERABLE_FORMAT_NOT_READY`(501) 다. **미리보기만 되고 만들기는 안 되는
++        형식을 만들지 않는다** — 미리 본 뒤 만들기를 눌렀을 때 처음 막히면 헛수고다.
++
++        `XLSX`·`PDF` 가 준비되면 이 메서드는 **그대로** 그 형식을 돌려준다. 형식별
++        생성기를 `RENDERERS` 에서 고르는 구조라 여기 고칠 것이 없다.
+ 
+-        형식과 무관하게 **담길 내용은 같다** — 절을 고르는 규칙이 `build_document`
+-        하나다. 그리고 화면이 `HTML` 본문을 심으려면 `dangerouslySetInnerHTML` 이
+-        필요한데, 그 안에 문서에서 뽑은 항목명·근거 문장이 들어간다. 서버가
+-        escape 를 하더라도 화면에서 HTML 을 직접 심는 것은 피한다.
++        ### 화면이 HTML 을 어떻게 안전하게 그리나
++
++        `dangerouslySetInnerHTML` 로 심지 않고 **`<iframe sandbox>` 안에서** 그린다.
++        스크립트·폼·부모 접근이 전부 막히므로, 혹시 escape 에 구멍이 생겨도 실행되지
++        않는다. `render_html` 이 `<!doctype>` 부터 `<style>` 까지 담은 **완전한 문서**를
++        만들기 때문에 그대로 넣으면 된다.
+ 
+         ### 담을 것이 없으면 `generate` 와 똑같이 막는다
+ 
+         빈 문서를 미리 보여주는 것은 목적에 어긋난다. 코드도 같은
+         `DELIVERABLE_EMPTY` 를 쓴다 — 화면이 두 가지를 따로 처리하지 않게.
+         """
++        # 형식을 먼저 본다. generate 와 같은 순서·같은 코드다 — 미리보기에서 통과한
++        # 형식이 만들기에서 막히면 사용자는 미리 본 것을 만들 수 없다.
++        if deliverable_format not in DELIVERABLE_FORMATS:
++            raise BusinessError(
++                ErrorCode.INVALID_DOCUMENT_TYPE,
++                detail=f"출력 형식은 {' · '.join(DELIVERABLE_FORMATS)} 중 하나여야 합니다.",
++            )
++        if deliverable_format not in SUPPORTED_DELIVERABLE_FORMATS:
++            raise BusinessError(
++                ErrorCode.DELIVERABLE_FORMAT_NOT_READY,
++                detail=(
++                    f"{deliverable_format} 형식은 아직 미리 볼 수 없습니다. "
++                    f"지금 가능한 형식은 {' · '.join(SUPPORTED_DELIVERABLE_FORMATS)} 입니다."
++                ),
++            )
++
+         preview = self.preview(
+             project_id, kind=kind, period_from=period_from, period_to=period_to
+         )
+@@ -312,7 +330,7 @@ class DeliverableService:
+         materials = self._materials(project_id, kind=kind, since=since, until=until)
+         title = build_title(kind, since, until)
+         generated_at = datetime.now(timezone.utc)
+-        body = RENDERERS[PREVIEW_FORMAT](
++        body = RENDERERS[deliverable_format](
+             kind=kind,
+             title=title,
+             period_from=since,
+@@ -323,7 +341,7 @@ class DeliverableService:
+         return DeliverableContentResponse(
+             kind=kind,
+             title=title,
+-            format=PREVIEW_FORMAT,
++            format=deliverable_format,
+             period_from=since,
+             period_to=until,
+             body=body,
+diff --git a/frontend/src/api/deliverable.js b/frontend/src/api/deliverable.js
+index c9221ae..94512a0 100644
+--- a/frontend/src/api/deliverable.js
++++ b/frontend/src/api/deliverable.js
+@@ -116,19 +116,20 @@ export async function deleteDeliverable(projectId, deliverableId) {
+ //
+ // 응답: { kind, title, format, period_from, period_to, body }
+ //
+-// **format 을 보내지 않는다.** 본문은 늘 MD 로 온다 — 형식과 무관하게 담길 내용이
+-// 같고(서버의 build_document 하나가 절을 고른다), 화면이 HTML 을 직접 심는 것을
+-// 피하려는 것이다.
++// **형식 검사가 만들기와 같다.** 없는 형식은 422, XLSX·PDF 는 501
++// DELIVERABLE_FORMAT_NOT_READY 다 — 미리보기만 되고 만들기는 안 되는 형식을 두지
++// 않는다. 미리 본 뒤 만들기에서 처음 막히면 헛수고다.
+ //
+-// body 를 **글자 그대로** 그린다. 마크다운을 HTML 로 바꾸지 않는다 — 바꾸면
+-// dangerouslySetInnerHTML 이 필요하고, 그 안에 문서에서 뽑은 항목명·근거 문장이
+-// 들어간다. 서버가 escape 를 하더라도 화면에서 심을 이유가 없다.
++// **HTML 본문은 완전한 문서다** (`<!doctype>` 부터 `<style>` 까지). 화면은 그것을
++// `<iframe sandbox srcDoc>` 에 넣는다 — dangerouslySetInnerHTML 로 심지 않는다.
++// sandbox 가 스크립트·폼·부모 접근을 막으므로 서버 escape 에 구멍이 생겨도 실행되지
++// 않는다.
+ //
+ // 담을 것이 없으면 422 DELIVERABLE_EMPTY 다 — 만들기와 같은 코드다. 빈 문서를
+ // 미리 보여주는 것은 목적에 어긋난다.
+-export async function getDeliverableContent(projectId, { kind, periodFrom, periodTo }) {
++export async function getDeliverableContent(projectId, { kind, format, periodFrom, periodTo }) {
+   const { data } = await http.get(`/api/projects/${projectId}/deliverables/preview/content`, {
+-    params: { kind, period_from: periodFrom, period_to: periodTo },
++    params: { kind, format, period_from: periodFrom, period_to: periodTo },
+   })
+   return data
+ }
+diff --git a/frontend/src/features/deliverables/DeliverablesView.css b/frontend/src/features/deliverables/DeliverablesView.css
+index 44facfc..440fce9 100644
+--- a/frontend/src/features/deliverables/DeliverablesView.css
++++ b/frontend/src/features/deliverables/DeliverablesView.css
+@@ -152,6 +152,20 @@
+    개 길이가 되어 아래의 이력 목록이 사라진 것처럼 보인다.
+    등폭 글꼴로 그려야 마크다운 표의 칸이 맞는다. */
+ .deliverable-content-body { max-height: 420px; margin: 0; padding: 14px 16px; overflow: auto; border: 1px solid var(--c-border); border-radius: 10px; background: var(--c-bg-subtle); color: var(--c-text-strong); font-family: var(--c-mono); font-size: 12px; line-height: 1.6; white-space: pre; tab-size: 2; }
++
++/* 보기 방식 고르기 + 크게 보기. */
++.deliverable-content-tools { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
++.deliverable-content-views { display: flex; gap: 6px; }
++.deliverable-content-view { min-height: 32px; padding: 6px 12px; border: 1px solid var(--c-border-strong); border-radius: 999px; background: var(--c-bg); color: var(--c-text-muted); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
++.deliverable-content-view:hover, .deliverable-content-view:focus-visible { border-color: var(--c-accent); color: var(--c-text-strong); }
++.deliverable-content-view.is-active { border-color: var(--c-text-strong); background: var(--c-text-strong); color: #fff; }
++
++/* HTML 미리보기. **iframe 이라 안에서 스크립트가 돌 수 없다**(sandbox).
++   srcDoc 은 스크립트 없이 높이를 스스로 맞출 수 없으므로 높이를 정해 두고 안에서
++   스크롤한다 — sandbox 를 열어 높이를 재는 것보다 안전하다. */
++.deliverable-content-frame { display: block; width: 100%; height: 460px; border: 1px solid var(--c-border); border-radius: 10px; background: var(--c-bg); }
++.deliverable-content-frame.is-tall { height: 76vh; }
++.deliverable-content-body.is-tall { max-height: 76vh; }
+ .deliverable-content-note { margin: 10px 0 0; color: var(--c-text-muted); font-size: 12px; line-height: 1.5; }
+ .deliverable-content-note strong { color: var(--c-text-strong); }
+ 
+diff --git a/frontend/src/features/deliverables/DeliverablesView.jsx b/frontend/src/features/deliverables/DeliverablesView.jsx
+index 0fcf8e6..e27a569 100644
+--- a/frontend/src/features/deliverables/DeliverablesView.jsx
++++ b/frontend/src/features/deliverables/DeliverablesView.jsx
+@@ -279,6 +279,7 @@ export default function DeliverablesView({ projectId, notify }) {
+     {contentOpen && <ContentPreview
+       projectId={projectId}
+       kind={kind}
++      format={format}
+       periodFrom={periodFrom}
+       periodTo={periodTo}
+     />}
+@@ -360,39 +361,85 @@ function GeneratePanel({ preview, loading, format, generating, onGenerate, conte
+   </section>
+ }
+ 
+-// 본문 미리보기. **만들지 않고** 서버가 조립한 본문을 그대로 보여준다.
++// 미리보기에서 고를 수 있는 보기 방식.
++//
++// 「그대로 보기」는 실제 파일 모양이고 「글자로 보기」는 마크다운 원문이다. 둘 다
++// 두는 이유: HTML 은 결과를 보여주지만 MD 는 **어떤 표가 어떻게 적히는지**를 보여준다.
++// 산출물을 다른 문서에 붙여 쓸 사람에게는 뒤쪽이 필요하다.
++//
++// XLSX·PDF 는 서버가 501 로 막으므로 여기 두지 않는다 — 고를 수 있게 해 두면
++// 미리보기만 되고 만들기는 안 되는 것처럼 보인다.
++const PREVIEW_VIEWS = [
++  ['HTML', '그대로 보기'],
++  ['MD', '글자로 보기'],
++]
++
++// 본문 미리보기. **만들지 않고** 서버가 조립한 본문을 보여준다.
++//
++// 조건(유형·기간·보기 방식)을 바꾸면 다시 받는다 — queryKey 에 넣어 뒀다. 그래서
++// 조건을 바꿔가며 결과를 나란히 볼 수 있다. 새 창으로 띄우면 그게 안 된다.
+ //
+-// 조건(유형·기간)을 바꾸면 다시 받는다 — queryKey 에 넣어 뒀다. 그래서 조건을
+-// 바꿔가며 결과를 나란히 볼 수 있다. 새 창으로 띄우면 그게 안 된다.
++// **HTML 을 iframe sandbox 안에서 그린다.** dangerouslySetInnerHTML 로 심지 않는다.
++// 서버가 모든 값을 html.escape 하지만, 그 한 겹만 믿고 심으면 나중에 절을 더하는
++// 사람이 escape 를 빠뜨렸을 때 바로 XSS 가 된다. sandbox 는 스크립트·폼·부모 접근을
++// 모두 막아서 그런 실수를 실행 불가능하게 만든다.
+ //
+-// 마크다운을 HTML 로 바꾸지 않고 <pre> 로 그린다. 바꾸려면
+-// dangerouslySetInnerHTML 이 필요하고 그 안에 문서에서 뽑은 항목명·근거 문장이
+-// 들어간다. 표와 제목은 글자로도 충분히 읽힌다.
+-function ContentPreview({ projectId, kind, periodFrom, periodTo }) {
++// 나중에 형식이 늘어날 때
++//   PDF  — 같은 iframe 에 blob URL 을 넣으면 브라우저가 그려 준다
++//   XLSX — 브라우저가 못 그린다. 그런데 **HTML 렌더로 대신할 수 있다** — 두 형식이
++//          같은 build_document 에서 나오므로 담긴 내용이 같다
++function ContentPreview({ projectId, kind, format, periodFrom, periodTo }) {
++  // 만들 형식을 골라 뒀으면 그것으로 시작한다. 안 골랐으면 눈으로 보기 좋은 HTML.
++  const [view, setView] = useState(format === 'MD' ? 'MD' : 'HTML')
++  const [tall, setTall] = useState(false)
+   const contentQuery = useQuery({
+-    queryKey: ['projects', projectId, 'deliverable-content', kind, periodFrom, periodTo],
+-    queryFn: () => getDeliverableContent(projectId, { kind, periodFrom, periodTo }),
++    queryKey: ['projects', projectId, 'deliverable-content', kind, view, periodFrom, periodTo],
++    queryFn: () => getDeliverableContent(projectId, { kind, format: view, periodFrom, periodTo }),
+     enabled: Boolean(periodFrom && periodTo),
+     retry: false,
+   })
++  const data = contentQuery.data
+ 
+   return <section className='panel deliverable-content' aria-label='산출물 미리보기'>
+     <div className='deliverable-content-heading'>
+-      <h2>{contentQuery.data?.title ?? '미리보기'}</h2>
++      <h2>{data?.title ?? '미리보기'}</h2>
+       <span>아직 만들지 않았습니다. 이력에도 남지 않습니다.</span>
+     </div>
+ 
++    <div className='deliverable-content-tools'>
++      <div className='deliverable-content-views' role='group' aria-label='보기 방식'>
++        {PREVIEW_VIEWS.map(([value, label]) => <button
++          className={'deliverable-content-view' + (value === view ? ' is-active' : '')}
++          type='button'
++          key={value}
++          aria-pressed={value === view}
++          onClick={() => setView(value)}
++        >{label}</button>)}
++      </div>
++      <button type='button' className='deliverable-content-view' onClick={() => setTall(current => !current)}>
++        {tall ? '작게' : '크게 보기'}
++      </button>
++    </div>
++
+     {contentQuery.isPending
+       ? <p className='deliverable-content-empty'>본문을 만드는 중입니다.</p>
+       : contentQuery.isError
+         ? <p className='deliverable-content-empty'>미리보기를 만들지 못했습니다. {contentQuery.error?.message}</p>
+-        : <>
+-          <pre className='deliverable-content-body'>{contentQuery.data.body}</pre>
+-          <p className='deliverable-content-note'>
+-            형식(<strong>MD</strong>·<strong>HTML</strong>)에 따라 모양은 달라지지만
+-            <strong> 담길 내용은 같습니다</strong> — 절을 고르는 규칙이 하나입니다.
+-          </p>
+-        </>}
++        : view === 'HTML'
++          // sandbox 를 빈 값으로 둔다 = 가장 강한 제한(스크립트·폼·팝업·부모 접근 모두 차단).
++          // 허용 항목을 하나라도 더하면 그만큼 열리므로, 필요해질 때까지 비워 둔다.
++          ? <iframe
++            className={'deliverable-content-frame' + (tall ? ' is-tall' : '')}
++            sandbox=''
++            srcDoc={data.body}
++            title={`${data.title} 미리보기`}
++          />
++          : <pre className={'deliverable-content-body' + (tall ? ' is-tall' : '')}>{data.body}</pre>}
++
++    <p className='deliverable-content-note'>
++      <strong>담길 내용은 형식과 무관하게 같습니다</strong> — 절을 고르는 규칙이 하나입니다.
++      모양만 달라집니다. <strong>XLSX·PDF</strong> 는 아직 만들 수 없어 미리보기에도 없습니다.
++    </p>
+   </section>
+ }
+ 

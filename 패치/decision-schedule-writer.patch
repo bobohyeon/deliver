@@ -1,0 +1,248 @@
+diff --git a/backend/app/repositories/decision_schedule_repository.py b/backend/app/repositories/decision_schedule_repository.py
+new file mode 100644
+index 0000000..e17934a
+--- /dev/null
++++ b/backend/app/repositories/decision_schedule_repository.py
+@@ -0,0 +1,27 @@
++# ① 책임: 결정사항·일정 추출 결과를 기존 ORM 행으로 추가하고 flush한다.
++# ② 관계: decision_schedule_writer.py가 호출하며, commit/rollback은 상위 서비스 트랜잭션이 맡는다.
++# ③ Spring 비교: JpaRepository.saveAll()처럼 영속화만 담당하고 @Transactional 경계는 열지 않는다.
++
++from sqlalchemy.orm import Session
++
++from app.models.decision import Decision
++from app.models.schedule import ScheduleItem
++
++
++class DecisionScheduleRepository:
++    def __init__(self, db: Session) -> None:
++        self._db = db
++
++    def add_decisions(self, rows: list[Decision]) -> list[Decision]:
++        if rows:
++            self._db.add_all(rows)
++            self._db.flush()
++        return rows
++
++    def add_schedule_items(
++        self, rows: list[ScheduleItem]
++    ) -> list[ScheduleItem]:
++        if rows:
++            self._db.add_all(rows)
++            self._db.flush()
++        return rows
+diff --git a/backend/app/repositories/deliverable_repository.py b/backend/app/repositories/deliverable_repository.py
+index 388c357..7111018 100644
+--- a/backend/app/repositories/deliverable_repository.py
++++ b/backend/app/repositories/deliverable_repository.py
+@@ -37,8 +37,10 @@ from app.models.deliverable import Deliverable
+ from app.models.document import Document
+ from app.models.schedule import ScheduleItem
+ from app.models.task import Task
+-# 산출물에 넣을 금액은 「승인된 것만」이라, 금액 현황(amount-summary)과 같은 기준을
+-# 쓴다. 한곳에서 정의한 것을 가져와 두 화면이 어긋나지 않게 한다.
++
++# 산출물에 넣는 AI 제안은 종류와 관계없이 「승인된 것만」 사용한다.
++# 금액 현황(amount-summary)이 이미 쓰는 기준을 재사용해 count와 list가 갈리지
++# 않게 한다.
+ from app.repositories.amount_repository import APPROVED_DECISIONS
+ 
+ __all__ = ["DeliverableRepository"]
+@@ -78,16 +80,20 @@ class DeliverableRepository:
+         until: date | None = None,
+         status: str | None = None,
+     ) -> int:
+-        """결정사항 수. `status` 를 주면 그 상태만 센다.
++        """승인된 결정사항 수. `status` 를 주면 그 상태만 센다.
++
++        승인 상태는 목록과 똑같이 `APPROVED`·`EDITED`만 포함한다.
++        `PENDING`·`REJECTED`는 산출물 재료에서 제외한다.
+ 
+         기간은 `decided_on` 으로 본다. 그 값이 NULL 인 행(문서에 날짜가 없었던
+         경우)은 기간을 주면 빠진다 — **일부러 그렇게 둔다.** 날짜를 모르는 결정을
+         "이번 주 결정" 으로 넣으면 보고서가 틀린다.
+ 
+-        기간을 주지 않으면(결정사항 대장·회의 안건) 전부 센다.
++        기간을 주지 않으면(결정사항 대장·회의 안건) 승인된 항목을 모두 센다.
+         """
+         stmt = select(func.count()).select_from(Decision).where(
+-            Decision.project_id == project_id
++            Decision.project_id == project_id,
++            Decision.decision.in_(APPROVED_DECISIONS),
+         )
+         if status is not None:
+             stmt = stmt.where(Decision.status == status)
+@@ -102,7 +108,10 @@ class DeliverableRepository:
+     def count_schedule_items(
+         self, project_id: int, *, since: date | None = None, until: date | None = None
+     ) -> int:
+-        """기간에 걸리는 일정·기한 수.
++        """기간에 걸리는 승인된 일정·기한 수.
++
++        승인 상태는 목록과 똑같이 `APPROVED`·`EDITED`만 포함한다.
++        `PENDING`·`REJECTED`는 산출물 재료에서 제외한다.
+ 
+         `kind` 마다 기한 컬럼이 다르다(models/schedule.py 의 due_on 참고).
+         SQL 에서 프로퍼티를 쓸 수 없으므로 **두 컬럼 중 하나라도 걸리면** 센다.
+@@ -113,7 +122,8 @@ class DeliverableRepository:
+         "이 주에 진행 중인 기간" 이 보고서에 들어가야 한다.
+         """
+         stmt = select(func.count()).select_from(ScheduleItem).where(
+-            ScheduleItem.project_id == project_id
++            ScheduleItem.project_id == project_id,
++            ScheduleItem.decision.in_(APPROVED_DECISIONS),
+         )
+         if since is not None or until is not None:
+             starts_ok = ScheduleItem.starts_on.is_not(None)
+@@ -268,7 +278,10 @@ class DeliverableRepository:
+         status: str | None = None,
+         limit: int = 200,
+     ) -> list[Decision]:
+-        stmt = select(Decision).where(Decision.project_id == project_id)
++        stmt = select(Decision).where(
++            Decision.project_id == project_id,
++            Decision.decision.in_(APPROVED_DECISIONS),
++        )
+         if status is not None:
+             stmt = stmt.where(Decision.status == status)
+         if since is not None:
+@@ -288,7 +301,10 @@ class DeliverableRepository:
+         until: date | None = None,
+         limit: int = 200,
+     ) -> list[ScheduleItem]:
+-        stmt = select(ScheduleItem).where(ScheduleItem.project_id == project_id)
++        stmt = select(ScheduleItem).where(
++            ScheduleItem.project_id == project_id,
++            ScheduleItem.decision.in_(APPROVED_DECISIONS),
++        )
+         if since is not None or until is not None:
+             starts_ok = ScheduleItem.starts_on.is_not(None)
+             ends_ok = ScheduleItem.ends_on.is_not(None)
+diff --git a/backend/app/services/decision_schedule_writer.py b/backend/app/services/decision_schedule_writer.py
+new file mode 100644
+index 0000000..82ae64b
+--- /dev/null
++++ b/backend/app/services/decision_schedule_writer.py
+@@ -0,0 +1,122 @@
++# ① 책임: 검증된 결정사항·일정 DTO와 분석 메타데이터를 하나의 분석 이력 및 PENDING 제안으로 저장한다.
++# ② 관계: extraction_parser.py의 결과를 받아 AnalysisRepository와 DecisionScheduleRepository에 위임한다.
++# ③ Spring 비교: @Service가 Analysis 저장과 두 JpaRepository.saveAll()을 조립하며 트랜잭션은 호출자가 연다.
++
++from decimal import Decimal
++
++from app.analyzers.protocol import AnalyzeResult
++from app.models.decision import Decision
++from app.models.document import Analysis
++from app.models.schedule import ScheduleItem
++from app.repositories.analysis_repository import AnalysisRepository
++from app.repositories.decision_schedule_repository import DecisionScheduleRepository
++from app.schemas.extraction import DecisionExtraction, ScheduleItemExtraction
++
++_PENDING = "PENDING"
++
++
++def _decimal(value: float | None) -> Decimal | None:
++    return None if value is None else Decimal(str(value))
++
++
++class DecisionScheduleWriter:
++    """분석 이력과 그 분석에서 나온 제안들을 같은 외부 트랜잭션에 쌓는다."""
++
++    def __init__(
++        self,
++        analysis_repository: AnalysisRepository,
++        decision_schedule_repository: DecisionScheduleRepository,
++    ) -> None:
++        self._analysis_repository = analysis_repository
++        self._decision_schedule_repository = decision_schedule_repository
++
++    def write_decisions(
++        self,
++        *,
++        project_id: int,
++        document_id: int,
++        source_text_revision: int,
++        analyzer_type: str,
++        result: AnalyzeResult,
++        extractions: list[DecisionExtraction],
++    ) -> tuple[Analysis, list[Decision]]:
++        analysis = self._create_analysis(
++            document_id=document_id,
++            source_text_revision=source_text_revision,
++            analyzer_type=analyzer_type,
++            result=result,
++        )
++        rows = [
++            Decision(
++                project_id=project_id,
++                document_id=document_id,
++                analysis_id=analysis.id,
++                title=item.title,
++                content=item.content,
++                status=item.status.value,
++                decided_on=item.decided_on,
++                confidence=_decimal(item.confidence),
++                reason=item.reason,
++                decision=_PENDING,
++                source_text_revision=source_text_revision,
++            )
++            for item in extractions
++        ]
++        return analysis, self._decision_schedule_repository.add_decisions(rows)
++
++    def write_schedule_items(
++        self,
++        *,
++        project_id: int,
++        document_id: int,
++        source_text_revision: int,
++        analyzer_type: str,
++        result: AnalyzeResult,
++        extractions: list[ScheduleItemExtraction],
++    ) -> tuple[Analysis, list[ScheduleItem]]:
++        analysis = self._create_analysis(
++            document_id=document_id,
++            source_text_revision=source_text_revision,
++            analyzer_type=analyzer_type,
++            result=result,
++        )
++        rows = [
++            ScheduleItem(
++                project_id=project_id,
++                document_id=document_id,
++                analysis_id=analysis.id,
++                title=item.title,
++                kind=item.kind.value,
++                starts_on=item.starts_on,
++                ends_on=item.ends_on,
++                confidence=_decimal(item.confidence),
++                reason=item.reason,
++                decision=_PENDING,
++                source_text_revision=source_text_revision,
++            )
++            for item in extractions
++        ]
++        return analysis, self._decision_schedule_repository.add_schedule_items(rows)
++
++    def _create_analysis(
++        self,
++        *,
++        document_id: int,
++        source_text_revision: int,
++        analyzer_type: str,
++        result: AnalyzeResult,
++    ) -> Analysis:
++        return self._analysis_repository.create(
++            Analysis(
++                document_id=document_id,
++                analyzer_type=analyzer_type,
++                result_json=result.result,
++                provider=result.provider,
++                model_name=result.model_name,
++                prompt_version=result.prompt_version,
++                tokens_in=result.tokens_in,
++                tokens_out=result.tokens_out,
++                latency_ms=result.latency_ms,
++                source_text_revision=source_text_revision,
++            )
++        )

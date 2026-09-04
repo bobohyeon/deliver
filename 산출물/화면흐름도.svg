@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 600" width="900" height="600" font-family="'Malgun Gothic','맑은 고딕',sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5"
+            markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569"/>
+    </marker>
+    <marker id="arrowAccent" viewBox="0 0 10 10" refX="9" refY="5"
+            markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#1e40af"/>
+    </marker>
+  </defs>
+
+  <style>
+    .box  { fill:#ffffff; stroke:#94a3b8; stroke-width:1.6; rx:8; }
+    .main { fill:#eef2ff; stroke:#1e40af; stroke-width:2.2; rx:8; }
+    .panel{ fill:#f8fafc; stroke:#1e40af; stroke-width:1.4; stroke-dasharray:5 4; rx:6; }
+    .navbar { fill:#1e40af; rx:6; }
+    .id   { font-size:11px; fill:#1e40af; font-weight:700; letter-spacing:.6px; }
+    .name { font-size:14px; fill:#0f172a; font-weight:700; }
+    .url  { font-size:10.5px; fill:#64748b; font-family:Consolas,monospace; }
+    .desc { font-size:10.5px; fill:#475569; }
+    .navtxt { font-size:11px; fill:#ffffff; font-weight:600; }
+    .line { stroke:#475569; stroke-width:1.6; fill:none; marker-end:url(#arrow); }
+    .lineA{ stroke:#1e40af; stroke-width:2; fill:none; marker-end:url(#arrowAccent); }
+    .lbl  { font-size:10px; fill:#334155; }
+    .lblA { font-size:10px; fill:#1e40af; font-weight:600; }
+    .title{ font-size:15px; fill:#0f172a; font-weight:700; }
+    .note { font-size:10px; fill:#64748b; }
+  </style>
+
+  <text class="title" x="20" y="26">화면 흐름도</text>
+  <text class="note" x="20" y="44">진한 화살표 = 주 사용 흐름 · 점선 박스 = 같은 화면 안의 영역 · 정의되지 않은 경로는 NF(404) 화면</text>
+
+  <!-- ===================== 공통 헤더 ===================== -->
+  <rect class="navbar" x="20" y="60" width="860" height="30"/>
+  <text class="navtxt" x="34" y="80">PDF Brief AI</text>
+  <text class="navtxt" x="148" y="80">홈</text>
+  <text class="navtxt" x="186" y="80">문서</text><text class="navtxt" x="232" y="80">업로드</text>
+  <text class="navtxt" x="296" y="80">OCR 비교</text>
+  <text class="navtxt" x="836" y="80">사용자</text>
+  <text class="note" x="380" y="80" fill="#c7d2fe">공통 헤더 (모든 화면 공유) · 업로드 진입점은 헤더와 목록 버튼 두 곳</text>
+
+  <!-- ===================== HOME ===================== -->
+  <rect class="box" x="40" y="120" width="200" height="82"/>
+  <text class="id"   x="56" y="142">HOME</text>
+  <text class="name" x="56" y="162">홈 · 서비스 소개</text>
+  <text class="url"  x="56" y="179">/</text>
+  <text class="desc" x="56" y="195">히어로 · 처리 과정 3단계 안내</text>
+
+  <!-- ===================== CMP ===================== -->
+  <rect class="box" x="660" y="120" width="200" height="82"/>
+  <text class="id"   x="676" y="142">CMP</text>
+  <text class="name" x="676" y="162">OCR 엔진 비교</text>
+  <text class="url"  x="676" y="179">/ocr-compare</text>
+  <text class="desc" x="676" y="195">엔진별 정확도·속도 측정</text>
+
+  <!-- ===================== LIST (주 화면) ===================== -->
+  <rect class="main" x="290" y="250" width="320" height="150"/>
+  <text class="id"   x="308" y="274">LIST</text>
+  <text class="name" x="308" y="294">문서 목록</text>
+  <text class="url"  x="308" y="311">/documents</text>
+  <text class="desc" x="308" y="328">검색 · 카테고리 필터 · 페이징</text>
+
+  <!-- 상세 패널 (LIST 내부 영역) -->
+  <rect class="panel" x="308" y="340" width="284" height="44"/>
+  <text class="id"   x="320" y="358">LST-11</text>
+  <text class="desc" x="320" y="375">상세 패널 — 요약 · 분류 근거 · 원문 · 분석 이력</text>
+
+  <!-- ===================== UPL ===================== -->
+  <rect class="box" x="40" y="450" width="230" height="100"/>
+  <text class="id"   x="56" y="472">UPL</text>
+  <text class="name" x="56" y="492">문서 업로드 및 분석</text>
+  <text class="url"  x="56" y="509">/upload</text>
+  <text class="desc" x="56" y="526">① 파일 선택 ② 추출 비교</text>
+  <text class="desc" x="56" y="541">③ AI 분석</text>
+
+  <!-- ===================== DTL ===================== -->
+  <rect class="box" x="630" y="450" width="230" height="100"/>
+  <text class="id"   x="646" y="472">DTL</text>
+  <text class="name" x="646" y="492">문서 상세 (전체 화면)</text>
+  <text class="url"  x="646" y="509">/documents/:id</text>
+  <text class="desc" x="646" y="526">넓은 화면에서 원문 확인</text>
+  <text class="desc" x="646" y="541">분석 실행 · 요약 다운로드</text>
+
+  <!-- ===================== 연결선 ===================== -->
+
+  <!-- 헤더 → HOME -->
+  <path class="line" d="M 140 92 L 140 118"/>
+  <!-- 헤더 → CMP -->
+  <path class="line" d="M 760 92 L 760 118"/>
+  <!-- 헤더 → LIST -->
+  <path class="lineA" d="M 450 92 L 450 246"/>
+  <text class="lblA" x="458" y="150">헤더 · 문서 목록</text>
+
+  <!-- HOME → LIST -->
+  <path class="lineA" d="M 240 175 C 275 175, 275 290, 286 290"/>
+  <text class="lblA" x="196" y="238">기능 확인 후</text>
+
+  <!-- LIST → UPL (새 문서 업로드) -->
+  <path class="lineA" d="M 300 400 C 300 430, 200 425, 170 446"/>
+  <text class="lblA" x="176" y="424">새 문서 업로드</text>
+
+  <!-- UPL → LIST (문서 목록으로) -->
+  <path class="line" d="M 270 470 C 330 462, 330 420, 350 404"/>
+  <text class="lbl" x="292" y="452">문서 목록으로</text>
+
+  <!-- LIST 패널 → DTL (전체 화면으로 보기) -->
+  <path class="lineA" d="M 592 362 C 660 362, 640 420, 700 446"/>
+  <text class="lblA" x="600" y="404">전체 화면으로 보기</text>
+
+  <!-- DTL → LIST (목록으로, 검색조건 유지) -->
+  <path class="line" d="M 790 450 C 790 420, 620 420, 600 404"/>
+  <text class="lbl" x="640" y="432">← 목록으로 (조건 유지)</text>
+
+  <!-- LIST 내부: 파일명 선택 → 패널 -->
+  <path class="lineA" d="M 470 332 L 470 336"/>
+  <text class="lblA" x="478" y="338">파일명 선택</text>
+
+  <!-- ===================== 주 사용 흐름 설명 ===================== -->
+  <rect x="20" y="566" width="860" height="26" fill="#f1f5ff" stroke="#c7d2fe" rx="5"/>
+  <text class="lblA" x="34" y="583">주 사용 흐름</text>
+  <text class="lbl"  x="112" y="583">HOME → LIST → 새 문서 업로드 → UPL(업로드 · 추출 · 분석) → 문서 목록으로 → LIST(파일명 선택) → 상세 패널 확인 → 요약 .txt 다운로드</text>
+</svg>

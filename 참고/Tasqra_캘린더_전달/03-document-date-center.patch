@@ -1,0 +1,13 @@
+diff --git a/frontend/src/features/documents/DocumentsView.css b/frontend/src/features/documents/DocumentsView.css
+index f05100e..5ad33ce 100644
+--- a/frontend/src/features/documents/DocumentsView.css
++++ b/frontend/src/features/documents/DocumentsView.css
+@@ -92,7 +92,7 @@
+ .document-secondary-meta { display: grid; gap: 7px; justify-items: start; color: #758197; font-size: 12px; }
+ .document-type-meta { display: flex; min-width: 0; align-items: center; gap: 6px; }
+ .document-type-source { flex: 0 0 auto; color: #6f7c90; font-size: 10px; font-weight: 700; white-space: nowrap; }
+-.document-secondary-meta time { white-space: nowrap; }
++.document-secondary-meta time { justify-self: center; white-space: nowrap; }
+ .document-actions { display: flex; justify-content: flex-end; gap: 8px; }
+ .document-open { min-width: 112px; min-height: 38px; white-space: nowrap; }
+ .document-review-action { min-width: 96px; }

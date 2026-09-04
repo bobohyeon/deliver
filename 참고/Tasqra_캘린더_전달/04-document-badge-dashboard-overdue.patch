@@ -1,0 +1,47 @@
+diff --git a/frontend/src/features/dashboard/ActionTaskPanel.jsx b/frontend/src/features/dashboard/ActionTaskPanel.jsx
+index 68966c9..e9b3467 100644
+--- a/frontend/src/features/dashboard/ActionTaskPanel.jsx
++++ b/frontend/src/features/dashboard/ActionTaskPanel.jsx
+@@ -34,11 +34,17 @@ function ActionTaskCard({ task }) {
+   const typeKey = TYPE_LABELS[task.type] ? task.type.toLowerCase() : 'default'
+   const assignee = task.assignee?.name ?? task.assignee_name ?? '담당자 미정'
+   const dueDate = task.due_on ? new Date(`${task.due_on}T00:00:00`).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' }) : '마감 미정'
++  const overdue = task.status !== 'DONE' && Boolean(task.due_on) && task.due_on < localTodayKey()
+ 
+   return <article className={`dashboard-task-card task-type-${typeKey}`}>
+     <div className="dashboard-task-card__top"><span className="dashboard-task-type">{TYPE_LABELS[task.type] ?? '기타'}</span><span className="dashboard-task-status">{STATUS_LABELS[task.status] ?? task.status}</span></div>
+     <h3>{task.title}</h3>
+     {task.description && <p>{task.description}</p>}
+-    <div className="dashboard-task-card__meta"><span>{assignee}</span><time dateTime={task.due_on ?? undefined}>{dueDate}</time></div>
++    <div className="dashboard-task-card__meta"><span>{assignee}</span><time className={overdue ? 'is-overdue' : undefined} dateTime={task.due_on ?? undefined} title={overdue ? '마감일이 지났습니다.' : undefined}>{dueDate}</time></div>
+   </article>
+ }
++
++function localTodayKey() {
++  const now = new Date()
++  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
++}
+diff --git a/frontend/src/features/documents/DocumentsView.css b/frontend/src/features/documents/DocumentsView.css
+index f05100e..9238a03 100644
+--- a/frontend/src/features/documents/DocumentsView.css
++++ b/frontend/src/features/documents/DocumentsView.css
+@@ -91,6 +91,7 @@
+ .status-danger { border-color: #f0bdc4; background: #fff0f2; color: #aa3445; }
+ .document-secondary-meta { display: grid; gap: 7px; justify-items: start; color: #758197; font-size: 12px; }
+ .document-type-meta { display: flex; min-width: 0; align-items: center; gap: 6px; }
++.document-type-meta .type-pill { border-radius: 8px; }
+ .document-type-source { flex: 0 0 auto; color: #6f7c90; font-size: 10px; font-weight: 700; white-space: nowrap; }
+ .document-secondary-meta time { white-space: nowrap; }
+ .document-actions { display: flex; justify-content: flex-end; gap: 8px; }
+diff --git a/frontend/src/styles/design-refresh.css b/frontend/src/styles/design-refresh.css
+index 14e136b..38ebbbe 100644
+--- a/frontend/src/styles/design-refresh.css
++++ b/frontend/src/styles/design-refresh.css
+@@ -174,6 +174,7 @@ body.tasqra-rail-mini .project-sidebar__menus button { justify-content:center; p
+ .dashboard-task-card h3 { margin:7px 0 0; overflow:hidden; font-size:13px; text-overflow:ellipsis; white-space:nowrap; }
+ .dashboard-task-card>p { display:none; }
+ .dashboard-task-card__meta { margin-top:auto; padding-top:5px; font-size:10.5px; }
++.dashboard-task-card__meta time.is-overdue { padding:2px 5px; border-radius:5px; background:var(--c-danger-bg); color:var(--c-danger); font-weight:800; }
+ .dashboard-task-type { padding:3px 7px; font-size:10px; }
+ .dashboard-task-status { font-size:10.5px; }
+ .dashboard-task-panel .dashboard-board-link { flex:0 0 auto; margin-top:10px; }
