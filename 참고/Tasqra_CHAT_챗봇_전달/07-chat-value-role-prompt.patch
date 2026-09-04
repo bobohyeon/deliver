@@ -31,11 +31,7 @@ diff --git a/backend/app/services/chat_service.py b/backend/app/services/chat_se
 diff --git a/backend/tests/test_chat_service.py b/backend/tests/test_chat_service.py
 --- a/backend/tests/test_chat_service.py
 +++ b/backend/tests/test_chat_service.py
-@@ -197,7 +197,37 @@ def test_exact_keyword_match_bypasses_vector_similarity_gate():
-     assert response.evidence
-     assert len(ai.requests) == 1
- 
- 
+@@ -203,3 +203,33 @@
 +def test_unit_price_question_uses_value_role_prompt():
 +    table = (
 +        "항목 | 투입량 | 기준 단가 | 합계\n"
