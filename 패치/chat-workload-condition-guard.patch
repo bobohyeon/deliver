@@ -1,0 +1,37 @@
+--- a/backend/app/services/chat_service.py
++++ b/backend/app/services/chat_service.py
+@@ -147,6 +147,14 @@
+         # 계산한다. 기간 없는 `2명`은 계산하지 않고 인월 수량을 다시 묻는다.
+         has_amount_intent = self._has_amount_calculation_intent(question)
+         if has_amount_intent:
++            if self._has_unsupported_workload_condition(question):
++                return self._clarification_response(
++                    answer="투입률·파트타임 조건이 포함된 인건비 계산은 아직 "
++                    "지원하지 않습니다. 해당 조건을 반영한 총 인월을 "
++                    "'특급기술자 3인월 인건비'처럼 알려 주세요.",
++                    assembled=assembled,
++                    searched_project_ids=search.searched_project_ids,
++                )
+             person_month_assignments = self._requested_person_month_assignments(
+                 question
+             )
+@@ -278,6 +287,19 @@
+             for marker in ("인건비", "금액", "비용", "계산", "얼마")
+         )
+ 
++    @staticmethod
++    def _has_unsupported_workload_condition(question: str) -> bool:
++        """명시된 투입률·시간제 조건을 전일 투입 계산이 무시하지 않게 막는다."""
++        has_percentage = bool(re.search(
++            r"(?<![\d.])\d+(?:\.\d+)?\s*(?:%|퍼센트)",
++            question,
++        ))
++        has_workload_marker = any(
++            marker in question
++            for marker in ("투입률", "파트타임", "반일")
++        )
++        return has_percentage or has_workload_marker
++
+     @classmethod
+     def _requested_person_month_assignments(
+         cls,
