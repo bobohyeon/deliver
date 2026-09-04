@@ -20,12 +20,39 @@ def replace_once(text: str, old: str, new: str, *, path: str) -> str:
     return text.replace(old, new, 1)
 
 
+def replace_one_of(
+    text: str,
+    variants: tuple[tuple[str, str], ...],
+    *,
+    path: str,
+    label: str,
+) -> str:
+    """지원하는 파일 상태 중 정확히 하나와 일치할 때만 바꾼다."""
+    matches = [(old, new) for old, new in variants if text.count(old) == 1]
+    if len(matches) != 1:
+        raise SystemExit(
+            f"{path}: {label}의 지원 앵커가 {len(matches)}개다. "
+            "파일 상태를 먼저 확인해야 한다."
+        )
+    old, new = matches[0]
+    return text.replace(old, new, 1)
+
+
 def transform_chat(text: str, path: str) -> str:
-    text = replace_once(
+    text = replace_one_of(
         text,
-        "import asyncio\nimport logging\nfrom collections.abc import Sequence\nfrom typing import Protocol",
-        "import asyncio\nimport logging\nimport re\nfrom collections.abc import Sequence\nfrom decimal import ROUND_HALF_UP, Decimal\nfrom typing import Protocol",
+        (
+            (
+                "import asyncio\nimport logging\nfrom collections.abc import Sequence\nfrom typing import Protocol",
+                "import asyncio\nimport logging\nimport re\nfrom collections.abc import Sequence\nfrom decimal import ROUND_HALF_UP, Decimal\nfrom typing import Protocol",
+            ),
+            (
+                "import asyncio\nimport logging\nfrom typing import Protocol",
+                "import asyncio\nimport logging\nimport re\nfrom decimal import ROUND_HALF_UP, Decimal\nfrom typing import Protocol",
+            ),
+        ),
         path=path,
+        label="import",
     )
     text = replace_once(
         text,
@@ -273,12 +300,25 @@ UNVERIFIED_UNIT_PRICE_ANSWER = (
     def _format_decimal(value: Decimal) -> str:
         return format(value.normalize(), "f")
 '''
-    text = replace_once(
-        text,
-        "\n    def _search_is_relevant(\n",
-        methods + "\n    def _search_is_relevant(\n",
-        path=path,
-    )
+    search_anchor = "\n    def _search_is_relevant("
+    budget_anchor = "\n    def _calculate_evidence_budget("
+    if text.count(search_anchor) == 1:
+        text = text.replace(
+            search_anchor,
+            methods + "\n    def _search_is_relevant(",
+            1,
+        )
+    elif text.count(budget_anchor) == 1:
+        text = text.replace(
+            budget_anchor,
+            methods + "\n    def _calculate_evidence_budget(",
+            1,
+        )
+    else:
+        raise SystemExit(
+            f"{path}: 검증 메서드 삽입 위치를 찾지 못했다. "
+            "파일 상태를 먼저 확인해야 한다."
+        )
     return text
 
 
