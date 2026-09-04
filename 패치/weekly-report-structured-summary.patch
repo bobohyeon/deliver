@@ -1,0 +1,421 @@
+diff --git a/backend/app/services/deliverable_markdown.py b/backend/app/services/deliverable_markdown.py
+index 34e8645..0a303b1 100644
+--- a/backend/app/services/deliverable_markdown.py
++++ b/backend/app/services/deliverable_markdown.py
+@@ -25,7 +25,6 @@
+ #
+-# ⚠ 프로젝트 현황은 구조화하고, 주간 보고서 개요만 LLM이 채운다
+-#   프로젝트 현황의 기본정보·업무 완료율·성과·일정 이슈·향후 계획은 서비스가
+-#   DB 값으로 계산해 넘긴다. 이 파일은 그 값을 다섯 절로 구성하며 수치를 추정하지
+-#   않는다. 주간 보고서의 기간 변동 개요만 서비스가 LLM을 1회 불러 `summary`로
+-#   넘기고, 실패하면 SUMMARY_PLACEHOLDER를 쓴다.
++# ⚠ 프로젝트 현황과 주간 보고서 요약은 DB 자료만으로 구성한다
++#   프로젝트 현황의 기본정보·업무 완료율·성과·일정 이슈·향후 계획과 주간
++#   보고서의 실적·결정·일정·금액은 서비스가 조회한 실제 값만 사용한다.
++#   저장되지 않은 진행률·위험을 추정하거나 LLM 문장을 덧붙이지 않는다.
+ # =============================================================================
+@@ -34,2 +33,3 @@ from __future__ import annotations
+ 
++from collections.abc import Callable
+ from dataclasses import dataclass, field
+@@ -69,7 +69,2 @@ NUMERIC_HEADERS = frozenset(
+ 
+-SUMMARY_PLACEHOLDER = (
+-    "개요 문장은 아직 넣지 않았습니다. 저장된 문서 요약을 한 번 재요약해 채울"
+-    " 자리입니다(LLM 연결 예정). 아래 표는 모두 실제 자료입니다."
+-)
+-
+ # AI 분류와 사용자 수정이 저장하는 코드의 화면용 한국어 이름. 산출물은 서버에서
+@@ -207,5 +202,4 @@ def build_document(
+ 
+-    `summary` 는 주간 보고서의 기간 변동을 LLM이 한 번 요약한 문장이다.
+-    프로젝트 현황은 프로젝트·태스크·일정의 DB 값을 코드로 계산해 다섯 절로 만든다.
+-    진행률이나 위험을 LLM이 추정하지 않는다.
++    `summary` 인자는 기존 렌더러 호출 계약을 위해 남아 있지만 더 이상 사용하지
++    않는다. 주간 보고서와 프로젝트 현황 모두 DB에서 조회한 실제 자료로 구조화한다.
+     """
+@@ -232,5 +226,3 @@ def build_document(
+     elif kind == "WEEKLY_REPORT":
+-        document.sections.append(
+-            Section(title="개요", note=summary or SUMMARY_PLACEHOLDER)
+-        )
++        document.sections.append(_weekly_summary_section(materials))
+         _append_material_sections(document, materials, period_scoped=True)
+@@ -250,2 +242,72 @@ def build_document(
+ 
++def _weekly_summary_section(materials: DeliverableMaterials) -> Section:
++    """주간 변동을 실제 자료가 있는 항목만 모아 두 열로 요약한다.
++
++    전체 진행률이나 정상·지연 같은 상태는 계획 기준선 없이는 판정할 수 없다.
++    따라서 이 기간에 조회된 문서·완료 작업·승인 결정·승인 일정·승인 금액만
++    압축하고, 제목은 두 건까지만 보여 준다.
++    """
++    rows: list[list[str]] = []
++
++    achievement_parts: list[str] = []
++    if materials.documents:
++        achievement_parts.append(f"문서 {len(materials.documents)}건 등록")
++    if materials.completed_tasks:
++        achievement_parts.append(f"태스크 {len(materials.completed_tasks)}건 완료")
++    if achievement_parts:
++        rows.append(["실적", " · ".join(achievement_parts)])
++
++    if materials.decisions:
++        rows.append(
++            ["결정", _limited_summary(materials.decisions, lambda item: clean(item.title))]
++        )
++
++    if materials.schedule_items:
++        rows.append(
++            [
++                "일정",
++                _limited_summary(
++                    materials.schedule_items,
++                    lambda item: f"{_schedule_period(item)} {clean(item.title)}",
++                ),
++            ]
++        )
++
++    if materials.amount_items:
++        total = sum(int(item.amount or 0) for item in materials.amount_items)
++        rows.append(
++            [
++                "금액",
++                f"승인 금액 항목 {len(materials.amount_items)}건 · 단순 합계 {money(total)}원",
++            ]
++        )
++
++    return Section(
++        title="주간 요약",
++        header=["구분", "내용"],
++        rows=rows,
++        note="이 기간에 반영된 승인 자료가 없습니다.",
++    )
++
++
++def _limited_summary(
++    items: list[Any], formatter: Callable[[Any], str], *, limit: int = 2
++) -> str:
++    """대표 항목을 최대 두 건 표시하고 남은 건수는 숨기지 않는다."""
++    values = [formatter(item) for item in items[:limit]]
++    remaining = len(items) - limit
++    if remaining > 0:
++        values.append(f"외 {remaining}건")
++    return " · ".join(values)
++
++
++def _schedule_period(item: Any) -> str:
++    """승인 일정의 시작·종료일을 한 칸에서 읽을 수 있게 표시한다."""
++    starts_on = getattr(item, "starts_on", None)
++    ends_on = getattr(item, "ends_on", None)
++    if starts_on and ends_on and starts_on != ends_on:
++        return f"{day(starts_on)}~{day(ends_on)}"
++    return day(starts_on or ends_on)
++
++
+ def _project_status_sections(
+diff --git a/backend/app/services/deliverable_service.py b/backend/app/services/deliverable_service.py
+index b8b6f33..34a664d 100644
+--- a/backend/app/services/deliverable_service.py
++++ b/backend/app/services/deliverable_service.py
+@@ -117,5 +117,6 @@ UNCOUNTABLE: list[str] = []
+ 
+-# LLM 개요는 기간 변동을 서술하는 주간 보고서에만 쓴다. 프로젝트 현황은
+-# 프로젝트·태스크·일정의 DB 값을 서버가 계산해 구조화된 다섯 절로 만든다.
+-OVERVIEW_KINDS = frozenset({"WEEKLY_REPORT"})
++# 산출물 개요에 LLM을 사용하지 않는다. 주간 보고서와 프로젝트 현황 모두 실제
++# DB 자료를 서버가 구조화한다. 빈 집합을 유지하면 기존 내부 메서드가 호출되더라도
++# 외부 AI 요청 없이 즉시 반환한다.
++OVERVIEW_KINDS: frozenset[str] = frozenset()
+ 
+@@ -214,4 +215,3 @@ class DeliverableService:
+           ③ 담을 것이 없으면 만들지 않는다 (DLV-001-2 완료 판정)
+-          ④ 개요를 LLM 으로 1회 만들고(있으면), 본문을 만들어 파일에 쓴 뒤 이력을
+-             커밋한다. LLM 호출은 transactional 을 열기 전에 끝낸다
++          ④ DB 자료로 본문을 만들어 파일에 쓴 뒤 이력을 커밋한다.
+ 
+@@ -255,6 +255,2 @@ class DeliverableService:
+         title = build_title(kind, since, until)
+-        # 개요를 만드는 LLM 호출은 **여기**다 — transactional 을 열기 전이다.
+-        # analysis_service 와 같은 판단이다: AI 응답을 기다리는 동안 DB 트랜잭션을
+-        # 열어두지 않는다. 담을 것이 없으면 위에서 이미 막혔으므로 헛 호출이 아니다.
+-        summary = await self._overview(kind, title, since, until, materials)
+         generated_at = datetime.now(timezone.utc)
+@@ -269,3 +265,2 @@ class DeliverableService:
+             generated_at_text=generated_at.astimezone().strftime("%Y-%m-%d %H:%M"),
+-            summary=summary,
+         )
+@@ -381,6 +376,2 @@ class DeliverableService:
+         title = build_title(kind, since, until)
+-        # 만들기(generate)와 **같은 개요**를 만든다. 여기서 개요를 비워 두면 미리 본
+-        # 것과 실제로 만든 것이 개요만 달라진다 — 이 메서드가 존재하는 이유(미리 본
+-        # 것과 만든 것이 어긋나지 않게)에 어긋난다. 그래서 본문 미리보기도 1회 부른다.
+-        summary = await self._overview(kind, title, since, until, materials)
+         generated_at = datetime.now(timezone.utc)
+@@ -393,3 +384,2 @@ class DeliverableService:
+             generated_at_text=generated_at.astimezone().strftime("%Y-%m-%d %H:%M"),
+-            summary=summary,
+         )
+diff --git a/backend/tests/test_deliverable_generate.py b/backend/tests/test_deliverable_generate.py
+index e38a9fa..697fbbf 100644
+--- a/backend/tests/test_deliverable_generate.py
++++ b/backend/tests/test_deliverable_generate.py
+@@ -119,8 +119,6 @@ def _read(row) -> str:
+ def _gen(service, **kwargs):
+-    """`generate` 는 async 다(개요 LLM 호출 때문). 이 파일은 DB 없이 도는 단위
+-    테스트라 asyncio.run 으로 직접 부른다 — test_error_response_format.py 가 async
+-    핸들러를 부르는 방식과 같다. project_id 는 이 파일에서 늘 1 이다.
++    """`generate`는 async라 DB 없는 단위 테스트에서 asyncio.run으로 직접 부른다.
+ 
+-    `_service()` 는 ai_client 를 주지 않으므로 개요는 SUMMARY_PLACEHOLDER 로 남는다
+-    (LLM 을 부르지 않는다). 개요 LLM 경로는 test_overview_* 에서 따로 검증한다.
++    project_id는 이 파일에서 늘 1이다. 주간 보고서는 실제 DB 자료로 요약하므로
++    AI 클라이언트를 주입해도 호출하지 않는다.
+     """
+@@ -250,50 +248,51 @@ def test_body_contains_real_rows():
+     assert "2026-08-14 ~ 2026-08-20" in body
++    # 개요 대신 실제 자료만 모은 주간 요약 표를 둔다.
++    assert "## 주간 요약" in body
++    assert "## 개요" not in body
++    assert "| 실적 | 문서 1건 등록 · 태스크 1건 완료 |" in body
++    assert "| 결정 | 이관 범위 확정 |" in body
++    assert "| 일정 | 2026-08-20 착수 보고 |" in body
++    assert "| 금액 | 승인 금액 항목 1건 · 단순 합계 6,000,000원 |" in body
+ 
+ 
+-def test_body_marks_summary_as_not_written_without_llm():
+-    """LLM 이 없으면 개요를 지어내지 않고 비었다고 적는다(SUMMARY_PLACEHOLDER)."""
++def test_weekly_summary_has_only_rows_with_actual_materials():
+     service, _ = _service(documents=1, rows={"documents": [_document()]})
+     body = _read(_gen(service, kind="WEEKLY_REPORT", deliverable_format="MD", **WEEK))
+-    assert "## 개요" in body
+-    assert "아직" in body
++    summary = body.split("## 주간 요약", 1)[1].split("## 문서", 1)[0]
+ 
++    assert "| 실적 | 문서 1건 등록 |" in summary
++    assert "| 결정 |" not in summary
++    assert "| 일정 |" not in summary
++    assert "| 금액 |" not in summary
+ 
+-# --- 개요(LLM 1회) DLV-002-1·DLV-002-2 --------------------------------------
+ 
++def test_weekly_summary_limits_names_and_keeps_remaining_counts():
++    decisions = [_decision(f"결정 {number}") for number in range(1, 4)]
++    schedules = [_schedule(f"일정 {number}") for number in range(1, 4)]
++    amounts = [_amount(f"금액 {number}", amount=number * 1_000) for number in range(1, 4)]
++    service, _ = _service(
++        decisions=3,
++        schedules=3,
++        amounts=3,
++        rows={
++            "decisions": decisions,
++            "schedule_items": schedules,
++            "amount_items": amounts,
++        },
++    )
++    body = _read(_gen(service, kind="WEEKLY_REPORT", deliverable_format="MD", **WEEK))
++    summary = body.split("## 주간 요약", 1)[1].split("## 문서", 1)[0]
+ 
+-class _FakeAI:
+-    """개요 LLM 경로를 검증하기 위한 최소 클라이언트.
+-
+-    실제 어댑터(fake_client·local_client)와 같은 계약(generate_with_meta)만
+-    만족시킨다. 호출 횟수를 세어 "LLM 호출은 개요 1회" 를 검사한다.
+-    """
+-
+-    provider = "fake"
+-
+-    def __init__(self, *, text='{"summary": "이번 주 핵심 개요입니다."}', fail=False):
+-        self._text = text
+-        self._fail = fail
+-        self.calls = 0
+-        self.prompts: list[str] = []
+-
+-    async def generate(self, prompt: str) -> str:  # 계약상 존재해야 한다
+-        result = await self.generate_with_meta(prompt)
+-        return result.text
+-
+-    async def generate_with_meta(self, prompt: str):
+-        from app.ai.client_protocol import AIResult
+-
+-        self.calls += 1
+-        self.prompts.append(prompt)
+-        if self._fail:
+-            raise RuntimeError("provider down")
+-        return AIResult(text=self._text, model_name="fake-model")
++    assert "결정 1 · 결정 2 · 외 1건" in summary
++    assert "결정 3" not in summary
++    assert "2026-08-20 일정 1 · 2026-08-20 일정 2 · 외 1건" in summary
++    assert "일정 3" not in summary
++    assert "승인 금액 항목 3건 · 단순 합계 6,000원" in summary
+ 
+ 
+-def test_overview_is_filled_by_one_llm_call():
+-    """개요를 LLM 1회 호출로 채운다 — 완료 판정 "LLM 호출은 개요 1회"."""
+-    ai = _FakeAI(text='{"summary": "문서 1건과 결정 1건이 반영됐습니다."}')
++def test_weekly_summary_does_not_call_ai():
++    ai = _FakeAI()
+     service, _ = _service(
+-        documents=1, decisions=1,
+-        rows={"documents": [_document("과업지시서.pdf")], "decisions": [_decision()]},
++        documents=1,
++        rows={"documents": [_document("과업지시서.pdf")]},
+         ai_client=ai,
+@@ -302,69 +301,21 @@ def test_overview_is_filled_by_one_llm_call():
+ 
+-    assert ai.calls == 1  # 정확히 한 번
+-    assert "문서 1건과 결정 1건이 반영됐습니다." in body
+-    # 개요가 채워졌으므로 미연결 안내 문구(SUMMARY_PLACEHOLDER)는 없다.
+-    assert "아직" not in body
+-    # 표는 여전히 실제 자료다.
+-    assert "과업지시서.pdf" in body
+-
+-
+-def test_overview_llm_not_called_for_kinds_without_overview():
+-    """결정 대장·회의 안건에는 개요 절이 없다. 헛 호출을 하지 않는다."""
+-    ai = _FakeAI()
+-    service, _ = _service(decisions=2, rows={"decisions": [_decision()]}, ai_client=ai)
+-    _gen(service, kind="DECISION_LOG", deliverable_format="MD", **WEEK)
+     assert ai.calls == 0
++    assert "## 주간 요약" in body
++    assert "과업지시서.pdf" in body
+ 
+ 
+-def test_overview_falls_back_to_placeholder_when_llm_fails():
+-    """개요 하나 때문에 보고서 전체를 막지 않는다. 실패하면 안내 문구로 되돌아간다."""
+-    ai = _FakeAI(fail=True)
+-    service, _ = _service(documents=1, rows={"documents": [_document()]}, ai_client=ai)
+-    body = _read(_gen(service, kind="WEEKLY_REPORT", deliverable_format="MD", **WEEK))
+-
+-    assert ai.calls == 1
+-    assert "## 개요" in body
+-    assert "아직" in body  # SUMMARY_PLACEHOLDER 로 되돌아간다
+-    # 표는 정상적으로 만들어진다(제목이 머리에 있다).
+-    assert body.startswith("# 주간 보고서")
++# --- 주간 요약은 LLM을 호출하지 않는다 --------------------------------------
+ 
+ 
+-def test_overview_uses_placeholder_when_json_broken():
+-    """JSON 검증 실패 시 원문 응답을 노출하지 않고 표 생성을 계속한다."""
+-    ai = _FakeAI(text="그냥 평문 개요입니다")
+-    service, _ = _service(documents=1, rows={"documents": [_document()]}, ai_client=ai)
+-    body = _read(_gen(service, kind="WEEKLY_REPORT", deliverable_format="MD", **WEEK))
+-    assert "그냥 평문 개요입니다" not in body
+-    assert "아직" in body
+-
++class _FakeAI:
++    """호출되면 횟수를 남기는 최소 AI 클라이언트."""
+ 
+-@pytest.mark.parametrize("text", ['{"summary":null}', '{"summary":[]}', '{"summary":42}', '{"summary":" "}', '{"summary":"' + '가' * 251 + '"}'])
+-def test_overview_invalid_values_do_not_break_artifact(text):
+-    ai = _FakeAI(text=text)
+-    service, _ = _service(documents=1, rows={"documents": [_document()]}, ai_client=ai)
+-    body = _read(_gen(service, kind="WEEKLY_REPORT", deliverable_format="MD", **WEEK))
+-    assert "아직" in body
+-    assert "계약서.pdf" in body
++    provider = "fake"
+ 
++    def __init__(self):
++        self.calls = 0
+ 
+-def test_overview_compacts_names_without_cutting_counts(monkeypatch):
+-    import json
+-    from app.core.config import settings
+-    from app.analyzers.prompt_input import byte_size
+-    from app.analyzers.prompts import build_deliverable_overview_prompt
+-
+-    materials = DeliverableMaterials(documents=[_document("매우긴파일명" * 30) for _ in range(5)],
+-        amount_items=[_amount()])
+-    digest = DeliverableService._overview_digest("제목", None, None, materials, include_names=False)
+-    compact = build_deliverable_overview_prompt(digest, representative_names_omitted=True)
+-    monkeypatch.setattr(settings, "AI_CONTEXT_TOKENS", byte_size(compact.system) + byte_size(compact.user) + settings.AI_MAX_OUTPUT_TOKENS + 256 + 10)
+-    ai = _FakeAI()
+-    service, _ = _service(ai_client=ai)
+-    result = asyncio.run(service._overview("WEEKLY_REPORT", "제목", None, None, materials))
+-    assert result == "이번 주 핵심 개요입니다."
+-    assert ai.calls == 1
+-    data = json.loads(ai.prompts[0].user)
+-    assert data["representative_names_omitted"] is True
+-    assert "문서 5건" in data["materials"]
+-    assert "6,000,000원" in data["materials"]
++    async def generate_with_meta(self, _prompt):
++        self.calls += 1
++        raise AssertionError("주간 보고서 생성 중 AI를 호출하면 안 됩니다.")
+ 
+diff --git a/backend/tests/test_deliverable_html.py b/backend/tests/test_deliverable_html.py
+index 9237d35..033a440 100644
+--- a/backend/tests/test_deliverable_html.py
++++ b/backend/tests/test_deliverable_html.py
+@@ -6,3 +6,3 @@
+ #     ② 값을 escape 하는가 (보안. 문서 이름에 <script> 가 올 수 있다)
+-#     ③ 표가 없는 절(개요)과 행이 없는 표를 문장으로 내는가
++#     ③ 구조화된 주간 요약과 행이 없는 표를 올바르게 그리는가
+ #     ④ 형식별 확장자·MIME 이 한 곳에서 나오는가
+@@ -76,4 +76,4 @@ def test_both_formats_have_the_same_sections():
+         assert f"## {title}" in markdown, title
+-    # 주간 보고서는 개요 + 다섯 절이다.
+-    assert titles == ["개요", "문서", "완료한 태스크", "결정사항", "일정·기한", "금액"]
++    # 주간 보고서는 주간 요약 + 다섯 자료 절이다.
++    assert titles == ["주간 요약", "문서", "완료한 태스크", "결정사항", "일정·기한", "금액"]
+ 
+@@ -132,10 +132,14 @@ def test_empty_table_becomes_sentence_not_empty_table():
+     assert "이 기간에 완료한 태스크가 없습니다." in html
+-    # 빈 표를 그리지 않는다 — 표는 자료가 있는 절에만 있다.
+-    assert html.count("<table>") == 1
++    # 주간 요약과 문서만 표이고, 자료 없는 절은 안내 문장이다.
++    assert html.count("<table>") == 2
+ 
+ 
+-def test_summary_section_is_a_paragraph():
++def test_weekly_summary_section_is_a_table():
+     html = render_html(**_args())
+-    assert "<h2>개요</h2>" in html
+-    assert 'class="note"' in html
++    assert "<h2>주간 요약</h2>" in html
++    assert "<h2>개요</h2>" not in html
++    assert "<th>구분</th>" in html
++    assert "<th>내용</th>" in html
++    assert "<td>실적</td>" in html
++    assert "문서 1건 등록" in html
+ 
+diff --git a/backend/tests/test_deliverable_xlsx.py b/backend/tests/test_deliverable_xlsx.py
+index 3cb385d..6bbe729 100644
+--- a/backend/tests/test_deliverable_xlsx.py
++++ b/backend/tests/test_deliverable_xlsx.py
+@@ -43,3 +43,3 @@ WEEK = {"period_from": date(2026, 8, 14), "period_to": date(2026, 8, 20)}
+ # 주간 보고서의 절 이름. build_document 가 정한 순서와 같아야 한다.
+-WEEKLY_SECTIONS = ["문서", "완료한 태스크", "결정사항", "일정·기한", "금액"]
++WEEKLY_SECTIONS = ["주간 요약", "문서", "완료한 태스크", "결정사항", "일정·기한", "금액"]
+ 
+@@ -102,3 +102,3 @@ def test_render_returns_xlsx_bytes():
+ def test_empty_sections_still_become_sheets():
+-    """자료가 문서 1건뿐이어도 다섯 절 시트가 모두 있어야 한다.
++    """자료가 문서 1건뿐이어도 주간 요약과 다섯 자료 시트가 모두 있어야 한다.
+ 
+@@ -111,2 +111,21 @@ def test_empty_sections_still_become_sheets():
+ 
++def test_weekly_summary_sheet_has_structured_rows():
++    workbook = _load(
++        render_xlsx(
++            **_args(
++                DeliverableMaterials(
++                    documents=[_document()], amount_items=[_amount()]
++                )
++            )
++        )
++    )
++    sheet = workbook["주간 요약"]
++    assert [cell.value for cell in sheet[1]][:2] == ["구분", "내용"]
++    assert _find_row(sheet, "실적")[:2] == ["실적", "문서 1건 등록"]
++    assert _find_row(sheet, "금액")[:2] == [
++        "금액",
++        "승인 금액 항목 1건 · 단순 합계 6,000,000원",
++    ]
++
++
+ def test_empty_section_sheet_has_header_and_sentence():
+@@ -188,2 +207,4 @@ def test_summary_sheet_lists_each_section_with_count():
+     assert "담긴 내용" in texts
++    # 주간 요약은 실제 자료가 있는 구분 2개(실적·금액)를 담는다.
++    assert _find_row(summary, "주간 요약")[:2] == ["주간 요약", 2]
+     # 문서 2건 · 금액 1건이 표에 그대로 나온다.
