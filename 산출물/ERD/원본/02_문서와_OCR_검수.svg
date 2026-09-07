@@ -1,0 +1,406 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1810" height="968" viewBox="0 0 1810 968" font-family="IBM Plex Sans, Segoe UI, sans-serif">
+<rect width="1810" height="968" fill="#FBFCFD"/>
+<text x="46" y="46" font-size="24" font-weight="700" fill="#14202F">Tasqra — 문서와 OCR 검수</text>
+<text x="46" y="70" font-size="12.5" fill="#6B7887">인식 결과를 좌표까지 보존하고, 사람이 고친 이력을 요소 단위로 남긴다.</text>
+<text x="1764" y="46" text-anchor="end" font-size="11" fill="#6B7887">표 9 · 관계 11</text>
+<text x="1764" y="66" text-anchor="end" font-size="10" fill="#6B7887" font-family="IBM Plex Mono, Consolas, monospace">▪ 기본키 &#160;&#160; ○ 널 허용 &#160;&#160; ⋔ 다(多)</text>
+<line x1="46" y1="84" x2="1764" y2="84" stroke="#AFB8C2" stroke-width="1"/>
+<g transform="translate(0,96)"><path d="M284 284.5 H310.8 V397.5 H786" fill="none" stroke="#7A8794" stroke-width="1.2"/><line x1="295" y1="278.5" x2="295" y2="290.5" stroke="#7A8794" stroke-width="1.3"/><path d="M773 397.5 L786 391.5 M773 397.5 L786 397.5 M773 397.5 L786 403.5" fill="none" stroke="#7A8794" stroke-width="1.3"/><path d="M654 244.5 H683.2 V380.5 H786" fill="none" stroke="#7A8794" stroke-width="1.2"/><line x1="665" y1="238.5" x2="665" y2="250.5" stroke="#7A8794" stroke-width="1.3"/><path d="M773 380.5 L786 374.5 M773 380.5 L786 380.5 M773 380.5 L786 386.5" fill="none" stroke="#7A8794" stroke-width="1.3"/><path d="M416 244.5 H330.4 V527.5 H284" fill="none" stroke="#7A8794" stroke-width="1.2"/><line x1="405" y1="238.5" x2="405" y2="250.5" stroke="#7A8794" stroke-width="1.3"/><path d="M297 527.5 L284 521.5 M297 527.5 L284 527.5 M297 527.5 L284 533.5" fill="none" stroke="#7A8794" stroke-width="1.3"/><path d="M284 284.5 H350.0 V261.5 H416" fill="none" stroke="#7A8794" stroke-width="1.2"/><line x1="295" y1="278.5" x2="295" y2="290.5" stroke="#7A8794" stroke-width="1.3"/><path d="M403 261.5 L416 255.5 M403 261.5 L416 261.5 M403 261.5 L416 267.5" fill="none" stroke="#7A8794" stroke-width="1.3"/><path d="M654 244.5 H707.8 V86.5 H786" fill="none" stroke="#7A8794" stroke-width="1.2"/><line x1="665" y1="238.5" x2="665" y2="250.5" stroke="#7A8794" stroke-width="1.3"/><path d="M773 86.5 L786 80.5 M773 86.5 L786 86.5 M773 86.5 L786 92.5" fill="none" stroke="#7A8794" stroke-width="1.3"/><path d="M1394 244.5 H1435.5 V301.5 H1526" fill="none" stroke="#7A8794" stroke-width="1.2"/><line x1="1405" y1="238.5" x2="1405" y2="250.5" stroke="#7A8794" stroke-width="1.3"/><path d="M1513 301.5 L1526 295.5 M1513 301.5 L1526 301.5 M1513 301.5 L1526 307.5" fill="none" stroke="#7A8794" stroke-width="1.3"/><path d="M284 510.5 H369.6 V261.5 H1156" fill="none" stroke="#7A8794" stroke-width="1.2"/><line x1="295" y1="504.5" x2="295" y2="516.5" stroke="#7A8794" stroke-width="1.3"/><path d="M1143 261.5 L1156 255.5 M1143 261.5 L1156 261.5 M1143 261.5 L1156 267.5" fill="none" stroke="#7A8794" stroke-width="1.3"/><path d="M1394 244.5 H1484.5 V527.5 H1526" fill="none" stroke="#7A8794" stroke-width="1.2"/><line x1="1405" y1="238.5" x2="1405" y2="250.5" stroke="#7A8794" stroke-width="1.3"/><path d="M1513 527.5 L1526 521.5 M1513 527.5 L1526 527.5 M1513 527.5 L1526 533.5" fill="none" stroke="#7A8794" stroke-width="1.3"/><path d="M654 244.5 H732.2 V510.5 H1526" fill="none" stroke="#7A8794" stroke-width="1.2"/><line x1="665" y1="238.5" x2="665" y2="250.5" stroke="#7A8794" stroke-width="1.3"/><path d="M1513 510.5 L1526 504.5 M1513 510.5 L1526 510.5 M1513 510.5 L1526 516.5" fill="none" stroke="#7A8794" stroke-width="1.3"/><path d="M654 244.5 H756.8 V725.5 H786" fill="none" stroke="#7A8794" stroke-width="1.2"/><line x1="665" y1="238.5" x2="665" y2="250.5" stroke="#7A8794" stroke-width="1.3"/><path d="M773 725.5 L786 719.5 M773 725.5 L786 725.5 M773 725.5 L786 731.5" fill="none" stroke="#7A8794" stroke-width="1.3"/><path d="M284 510.5 H389.2 V742.5 H786" fill="none" stroke="#7A8794" stroke-width="1.2"/><line x1="295" y1="504.5" x2="295" y2="516.5" stroke="#7A8794" stroke-width="1.3"/><path d="M773 742.5 L786 736.5 M773 742.5 L786 742.5 M773 742.5 L786 748.5" fill="none" stroke="#7A8794" stroke-width="1.3"/></g>
+<g>
+<rect x="46" y="340" width="238" height="192" rx="3" fill="#FFFFFF" stroke="#AFB8C2" stroke-width="1"/>
+<path d="M46 343 a3 3 0 0 1 3-3 h232 a3 3 0 0 1 3 3 v29 h-238 Z" fill="#DFE5EC"/>
+<line x1="46" y1="372" x2="284" y2="372" stroke="#B6C1CE" stroke-width="1"/>
+<text x="57" y="361" font-family="IBM Plex Sans, Segoe UI, sans-serif" font-size="13" font-weight="600" fill="#3A4553">projects</text>
+<text x="273" y="361" text-anchor="end" font-family="IBM Plex Sans, Segoe UI, sans-serif" font-size="9.5" fill="#3A4553" opacity="0.75">참조</text>
+<text x="57" y="384" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="600" fill="#1F5285">id ▪</text>
+<text x="273" y="384" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">bigint</text>
+<line x1="47" y1="389" x2="283" y2="389" stroke="#ECEFF3" stroke-width="1"/>
+<text x="57" y="401" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">name</text>
+<text x="273" y="401" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">varchar</text>
+<line x1="47" y1="406" x2="283" y2="406" stroke="#ECEFF3" stroke-width="1"/>
+<text x="57" y="418" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">description</text>
+<text x="273" y="418" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">text</text>
+<line x1="47" y1="423" x2="283" y2="423" stroke="#ECEFF3" stroke-width="1"/>
+<text x="57" y="435" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">owner_id</text>
+<text x="273" y="435" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">bigint</text>
+<line x1="47" y1="440" x2="283" y2="440" stroke="#ECEFF3" stroke-width="1"/>
+<text x="57" y="452" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">status</text>
+<text x="273" y="452" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">varchar</text>
+<line x1="47" y1="457" x2="283" y2="457" stroke="#ECEFF3" stroke-width="1"/>
+<text x="57" y="469" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">started_on</text>
+<text x="273" y="469" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">date</text>
+<line x1="47" y1="474" x2="283" y2="474" stroke="#ECEFF3" stroke-width="1"/>
+<text x="57" y="486" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">due_on</text>
+<text x="273" y="486" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">date</text>
+<line x1="47" y1="491" x2="283" y2="491" stroke="#ECEFF3" stroke-width="1"/>
+<text x="57" y="503" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">created_at</text>
+<text x="273" y="503" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">timestamp</text>
+<line x1="47" y1="508" x2="283" y2="508" stroke="#ECEFF3" stroke-width="1"/>
+<text x="57" y="520" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">updated_at</text>
+<text x="273" y="520" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">timestamp</text>
+</g>
+<g>
+<rect x="46" y="566" width="238" height="158" rx="3" fill="#FFFFFF" stroke="#AFB8C2" stroke-width="1"/>
+<path d="M46 569 a3 3 0 0 1 3-3 h232 a3 3 0 0 1 3 3 v29 h-238 Z" fill="#F2B3AB"/>
+<line x1="46" y1="598" x2="284" y2="598" stroke="#D08F87" stroke-width="1"/>
+<text x="57" y="587" font-family="IBM Plex Sans, Segoe UI, sans-serif" font-size="13" font-weight="600" fill="#3A2B29">document_pages</text>
+<text x="57" y="610" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="600" fill="#1F5285">id ▪</text>
+<text x="273" y="610" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">bigint</text>
+<line x1="47" y1="615" x2="283" y2="615" stroke="#ECEFF3" stroke-width="1"/>
+<text x="57" y="627" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">document_id</text>
+<text x="273" y="627" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">bigint</text>
+<line x1="47" y1="632" x2="283" y2="632" stroke="#ECEFF3" stroke-width="1"/>
+<text x="57" y="644" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">page_number</text>
+<text x="273" y="644" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">int</text>
+<line x1="47" y1="649" x2="283" y2="649" stroke="#ECEFF3" stroke-width="1"/>
+<text x="57" y="661" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">page_kind</text>
+<text x="273" y="661" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">varchar</text>
+<line x1="47" y1="666" x2="283" y2="666" stroke="#ECEFF3" stroke-width="1"/>
+<text x="57" y="678" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">image_path</text>
+<text x="273" y="678" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">varchar</text>
+<line x1="47" y1="683" x2="283" y2="683" stroke="#ECEFF3" stroke-width="1"/>
+<text x="57" y="695" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">width</text>
+<text x="273" y="695" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">int</text>
+<line x1="47" y1="700" x2="283" y2="700" stroke="#ECEFF3" stroke-width="1"/>
+<text x="57" y="712" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">height</text>
+<text x="273" y="712" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">int</text>
+</g>
+<g>
+<rect x="416" y="300" width="238" height="464" rx="3" fill="#FFFFFF" stroke="#AFB8C2" stroke-width="1"/>
+<path d="M416 303 a3 3 0 0 1 3-3 h232 a3 3 0 0 1 3 3 v29 h-238 Z" fill="#F2B3AB"/>
+<line x1="416" y1="332" x2="654" y2="332" stroke="#D08F87" stroke-width="1"/>
+<text x="427" y="321" font-family="IBM Plex Sans, Segoe UI, sans-serif" font-size="13" font-weight="600" fill="#3A2B29">documents</text>
+<text x="427" y="344" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="600" fill="#1F5285">id ▪</text>
+<text x="643" y="344" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">bigint</text>
+<line x1="417" y1="349" x2="653" y2="349" stroke="#ECEFF3" stroke-width="1"/>
+<text x="427" y="361" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">project_id</text>
+<text x="643" y="361" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">bigint</text>
+<line x1="417" y1="366" x2="653" y2="366" stroke="#ECEFF3" stroke-width="1"/>
+<text x="427" y="378" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">uploaded_by</text>
+<text x="643" y="378" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">bigint</text>
+<line x1="417" y1="383" x2="653" y2="383" stroke="#ECEFF3" stroke-width="1"/>
+<text x="427" y="395" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">filename</text>
+<text x="643" y="395" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">varchar</text>
+<line x1="417" y1="400" x2="653" y2="400" stroke="#ECEFF3" stroke-width="1"/>
+<text x="427" y="412" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">storage_path</text>
+<text x="643" y="412" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">varchar</text>
+<line x1="417" y1="417" x2="653" y2="417" stroke="#ECEFF3" stroke-width="1"/>
+<text x="427" y="429" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">file_type</text>
+<text x="643" y="429" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">varchar</text>
+<line x1="417" y1="434" x2="653" y2="434" stroke="#ECEFF3" stroke-width="1"/>
+<text x="427" y="446" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">file_size</text>
+<text x="643" y="446" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">bigint</text>
+<line x1="417" y1="451" x2="653" y2="451" stroke="#ECEFF3" stroke-width="1"/>
+<text x="427" y="463" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">content_hash</text>
+<text x="643" y="463" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">varchar</text>
+<line x1="417" y1="468" x2="653" y2="468" stroke="#ECEFF3" stroke-width="1"/>
+<text x="427" y="480" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">document_type</text>
+<text x="643" y="480" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">varchar</text>
+<line x1="417" y1="485" x2="653" y2="485" stroke="#ECEFF3" stroke-width="1"/>
+<text x="427" y="497" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">document_type_source</text>
+<text x="643" y="497" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">varchar</text>
+<line x1="417" y1="502" x2="653" y2="502" stroke="#ECEFF3" stroke-width="1"/>
+<text x="427" y="514" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">package_key</text>
+<text x="643" y="514" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">varchar</text>
+<line x1="417" y1="519" x2="653" y2="519" stroke="#ECEFF3" stroke-width="1"/>
+<text x="427" y="531" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">package_role</text>
+<text x="643" y="531" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">varchar</text>
+<line x1="417" y1="536" x2="653" y2="536" stroke="#ECEFF3" stroke-width="1"/>
+<text x="427" y="548" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">status</text>
+<text x="643" y="548" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">varchar</text>
+<line x1="417" y1="553" x2="653" y2="553" stroke="#ECEFF3" stroke-width="1"/>
+<text x="427" y="565" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">processing_error</text>
+<text x="643" y="565" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">varchar</text>
+<line x1="417" y1="570" x2="653" y2="570" stroke="#ECEFF3" stroke-width="1"/>
+<text x="427" y="582" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">processing_mode</text>
+<text x="643" y="582" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">varchar</text>
+<line x1="417" y1="587" x2="653" y2="587" stroke="#ECEFF3" stroke-width="1"/>
+<text x="427" y="599" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">extraction_strategy</text>
+<text x="643" y="599" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">varchar</text>
+<line x1="417" y1="604" x2="653" y2="604" stroke="#ECEFF3" stroke-width="1"/>
+<text x="427" y="616" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">review_status</text>
+<text x="643" y="616" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">varchar</text>
+<line x1="417" y1="621" x2="653" y2="621" stroke="#ECEFF3" stroke-width="1"/>
+<text x="427" y="633" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">reviewed_by</text>
+<text x="643" y="633" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">bigint</text>
+<line x1="417" y1="638" x2="653" y2="638" stroke="#ECEFF3" stroke-width="1"/>
+<text x="427" y="650" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">reviewed_at</text>
+<text x="643" y="650" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">timestamp</text>
+<line x1="417" y1="655" x2="653" y2="655" stroke="#ECEFF3" stroke-width="1"/>
+<text x="427" y="667" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">ocr_revision</text>
+<text x="643" y="667" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">int</text>
+<line x1="417" y1="672" x2="653" y2="672" stroke="#ECEFF3" stroke-width="1"/>
+<text x="427" y="684" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">category_cache</text>
+<text x="643" y="684" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">varchar</text>
+<line x1="417" y1="689" x2="653" y2="689" stroke="#ECEFF3" stroke-width="1"/>
+<text x="427" y="701" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">summary_preview</text>
+<text x="643" y="701" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">varchar</text>
+<line x1="417" y1="706" x2="653" y2="706" stroke="#ECEFF3" stroke-width="1"/>
+<text x="427" y="718" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">stated_total_amount</text>
+<text x="643" y="718" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">numeric</text>
+<line x1="417" y1="723" x2="653" y2="723" stroke="#ECEFF3" stroke-width="1"/>
+<text x="427" y="735" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">created_at</text>
+<text x="643" y="735" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">timestamp</text>
+<line x1="417" y1="740" x2="653" y2="740" stroke="#ECEFF3" stroke-width="1"/>
+<text x="427" y="752" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">updated_at</text>
+<text x="643" y="752" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">timestamp</text>
+</g>
+<g>
+<rect x="786" y="142" width="238" height="243" rx="3" fill="#FFFFFF" stroke="#AFB8C2" stroke-width="1"/>
+<path d="M786 145 a3 3 0 0 1 3-3 h232 a3 3 0 0 1 3 3 v29 h-238 Z" fill="#F2B3AB"/>
+<line x1="786" y1="174" x2="1024" y2="174" stroke="#D08F87" stroke-width="1"/>
+<text x="797" y="163" font-family="IBM Plex Sans, Segoe UI, sans-serif" font-size="13" font-weight="600" fill="#3A2B29">extracted_texts</text>
+<text x="797" y="186" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="600" fill="#1F5285">document_id ▪</text>
+<text x="1013" y="186" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">bigint</text>
+<line x1="787" y1="191" x2="1023" y2="191" stroke="#ECEFF3" stroke-width="1"/>
+<text x="797" y="203" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">content</text>
+<text x="1013" y="203" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">text</text>
+<line x1="787" y1="208" x2="1023" y2="208" stroke="#ECEFF3" stroke-width="1"/>
+<text x="797" y="220" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">page_count</text>
+<text x="1013" y="220" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">int</text>
+<line x1="787" y1="225" x2="1023" y2="225" stroke="#ECEFF3" stroke-width="1"/>
+<text x="797" y="237" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">char_count</text>
+<text x="1013" y="237" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">int</text>
+<line x1="787" y1="242" x2="1023" y2="242" stroke="#ECEFF3" stroke-width="1"/>
+<text x="797" y="254" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">text_char_count</text>
+<text x="1013" y="254" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">int</text>
+<line x1="787" y1="259" x2="1023" y2="259" stroke="#ECEFF3" stroke-width="1"/>
+<text x="797" y="271" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">ocr_char_count</text>
+<text x="1013" y="271" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">int</text>
+<line x1="787" y1="276" x2="1023" y2="276" stroke="#ECEFF3" stroke-width="1"/>
+<text x="797" y="288" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">extract_method</text>
+<text x="1013" y="288" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">varchar</text>
+<line x1="787" y1="293" x2="1023" y2="293" stroke="#ECEFF3" stroke-width="1"/>
+<text x="797" y="305" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">text_version</text>
+<text x="1013" y="305" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">int</text>
+<line x1="787" y1="310" x2="1023" y2="310" stroke="#ECEFF3" stroke-width="1"/>
+<text x="797" y="322" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">is_confirmed</text>
+<text x="1013" y="322" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">bool</text>
+<line x1="787" y1="327" x2="1023" y2="327" stroke="#ECEFF3" stroke-width="1"/>
+<text x="797" y="339" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">confirmed_by</text>
+<text x="1013" y="339" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">bigint</text>
+<line x1="787" y1="344" x2="1023" y2="344" stroke="#ECEFF3" stroke-width="1"/>
+<text x="797" y="356" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">confirmed_at</text>
+<text x="1013" y="356" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">timestamp</text>
+<line x1="787" y1="361" x2="1023" y2="361" stroke="#ECEFF3" stroke-width="1"/>
+<text x="797" y="373" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">updated_at</text>
+<text x="1013" y="373" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">timestamp</text>
+</g>
+<g>
+<rect x="786" y="419" width="238" height="311" rx="3" fill="#FFFFFF" stroke="#AFB8C2" stroke-width="1"/>
+<path d="M786 422 a3 3 0 0 1 3-3 h232 a3 3 0 0 1 3 3 v29 h-238 Z" fill="#F2B3AB"/>
+<line x1="786" y1="451" x2="1024" y2="451" stroke="#D08F87" stroke-width="1"/>
+<text x="797" y="440" font-family="IBM Plex Sans, Segoe UI, sans-serif" font-size="13" font-weight="600" fill="#3A2B29">document_chunks</text>
+<text x="797" y="463" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="600" fill="#1F5285">id ▪</text>
+<text x="1013" y="463" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">bigint</text>
+<line x1="787" y1="468" x2="1023" y2="468" stroke="#ECEFF3" stroke-width="1"/>
+<text x="797" y="480" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">document_id</text>
+<text x="1013" y="480" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">bigint</text>
+<line x1="787" y1="485" x2="1023" y2="485" stroke="#ECEFF3" stroke-width="1"/>
+<text x="797" y="497" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">project_id</text>
+<text x="1013" y="497" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">bigint</text>
+<line x1="787" y1="502" x2="1023" y2="502" stroke="#ECEFF3" stroke-width="1"/>
+<text x="797" y="514" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">seq</text>
+<text x="1013" y="514" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">int</text>
+<line x1="787" y1="519" x2="1023" y2="519" stroke="#ECEFF3" stroke-width="1"/>
+<text x="797" y="531" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">page_number</text>
+<text x="1013" y="531" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">int</text>
+<line x1="787" y1="536" x2="1023" y2="536" stroke="#ECEFF3" stroke-width="1"/>
+<text x="797" y="548" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">text</text>
+<text x="1013" y="548" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">text</text>
+<line x1="787" y1="553" x2="1023" y2="553" stroke="#ECEFF3" stroke-width="1"/>
+<text x="797" y="565" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">char_count</text>
+<text x="1013" y="565" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">int</text>
+<line x1="787" y1="570" x2="1023" y2="570" stroke="#ECEFF3" stroke-width="1"/>
+<text x="797" y="582" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">token_count</text>
+<text x="1013" y="582" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">int</text>
+<line x1="787" y1="587" x2="1023" y2="587" stroke="#ECEFF3" stroke-width="1"/>
+<text x="797" y="599" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">content_start</text>
+<text x="1013" y="599" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">int</text>
+<line x1="787" y1="604" x2="1023" y2="604" stroke="#ECEFF3" stroke-width="1"/>
+<text x="797" y="616" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">content_end</text>
+<text x="1013" y="616" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">int</text>
+<line x1="787" y1="621" x2="1023" y2="621" stroke="#ECEFF3" stroke-width="1"/>
+<text x="797" y="633" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">embedding</text>
+<text x="1013" y="633" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">vector</text>
+<line x1="787" y1="638" x2="1023" y2="638" stroke="#ECEFF3" stroke-width="1"/>
+<text x="797" y="650" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">embedding_model</text>
+<text x="1013" y="650" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">varchar</text>
+<line x1="787" y1="655" x2="1023" y2="655" stroke="#ECEFF3" stroke-width="1"/>
+<text x="797" y="667" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">embedding_dim</text>
+<text x="1013" y="667" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">smallint</text>
+<line x1="787" y1="672" x2="1023" y2="672" stroke="#ECEFF3" stroke-width="1"/>
+<text x="797" y="684" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">text_version</text>
+<text x="1013" y="684" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">int</text>
+<line x1="787" y1="689" x2="1023" y2="689" stroke="#ECEFF3" stroke-width="1"/>
+<text x="797" y="701" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">created_at</text>
+<text x="1013" y="701" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">timestamp</text>
+<line x1="787" y1="706" x2="1023" y2="706" stroke="#ECEFF3" stroke-width="1"/>
+<text x="797" y="718" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">updated_at</text>
+<text x="1013" y="718" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">timestamp</text>
+</g>
+<g>
+<rect x="786" y="764" width="238" height="158" rx="3" fill="#FFFFFF" stroke="#AFB8C2" stroke-width="1"/>
+<path d="M786 767 a3 3 0 0 1 3-3 h232 a3 3 0 0 1 3 3 v29 h-238 Z" fill="#F2B3AB"/>
+<line x1="786" y1="796" x2="1024" y2="796" stroke="#D08F87" stroke-width="1"/>
+<text x="797" y="785" font-family="IBM Plex Sans, Segoe UI, sans-serif" font-size="13" font-weight="600" fill="#3A2B29">ocr_structure_events</text>
+<text x="797" y="808" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="600" fill="#1F5285">id ▪</text>
+<text x="1013" y="808" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">bigint</text>
+<line x1="787" y1="813" x2="1023" y2="813" stroke="#ECEFF3" stroke-width="1"/>
+<text x="797" y="825" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">document_id</text>
+<text x="1013" y="825" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">bigint</text>
+<line x1="787" y1="830" x2="1023" y2="830" stroke="#ECEFF3" stroke-width="1"/>
+<text x="797" y="842" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">page_id</text>
+<text x="1013" y="842" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">bigint</text>
+<line x1="787" y1="847" x2="1023" y2="847" stroke="#ECEFF3" stroke-width="1"/>
+<text x="797" y="859" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">event_type</text>
+<text x="1013" y="859" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">varchar</text>
+<line x1="787" y1="864" x2="1023" y2="864" stroke="#ECEFF3" stroke-width="1"/>
+<text x="797" y="876" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">details_json</text>
+<text x="1013" y="876" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">jsonb</text>
+<line x1="787" y1="881" x2="1023" y2="881" stroke="#ECEFF3" stroke-width="1"/>
+<text x="797" y="893" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">created_by</text>
+<text x="1013" y="893" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">bigint</text>
+<line x1="787" y1="898" x2="1023" y2="898" stroke="#ECEFF3" stroke-width="1"/>
+<text x="797" y="910" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">created_at</text>
+<text x="1013" y="910" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">timestamp</text>
+</g>
+<g>
+<rect x="1156" y="300" width="238" height="464" rx="3" fill="#FFFFFF" stroke="#AFB8C2" stroke-width="1"/>
+<path d="M1156 303 a3 3 0 0 1 3-3 h232 a3 3 0 0 1 3 3 v29 h-238 Z" fill="#F2B3AB"/>
+<line x1="1156" y1="332" x2="1394" y2="332" stroke="#D08F87" stroke-width="1"/>
+<text x="1167" y="321" font-family="IBM Plex Sans, Segoe UI, sans-serif" font-size="13" font-weight="600" fill="#3A2B29">ocr_elements</text>
+<text x="1167" y="344" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="600" fill="#1F5285">id ▪</text>
+<text x="1383" y="344" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">bigint</text>
+<line x1="1157" y1="349" x2="1393" y2="349" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1167" y="361" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">page_id</text>
+<text x="1383" y="361" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">bigint</text>
+<line x1="1157" y1="366" x2="1393" y2="366" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1167" y="378" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">original_text</text>
+<text x="1383" y="378" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">text</text>
+<line x1="1157" y1="383" x2="1393" y2="383" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1167" y="395" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">text</text>
+<text x="1383" y="395" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">text</text>
+<line x1="1157" y1="400" x2="1393" y2="400" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1167" y="412" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">x</text>
+<text x="1383" y="412" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">float</text>
+<line x1="1157" y1="417" x2="1393" y2="417" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1167" y="429" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">y</text>
+<text x="1383" y="429" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">float</text>
+<line x1="1157" y1="434" x2="1393" y2="434" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1167" y="446" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">width</text>
+<text x="1383" y="446" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">float</text>
+<line x1="1157" y1="451" x2="1393" y2="451" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1167" y="463" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">height</text>
+<text x="1383" y="463" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">float</text>
+<line x1="1157" y1="468" x2="1393" y2="468" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1167" y="480" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">confidence</text>
+<text x="1383" y="480" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">float</text>
+<line x1="1157" y1="485" x2="1393" y2="485" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1167" y="497" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">source</text>
+<text x="1383" y="497" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">varchar</text>
+<line x1="1157" y1="502" x2="1393" y2="502" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1167" y="514" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">element_type</text>
+<text x="1383" y="514" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">varchar</text>
+<line x1="1157" y1="519" x2="1393" y2="519" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1167" y="531" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">element_type_source</text>
+<text x="1383" y="531" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">varchar</text>
+<line x1="1157" y1="536" x2="1393" y2="536" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1167" y="548" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">is_paragraph_start</text>
+<text x="1383" y="548" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">bool</text>
+<line x1="1157" y1="553" x2="1393" y2="553" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1167" y="565" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">table_id</text>
+<text x="1383" y="565" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">int</text>
+<line x1="1157" y1="570" x2="1393" y2="570" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1167" y="582" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">table_row</text>
+<text x="1383" y="582" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">int</text>
+<line x1="1157" y1="587" x2="1393" y2="587" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1167" y="599" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">reading_order</text>
+<text x="1383" y="599" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">int</text>
+<line x1="1157" y1="604" x2="1393" y2="604" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1167" y="616" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">version</text>
+<text x="1383" y="616" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">int</text>
+<line x1="1157" y1="621" x2="1393" y2="621" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1167" y="633" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">is_deleted</text>
+<text x="1383" y="633" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">bool</text>
+<line x1="1157" y1="638" x2="1393" y2="638" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1167" y="650" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">is_excluded</text>
+<text x="1383" y="650" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">bool</text>
+<line x1="1157" y1="655" x2="1393" y2="655" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1167" y="667" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">is_reviewed</text>
+<text x="1383" y="667" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">bool</text>
+<line x1="1157" y1="672" x2="1393" y2="672" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1167" y="684" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">content_start</text>
+<text x="1383" y="684" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">int</text>
+<line x1="1157" y1="689" x2="1393" y2="689" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1167" y="701" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">content_end</text>
+<text x="1383" y="701" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">int</text>
+<line x1="1157" y1="706" x2="1393" y2="706" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1167" y="718" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">is_in_content</text>
+<text x="1383" y="718" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">bool</text>
+<line x1="1157" y1="723" x2="1393" y2="723" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1167" y="735" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">created_at</text>
+<text x="1383" y="735" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">timestamp</text>
+<line x1="1157" y1="740" x2="1393" y2="740" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1167" y="752" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">updated_at</text>
+<text x="1383" y="752" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">timestamp</text>
+</g>
+<g>
+<rect x="1526" y="340" width="238" height="175" rx="3" fill="#FFFFFF" stroke="#AFB8C2" stroke-width="1"/>
+<path d="M1526 343 a3 3 0 0 1 3-3 h232 a3 3 0 0 1 3 3 v29 h-238 Z" fill="#F2B3AB"/>
+<line x1="1526" y1="372" x2="1764" y2="372" stroke="#D08F87" stroke-width="1"/>
+<text x="1537" y="361" font-family="IBM Plex Sans, Segoe UI, sans-serif" font-size="13" font-weight="600" fill="#3A2B29">ocr_element_revisions</text>
+<text x="1537" y="384" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="600" fill="#1F5285">id ▪</text>
+<text x="1753" y="384" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">bigint</text>
+<line x1="1527" y1="389" x2="1763" y2="389" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1537" y="401" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">element_id</text>
+<text x="1753" y="401" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">bigint</text>
+<line x1="1527" y1="406" x2="1763" y2="406" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1537" y="418" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">changed_by</text>
+<text x="1753" y="418" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">bigint</text>
+<line x1="1527" y1="423" x2="1763" y2="423" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1537" y="435" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">before_text</text>
+<text x="1753" y="435" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">text</text>
+<line x1="1527" y1="440" x2="1763" y2="440" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1537" y="452" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">after_text</text>
+<text x="1753" y="452" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">text</text>
+<line x1="1527" y1="457" x2="1763" y2="457" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1537" y="469" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">from_version</text>
+<text x="1753" y="469" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">int</text>
+<line x1="1527" y1="474" x2="1763" y2="474" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1537" y="486" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">to_version</text>
+<text x="1753" y="486" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">int</text>
+<line x1="1527" y1="491" x2="1763" y2="491" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1537" y="503" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">created_at</text>
+<text x="1753" y="503" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">timestamp</text>
+</g>
+<g>
+<rect x="1526" y="549" width="238" height="175" rx="3" fill="#FFFFFF" stroke="#AFB8C2" stroke-width="1"/>
+<path d="M1526 552 a3 3 0 0 1 3-3 h232 a3 3 0 0 1 3 3 v29 h-238 Z" fill="#F2B3AB"/>
+<line x1="1526" y1="581" x2="1764" y2="581" stroke="#D08F87" stroke-width="1"/>
+<text x="1537" y="570" font-family="IBM Plex Sans, Segoe UI, sans-serif" font-size="13" font-weight="600" fill="#3A2B29">ocr_merge_operations</text>
+<text x="1537" y="593" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="600" fill="#1F5285">id ▪</text>
+<text x="1753" y="593" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">bigint</text>
+<line x1="1527" y1="598" x2="1763" y2="598" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1537" y="610" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">document_id</text>
+<text x="1753" y="610" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">bigint</text>
+<line x1="1527" y1="615" x2="1763" y2="615" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1537" y="627" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">survivor_id</text>
+<text x="1753" y="627" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">bigint</text>
+<line x1="1527" y1="632" x2="1763" y2="632" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1537" y="644" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">created_by</text>
+<text x="1753" y="644" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">bigint</text>
+<line x1="1527" y1="649" x2="1763" y2="649" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1537" y="661" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">snapshot_json</text>
+<text x="1753" y="661" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">jsonb</text>
+<line x1="1527" y1="666" x2="1763" y2="666" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1537" y="678" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">merged_version</text>
+<text x="1753" y="678" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">int</text>
+<line x1="1527" y1="683" x2="1763" y2="683" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1537" y="695" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">undone_at</text>
+<text x="1753" y="695" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">timestamp</text>
+<line x1="1527" y1="700" x2="1763" y2="700" stroke="#ECEFF3" stroke-width="1"/>
+<text x="1537" y="712" font-family="IBM Plex Mono, Consolas, monospace" font-size="10.5" font-weight="400" fill="#2F3A47">created_at</text>
+<text x="1753" y="712" text-anchor="end" font-family="IBM Plex Mono, Consolas, monospace" font-size="9.5" fill="#93A0AE">timestamp</text>
+</g>
+</svg>
