@@ -1,0 +1,615 @@
+diff --git a/backend/app/analyzers/amount_parser.py b/backend/app/analyzers/amount_parser.py
+new file mode 100644
+index 0000000..f312d29
+--- /dev/null
++++ b/backend/app/analyzers/amount_parser.py
+@@ -0,0 +1,73 @@
++# ① 책임: AIResult.text 또는 원시 문자열의 금액 JSON을 정규화하고 typed DTO로 검증한다.
++# ② 관계: amount_normalizer를 거쳐 AmountExtractionOut만 반환하며 DB·모델 호출은 하지 않는다.
++# ③ Spring 비교: Jackson ObjectMapper와 Bean Validation 앞의 엄격한 역직렬화 경계에 해당한다.
++
++import json
++from collections.abc import Callable
++from typing import Any, NoReturn
++
++from pydantic import ValidationError
++
++from app.ai.client_protocol import AIResult
++from app.core.error_codes import ErrorCode
++from app.core.exceptions import BusinessError
++from app.schemas.amount import AmountExtractionOut
++from app.services.amount_normalizer import (
++    normalize_number,
++    normalize_payload,
++    normalize_quantity,
++)
++
++
++def _json_text(source: AIResult | str) -> str:
++    return source if isinstance(source, str) else source.text
++
++
++def _reject_json_constant(value: str) -> NoReturn:
++    """표준 JSON이 아닌 NaN·Infinity를 Python 값으로 구제하지 않는다."""
++    raise ValueError(f"허용되지 않은 JSON 숫자 상수: {value}")
++
++
++def _require_valid_number(
++    payload: dict[str, Any],
++    field: str,
++    normalizer: Callable[[Any], Any | None],
++) -> None:
++    """명시된 숫자를 null로 바꿔 숨기지 않고 형식 오류로 거부한다."""
++    if field not in payload or payload[field] is None:
++        return
++    if normalizer(payload[field]) is None:
++        raise ValueError(f"잘못된 숫자 형식: {field}")
++
++
++def _reject_invalid_numbers(payload: dict[str, Any]) -> None:
++    _require_valid_number(payload, "stated_total", normalize_number)
++
++    items = payload.get("items")
++    if not isinstance(items, list):
++        return
++    for item in items:
++        if not isinstance(item, dict):
++            continue
++        _require_valid_number(item, "amount", normalize_number)
++        _require_valid_number(item, "unit_price", normalize_number)
++        _require_valid_number(item, "quantity", normalize_quantity)
++
++
++def parse_amount_extraction(source: AIResult | str) -> AmountExtractionOut:
++    """순수 JSON 객체를 정규화한 뒤 금액 추출 DTO로 검증한다.
++
++    코드펜스나 앞뒤 설명을 제거해 구제하지 않는다. 문서에 없는 선택 값은
++    null로 보존하고, 명시됐지만 읽을 수 없는 숫자는 null로 바꾸지 않고 거부한다.
++    """
++    try:
++        payload = json.loads(
++            _json_text(source),
++            parse_constant=_reject_json_constant,
++        )
++        if not isinstance(payload, dict):
++            raise ValueError("금액 추출 결과의 최상위 값은 JSON 객체여야 한다")
++        _reject_invalid_numbers(payload)
++        return AmountExtractionOut.model_validate(normalize_payload(payload))
++    except (TypeError, ValueError, ValidationError) as exc:
++        raise BusinessError(ErrorCode.AI_INVALID_RESPONSE) from exc
+diff --git a/backend/app/repositories/amount_repository.py b/backend/app/repositories/amount_repository.py
+index 87d934c..71db46f 100644
+--- a/backend/app/repositories/amount_repository.py
++++ b/backend/app/repositories/amount_repository.py
+@@ -89,6 +89,20 @@ class AmountRepository:
+     def __init__(self, db: Session) -> None:
+         self._db = db
+ 
++    def add_items(self, rows: list[AmountItem]) -> list[AmountItem]:
++        """검증된 금액 행을 현재 외부 트랜잭션에 추가하고 PK를 확정한다."""
++        if rows:
++            self._db.add_all(rows)
++            self._db.flush()
++        return rows
++
++    def delete_pending_items(self, document_id: int) -> int:
++        """재분석 전 같은 문서의 미검토 금액만 삭제한다."""
++        return self._db.query(AmountItem).filter(
++            AmountItem.document_id == document_id,
++            AmountItem.decision == "PENDING",
++        ).delete(synchronize_session=False)
++
+     def list_precedents(
+         self,
+         *,
+diff --git a/backend/app/schemas/amount.py b/backend/app/schemas/amount.py
+index def7e59..2145d62 100644
+--- a/backend/app/schemas/amount.py
++++ b/backend/app/schemas/amount.py
+@@ -20,10 +20,11 @@
+ from datetime import date
+ from decimal import Decimal
+ 
+-from pydantic import BaseModel, Field, model_validator
++from pydantic import BaseModel, ConfigDict, Field, model_validator
+ 
+ from app.models.enums import AmountCategory, DocumentType
+ 
++
+ class AmountItemOut(BaseModel):
+     """금액 항목 하나. 문서에 적힌 값만 담고, 없는 값은 None으로 둔다.
+ 
+@@ -32,6 +33,8 @@ class AmountItemOut(BaseModel):
+     "금액이 0원"이라는 다른 뜻이기 때문이다.
+     """
+ 
++    model_config = ConfigDict(extra="forbid")
++
+     item_name: str = Field(min_length=1, max_length=300,
+                            description="문서에 적힌 항목명 그대로")
+     category: AmountCategory | None = Field(
+@@ -69,6 +72,8 @@ class AmountExtractionOut(BaseModel):
+     notes에 사유를 적는다.
+     """
+ 
++    model_config = ConfigDict(extra="forbid")
++
+     document_type: DocumentType
+     currency: str = Field(default="KRW", pattern=r"^[A-Z]{3}$",
+                           description="ISO 통화 코드")
+diff --git a/backend/app/services/amount_normalizer.py b/backend/app/services/amount_normalizer.py
+index 44ddb6c..98603bc 100644
+--- a/backend/app/services/amount_normalizer.py
++++ b/backend/app/services/amount_normalizer.py
+@@ -17,18 +17,31 @@
+ #   거기서 걸리고, unit_price는 선택이라 통과한다.
+ # =============================================================================
+ 
++import math
+ import re
+ from decimal import Decimal, InvalidOperation
+ 
+-# 금액에서 걷어낼 것들. 통화기호·단위·공백.
+-# 원 단위 정수만 남긴다.
+-_CURRENCY_NOISE = re.compile(r"[,\s원₩$¥€]|KRW|USD|JPY|EUR", re.IGNORECASE)
++# 통화 문자열은 숫자 전체와 경계의 통화 표기만 허용한다. 중간 통화 기호를
++# 지워 숫자를 이어 붙이지 않는다("1원2"를 12로 만들면 원문을 변조하게 된다).
++_GROUPED_INTEGER = r"(?:\d{1,3}(?:,\d{3})+|\d+)"
++_CURRENCY_MARK = r"(?:KRW|USD|JPY|EUR|원|[₩$¥€])"
++_AMOUNT_TEXT = re.compile(
++    rf"^\s*(?:{_CURRENCY_MARK}\s*)?"
++    rf"(?P<number>{_GROUPED_INTEGER})"
++    rf"(?:\s*{_CURRENCY_MARK})?\s*$",
++    re.IGNORECASE,
++)
++
++# 수량은 숫자 전체와 선택 단위만 허용한다. 숫자 접두사만 떼어내지 않으므로
++# "1e3"·"1.5.2" 같은 잘못된 문자열을 각각 1·1.5로 저장하지 않는다.
++_QUANTITY_TEXT = re.compile(
++    rf"^\s*(?P<number>{_GROUPED_INTEGER}(?:\.\d+)?)"
++    r"(?:\s*[A-Za-z가-힣/%]+(?:\s*[A-Za-z가-힣/%]+)*)?\s*$"
++)
+ 
+ # 값이 없음을 뜻하는 표기. 문서에 실제로 이렇게 적혀 있는 경우가 있다.
+ _EMPTY_MARKS = {"", "-", "—", "–", "n/a", "na", "없음", "미정", "해당없음", "null", "none"}
+ 
+-# 수량에서 숫자 부분만 뽑는다. "3인월" -> "3", "1.5 M/M" -> "1.5"
+-_LEADING_NUMBER = re.compile(r"-?\d+(?:\.\d+)?")
+ 
+ def _is_empty(raw) -> bool:
+     if raw is None:
+@@ -60,18 +73,20 @@ def normalize_number(raw: str | int | float | None) -> int | None:
+     if isinstance(raw, float):
+         # 소수점이 있는 금액은 원 단위가 아니다. 반올림하지 않고 버린다.
+         # 반올림하면 어디서 값이 바뀌었는지 추적이 안 된다.
++        if not math.isfinite(raw):
++            return None
+         return int(raw) if raw >= 0 and raw == int(raw) else None
+ 
+-    cleaned = _CURRENCY_NOISE.sub("", str(raw)).strip()
+-    if not cleaned:
++    match = _AMOUNT_TEXT.fullmatch(str(raw))
++    if not match:
+         return None
+ 
+     try:
+-        value = Decimal(cleaned)
++        value = Decimal(match.group("number").replace(",", ""))
+     except InvalidOperation:
+         return None
+ 
+-    if value < 0 or value != value.to_integral_value():
++    if not value.is_finite() or value < 0 or value != value.to_integral_value():
+         return None
+ 
+     return int(value)
+@@ -101,12 +116,12 @@ def normalize_quantity(raw: str | int | float | Decimal | None) -> Decimal | Non
+         value = Decimal(str(raw))
+         return value if value >= 0 else None
+ 
+-    match = _LEADING_NUMBER.search(str(raw).replace(",", ""))
++    match = _QUANTITY_TEXT.fullmatch(str(raw))
+     if not match:
+         return None
+ 
+     try:
+-        value = Decimal(match.group())
++        value = Decimal(match.group("number").replace(",", ""))
+     except InvalidOperation:
+         return None
+ 
+@@ -122,6 +137,8 @@ def normalize_payload(raw: dict) -> dict:
+     """
+     out = dict(raw)
+     out["stated_total"] = normalize_number(raw.get("stated_total"))
++    if "notes" in out and _is_empty(out.get("notes")):
++        out["notes"] = None
+ 
+     items = raw.get("items")
+     if not isinstance(items, list):
+@@ -141,7 +158,7 @@ def normalize_payload(raw: dict) -> dict:
+         # 빈 문자열로 온 단위·기간은 None으로 통일한다.
+         # Pydantic에서 max_length는 통과하지만 빈 문자열이 저장되면
+         # "값이 없음"과 "빈 값"이 DB에서 구분되지 않는다.
+-        for key in ("unit", "period_from", "period_to", "category", "notes"):
++        for key in ("unit", "period_from", "period_to", "category"):
+             if key in fixed and _is_empty(fixed.get(key)):
+                 fixed[key] = None
+ 
+diff --git a/backend/app/services/amount_writer.py b/backend/app/services/amount_writer.py
+new file mode 100644
+index 0000000..31c33b7
+--- /dev/null
++++ b/backend/app/services/amount_writer.py
+@@ -0,0 +1,86 @@
++# ① 책임: 검증된 금액 DTO와 분석 메타데이터를 분석 이력 및 PENDING 금액 항목으로 저장한다.
++# ② 관계: amount_parser 결과를 받아 AnalysisRepository와 AmountRepository에 위임한다.
++# ③ Spring 비교: @Service가 Analysis와 AmountItem saveAll을 조립하며 트랜잭션은 호출자가 연다.
++
++from decimal import Decimal
++
++from app.analyzers.protocol import AnalyzeResult
++from app.models.amount import AmountItem
++from app.models.document import Analysis
++from app.repositories.amount_repository import AmountRepository
++from app.repositories.analysis_repository import AnalysisRepository
++from app.schemas.amount import AmountExtractionOut
++
++_PENDING = "PENDING"
++
++
++def _decimal(value: int | float | Decimal | None) -> Decimal | None:
++    return None if value is None else Decimal(str(value))
++
++
++class AmountWriter:
++    """분석 이력과 현재 검토 대기 금액을 같은 외부 트랜잭션에 쌓는다."""
++
++    def __init__(
++        self,
++        analysis_repository: AnalysisRepository,
++        amount_repository: AmountRepository,
++    ) -> None:
++        self._analysis_repository = analysis_repository
++        self._amount_repository = amount_repository
++
++    def write(
++        self,
++        *,
++        document_id: int,
++        source_text_revision: int,
++        source_ocr_revision: int,
++        analyzer_type: str,
++        result: AnalyzeResult,
++        extraction: AmountExtractionOut,
++    ) -> tuple[Analysis, list[AmountItem]]:
++        """이전 PENDING만 교체하고 사람이 검토한 행과 분석 이력은 보존한다.
++
++        stated_total은 검증된 Analysis.result_json에만 둔다. PENDING 추출값으로
++        기존 승인 항목의 합계 대조 기준(Document.stated_total_amount)을 바꾸지 않는다.
++        """
++        analysis = self._analysis_repository.create(
++            Analysis(
++                document_id=document_id,
++                analyzer_type=analyzer_type,
++                result_json=extraction.model_dump(mode="json"),
++                provider=result.provider,
++                model_name=result.model_name,
++                prompt_version=result.prompt_version,
++                tokens_in=result.tokens_in,
++                tokens_out=result.tokens_out,
++                latency_ms=result.latency_ms,
++                source_text_revision=source_text_revision,
++            )
++        )
++
++        self._amount_repository.delete_pending_items(document_id)
++        rows = [
++            AmountItem(
++                document_id=document_id,
++                analysis_id=analysis.id,
++                item_name=item.item_name,
++                category=item.category.value if item.category is not None else None,
++                quantity=item.quantity,
++                unit=item.unit,
++                unit_price=_decimal(item.unit_price),
++                amount=_decimal(item.amount),
++                currency=extraction.currency,
++                period_from=item.period_from,
++                period_to=item.period_to,
++                source_quote=item.source_quote,
++                confidence=_decimal(item.confidence),
++                reason=item.reason,
++                decision=_PENDING,
++                decided_by=None,
++                decided_at=None,
++                source_text_revision=source_ocr_revision,
++            )
++            for item in extraction.items
++        ]
++        return analysis, self._amount_repository.add_items(rows)
+diff --git a/backend/tests/test_amount_parser_writer.py b/backend/tests/test_amount_parser_writer.py
+new file mode 100644
+index 0000000..5f6f53f
+--- /dev/null
++++ b/backend/tests/test_amount_parser_writer.py
+@@ -0,0 +1,279 @@
++# ① 책임: 금액 원시 JSON parser와 PENDING 저장 writer의 경계·멱등성을 검증한다.
++# ② 관계: amount_parser, AmountWriter를 순수 입력과 메모리 fake repository로 검사한다.
++# ③ Spring 비교: ObjectMapper DTO 테스트와 mock JpaRepository 기반 @Service 단위테스트에 해당한다.
++
++import json
++from types import SimpleNamespace
++from unittest.mock import MagicMock
++
++import pytest
++
++from app.ai.client_protocol import AIResult
++from app.analyzers.amount_parser import parse_amount_extraction
++from app.analyzers.protocol import AnalyzeResult
++from app.core.error_codes import ErrorCode
++from app.core.exceptions import BusinessError
++from app.models.amount import AmountItem
++from app.repositories.amount_repository import AmountRepository
++from app.services.amount_writer import AmountWriter
++
++
++def _item(**overrides):
++    value = {
++        "item_name": "특급기술자",
++        "category": "DIRECT_LABOR",
++        "quantity": "3인월",
++        "unit": "인월",
++        "unit_price": "9,500,000원",
++        "amount": "28,500,000원",
++        "period_from": None,
++        "period_to": None,
++        "source_quote": "특급기술자 3인월 28,500,000원",
++        "confidence": 0.9,
++        "reason": "문서 표의 같은 행",
++    }
++    value.update(overrides)
++    return value
++
++
++def _payload(**overrides):
++    value = {
++        "document_type": "COST_SHEET",
++        "currency": "KRW",
++        "stated_total": "28,500,000원",
++        "items": [_item()],
++        "notes": None,
++    }
++    value.update(overrides)
++    return value
++
++
++def _parse(payload):
++    return parse_amount_extraction(json.dumps(payload, ensure_ascii=False))
++
++
++def _assert_invalid(raw: str) -> None:
++    with pytest.raises(BusinessError) as exc:
++        parse_amount_extraction(raw)
++    assert exc.value.error_code is ErrorCode.AI_INVALID_RESPONSE
++
++
++def test_parser_normalizes_valid_json_and_accepts_ai_result():
++    raw = json.dumps(_payload(), ensure_ascii=False)
++
++    parsed = parse_amount_extraction(
++        AIResult(text=raw, model_name="amount-model", tokens_in=10)
++    )
++
++    assert parsed.stated_total == 28_500_000
++    assert parsed.items[0].quantity == 3
++    assert parsed.items[0].unit_price == 9_500_000
++    assert parsed.items[0].amount == 28_500_000
++
++
++def test_parser_preserves_explicit_nulls_without_inventing_values():
++    parsed = _parse(_payload(
++        stated_total=None,
++        notes=None,
++        items=[_item(
++            category=None,
++            quantity=None,
++            unit=None,
++            unit_price=None,
++            period_from=None,
++            period_to=None,
++        )],
++    ))
++
++    assert parsed.stated_total is None
++    assert parsed.notes is None
++    item = parsed.items[0]
++    assert item.category is None
++    assert item.quantity is None
++    assert item.unit is None
++    assert item.unit_price is None
++    assert item.period_from is None
++    assert item.period_to is None
++    assert item.amount == 28_500_000
++
++
++@pytest.mark.parametrize("raw", [
++    "```json\n{}\n```",
++    '{"document_type": "COST_SHEET",',
++    '[{"document_type": "COST_SHEET"}]',
++    '{"document_type": "COST_SHEET", "items": [], "stated_total": NaN}',
++])
++def test_parser_rejects_code_fence_malformed_root_and_nonstandard_json(raw):
++    _assert_invalid(raw)
++
++
++@pytest.mark.parametrize("payload", [
++    _payload(unexpected="value"),
++    _payload(items=[_item(unexpected="value")]),
++])
++def test_parser_rejects_unknown_fields(payload):
++    _assert_invalid(json.dumps(payload, ensure_ascii=False))
++
++
++@pytest.mark.parametrize("payload", [
++    _payload(stated_total="약 1억원"),
++    _payload(items=[_item(amount="28,500,000.5")]),
++    _payload(items=[_item(amount=-1)]),
++    _payload(items=[_item(unit_price=-1)]),
++    _payload(items=[_item(quantity="-1인월")]),
++    _payload(items=[_item(quantity="수량 3")]),
++    _payload(items=[_item(amount="1원2")]),
++    _payload(items=[_item(amount="1,2,3")]),
++    _payload(items=[_item(quantity="1e3")]),
++    _payload(items=[_item(quantity="1.5.2")]),
++])
++def test_parser_rejects_invalid_or_negative_numbers(payload):
++    _assert_invalid(json.dumps(payload, ensure_ascii=False))
++
++
++class _AnalysisRepository:
++    def __init__(self):
++        self.rows = []
++
++    def create(self, row):
++        row.id = len(self.rows) + 1
++        self.rows.append(row)
++        return row
++
++
++class _AmountRepository:
++    def __init__(self, rows=None):
++        self.rows = list(rows or [])
++        self.next_id = 100
++
++    def delete_pending_items(self, document_id):
++        before = len(self.rows)
++        self.rows = [
++            row for row in self.rows
++            if not (row.document_id == document_id and row.decision == "PENDING")
++        ]
++        return before - len(self.rows)
++
++    def add_items(self, rows):
++        for row in rows:
++            row.id = self.next_id
++            self.next_id += 1
++        self.rows.extend(rows)
++        return rows
++
++
++def _result():
++    return AnalyzeResult(
++        result={"ignored": "writer stores the validated DTO"},
++        provider="local",
++        model_name="amount-model",
++        prompt_version="amount-v1",
++        tokens_in=10,
++        tokens_out=20,
++        latency_ms=30,
++    )
++
++
++def test_writer_maps_validated_values_to_pending_rows_and_revisions():
++    analyses = _AnalysisRepository()
++    amounts = _AmountRepository()
++    writer = AmountWriter(analyses, amounts)
++    extraction = _parse(_payload())
++
++    analysis, rows = writer.write(
++        document_id=7,
++        source_text_revision=12,
++        source_ocr_revision=4,
++        analyzer_type="amount",
++        result=_result(),
++        extraction=extraction,
++    )
++
++    assert analysis.source_text_revision == 12
++    assert analysis.result_json == extraction.model_dump(mode="json")
++    assert len(rows) == 1
++    row = rows[0]
++    assert row.document_id == 7
++    assert row.analysis_id == analysis.id
++    assert row.source_text_revision == 4
++    assert row.decision == "PENDING"
++    assert row.decided_by is None
++    assert row.decided_at is None
++    assert row.quantity == 3
++    assert row.unit_price == 9_500_000
++    assert row.amount == 28_500_000
++
++
++def test_duplicate_write_replaces_only_pending_and_preserves_review_history():
++    reviewed = [
++        SimpleNamespace(id=1, document_id=7, decision="APPROVED"),
++        SimpleNamespace(id=2, document_id=7, decision="EDITED"),
++        SimpleNamespace(id=3, document_id=7, decision="REJECTED"),
++    ]
++    old_pending = SimpleNamespace(id=4, document_id=7, decision="PENDING")
++    other_pending = SimpleNamespace(id=5, document_id=8, decision="PENDING")
++    analyses = _AnalysisRepository()
++    amounts = _AmountRepository([*reviewed, old_pending, other_pending])
++    writer = AmountWriter(analyses, amounts)
++    extraction = _parse(_payload())
++
++    for _ in range(2):
++        writer.write(
++            document_id=7,
++            source_text_revision=12,
++            source_ocr_revision=4,
++            analyzer_type="amount",
++            result=_result(),
++            extraction=extraction,
++        )
++
++    assert len(analyses.rows) == 2
++    assert all(row in amounts.rows for row in reviewed)
++    assert other_pending in amounts.rows
++    current = [
++        row for row in amounts.rows
++        if row.document_id == 7 and row.decision == "PENDING"
++    ]
++    assert len(current) == 1
++    assert current[0].analysis_id == analyses.rows[-1].id
++
++
++def test_writer_keeps_null_fields_and_does_not_calculate_missing_values():
++    analyses = _AnalysisRepository()
++    amounts = _AmountRepository()
++    writer = AmountWriter(analyses, amounts)
++    extraction = _parse(_payload(
++        stated_total=None,
++        items=[_item(quantity=None, unit_price=None)],
++    ))
++
++    analysis, rows = writer.write(
++        document_id=7,
++        source_text_revision=12,
++        source_ocr_revision=4,
++        analyzer_type="amount",
++        result=_result(),
++        extraction=extraction,
++    )
++
++    assert analysis.result_json["stated_total"] is None
++    assert rows[0].quantity is None
++    assert rows[0].unit_price is None
++    assert rows[0].amount == 28_500_000
++
++
++def test_real_repository_delete_scope_is_document_pending_only():
++    db = MagicMock()
++    delete_query = db.query.return_value.filter.return_value
++    delete_query.delete.return_value = 2
++    repository = AmountRepository(db)
++
++    assert repository.delete_pending_items(7) == 2
++
++    db.query.assert_called_once_with(AmountItem)
++    document_condition, decision_condition = db.query.return_value.filter.call_args.args
++    assert document_condition.left.key == "document_id"
++    assert document_condition.right.value == 7
++    assert decision_condition.left.key == "decision"
++    assert decision_condition.right.value == "PENDING"
++    delete_query.delete.assert_called_once_with(synchronize_session=False)
