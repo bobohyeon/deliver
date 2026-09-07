@@ -94,10 +94,13 @@ FROM documents d WHERE d.filename = '[TEST] 과거_산출내역서.pdf';
 -- amount_items.analysis_id 가 not null 이라 먼저 있어야 한다. 실제로는 LLM
 -- 추출(AMT-001-1)이 만들지만 아직 미구현이라 시드로 넣는다.
 -- provider·model_name 에 seed 를 적어 두면 나중에 실제 분석과 구별된다.
+-- items 배열은 아래에서 연결할 amount_items와 같은 개수로 둔다. 유효 스냅샷은
+-- 재분석 중 PENDING 삭제로 일부만 남은 분석을 완료본으로 오인하지 않기 위해
+-- 「원래 추출 건수 = 현재 저장 건수」도 확인한다.
 INSERT INTO analyses (document_id, analyzer_type, result_json, provider, model_name,
                       prompt_version, source_text_revision)
 SELECT d.id, 'amount',
-       '{"seeded": true, "note": "seed_amount_test.sql 이 넣은 자료"}'::jsonb,
+       '{"seeded": true, "note": "seed_amount_test.sql 이 넣은 자료", "items": [{}, {}, {}, {}, {}, {}]}'::jsonb,
        'seed', 'seed', 'seed-v1', 1
 FROM documents d
 WHERE d.filename IN ('[TEST] 산출내역서.pdf', '[TEST] 과거_산출내역서.pdf');
@@ -176,7 +179,7 @@ WHERE a.analyzer_type = 'amount' AND d.filename = '[TEST] 과거_산출내역서
 INSERT INTO analyses (document_id, analyzer_type, result_json, provider, model_name,
                       prompt_version, source_text_revision)
 SELECT d.id, 'amount',
-       '{"seeded": true, "note": "격리 검증용 - 결과에 나오면 안 된다"}'::jsonb,
+       '{"seeded": true, "note": "격리 검증용 - 결과에 나오면 안 된다", "items": [{}]}'::jsonb,
        'seed', 'seed', 'seed-v1', 1
 FROM documents d WHERE d.filename = '[TEST] 남의공고.pdf';
 

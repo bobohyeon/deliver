@@ -106,10 +106,13 @@ VALUES
 -- ── 분석 ────────────────────────────────────────────────────────────────────
 -- amount_items.analysis_id 가 NOT NULL 이라 문서마다 분석 행이 하나 필요하다.
 -- provider·model_name 에 seed 를 적어 두면 실제 분석과 구별된다.
+-- items 배열은 문서마다 아래에서 연결할 2행과 같은 개수로 둔다. 유효 스냅샷이
+-- 원래 추출 건수와 현재 저장 건수를 비교하므로 이 계약이 빠지면 승인 시드가
+-- DB에 남아 있어도 현황·선례·산출물에서 제외된다.
 INSERT INTO analyses (document_id, analyzer_type, result_json, provider, model_name,
                       prompt_version, source_text_revision)
 SELECT d.id, 'amount',
-       '{"seeded": true, "note": "seed_precedent_test.sql 이 넣은 자료"}'::jsonb,
+       '{"seeded": true, "note": "seed_precedent_test.sql 이 넣은 자료", "items": [{}, {}]}'::jsonb,
        'seed', 'seed', 'seed-v1', 1
 FROM documents d
 WHERE d.filename LIKE '[TEST] 선례%_산출내역서.pdf';
