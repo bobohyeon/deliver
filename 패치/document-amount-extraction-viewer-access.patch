@@ -1,0 +1,162 @@
+diff --git a/frontend/src/features/dashboard/DashboardView.jsx b/frontend/src/features/dashboard/DashboardView.jsx
+index 1d98d39..de90798 100644
+--- a/frontend/src/features/dashboard/DashboardView.jsx
++++ b/frontend/src/features/dashboard/DashboardView.jsx
+@@ -29,7 +29,7 @@ import { getDocumentTypeLabel, isSupportedDocumentTypeFilter, UNCLASSIFIED_DOCUM
+ import { formatDateShort, formatNumber } from '../../utils/format'
+ import ActionTaskPanel from './ActionTaskPanel'
+ 
+-export default function DashboardView({ projectId, documents }) {
++export default function DashboardView({ projectId, documents, canEdit }) {
+   const navigate = useNavigate()
+   const dashboardQuery = useQuery({
+     queryKey: ['projects', projectId, 'dashboard'],
+@@ -60,7 +60,7 @@ export default function DashboardView({ projectId, documents }) {
+   const needsReview = documents.filter(document => ['PENDING', 'IN_PROGRESS'].includes(document.review_status))
+   const reviewPending = data ? data.review_pending : needsReview.length
+   const attentionTasks = (tasksQuery.data ?? []).filter(task => task.status !== 'DONE' && isDueSoon(task.due_on)).length
+-  const attentionTotal = (counts?.failed ?? 0) + (reviewPending ?? 0) + (data?.pending_amount_items ?? 0) + attentionTasks
++  const attentionTotal = (counts?.failed ?? 0) + (reviewPending ?? 0) + (canEdit ? data?.pending_amount_items ?? 0 : 0) + attentionTasks
+ 
+   return <>
+     <PageHeading eyebrow='PROJECT OVERVIEW' title='대시보드' description='지금 확인할 문서와 우선 처리할 액션 태스크를 확인하세요.'/>
+@@ -84,7 +84,7 @@ export default function DashboardView({ projectId, documents }) {
+         <div className='dashboard-attention-summary'>
+           <AttentionRow kind='문서' title='처리 실패' description='원인을 확인하고 문서를 다시 처리합니다.' count={counts?.failed} action='확인하기' onOpen={goDocuments}/>
+           <AttentionRow kind='문서' title='OCR 검수' description='검수 후 최종 본문에 반영됩니다.' count={reviewPending} action='검수하기' onOpen={goDocuments}/>
+-          <AttentionRow kind='금액' title='승인 대기' description='승인 전에는 산출물에 반영되지 않습니다.' count={data?.pending_amount_items} action='검토하기' onOpen={goAmounts}/>
++          {canEdit && <AttentionRow kind='금액' title='승인 대기' description='승인 전에는 산출물에 반영되지 않습니다.' count={data?.pending_amount_items} action='검토하기' onOpen={goAmounts}/>}
+           <AttentionRow kind='태스크' title='마감 임박' description='7일 이내 마감되는 열린 태스크입니다.' count={attentionTasks} action='보드 보기' onOpen={() => navigate(`/projects/${projectId}/board`)}/>
+         </div>
+       </section>
+diff --git a/frontend/src/features/document-detail/DocumentAnalysisTab.jsx b/frontend/src/features/document-detail/DocumentAnalysisTab.jsx
+index 4e0c98e..b416ebe 100644
+--- a/frontend/src/features/document-detail/DocumentAnalysisTab.jsx
++++ b/frontend/src/features/document-detail/DocumentAnalysisTab.jsx
+@@ -17,15 +17,16 @@ const TRAIT_LABELS = {
+   ACTION_ITEMS: '후속 업무 포함',
+ }
+ 
+-export default function DocumentAnalysisTab({ document, canAnalyze, analyzing, onAnalyze, downloading, onDownload }) {
++export default function DocumentAnalysisTab({ document, canAnalyze, analyzing, onAnalyze, onAnalyzeAmount, hasAmountAnalysis, downloading, onDownload }) {
+   const [historyType, setHistoryType] = useState(null)
+   const grouped = useMemo(() => groupAnalyses(document.analyses ?? []), [document.analyses])
+   const latest = [grouped.summary?.[0], grouped.category?.[0]].filter(Boolean)
+-  if (!latest.length) return <section className="detail-card analysis-empty"><span>✦</span><h2>아직 분석 결과가 없습니다.</h2><p>{document.review_status === 'PENDING' ? 'OCR 검수를 완료한 후 분석하는 것을 권장합니다.' : '현재 문서 텍스트를 요약하고 분류할 수 있습니다.'}</p>{canAnalyze && <button className="primary" disabled={analyzing} onClick={onAnalyze}>{analyzing ? '분석 중...' : '문서 분석 실행'}</button>}</section>
++  const amountButton = canAnalyze && <button disabled={analyzing} onClick={onAnalyzeAmount}>{analyzing ? '분석 중...' : hasAmountAnalysis ? '금액 다시 추출' : '금액 추출'}</button>
++  if (!latest.length) return <section className="detail-card analysis-empty"><span>✦</span><h2>아직 분석 결과가 없습니다.</h2><p>{document.review_status === 'PENDING' ? 'OCR 검수를 완료한 후 분석하는 것을 권장합니다.' : '현재 문서 텍스트를 요약하고 분류할 수 있습니다.'}</p>{canAnalyze && <div className="analysis-footer-actions"><button className="primary" disabled={analyzing} onClick={onAnalyze}>{analyzing ? '분석 중...' : '문서 분석 실행'}</button>{amountButton}</div>}</section>
+   return <div className="analysis-results">
+     <div className="analysis-toolbar"><div><strong>최신 분석 결과</strong><span>현재 표시된 요약과 분류를 내려받을 수 있습니다.</span></div><button disabled={downloading} onClick={onDownload}>{downloading ? '파일 생성 중...' : '요약·분류 다운로드'}</button></div>
+     {latest.map(item => <AnalysisCard key={item.id} analysis={item} textVersion={document.text_version}/>) }
+-    <div className="analysis-footer-actions">{(grouped.summary?.length ?? 0) > 1 && <button onClick={() => setHistoryType(historyType === 'summary' ? null : 'summary')}>과거 요약 기록 {historyType === 'summary' ? '닫기' : '보기'}</button>}{(grouped.category?.length ?? 0) > 1 && <button onClick={() => setHistoryType(historyType === 'category' ? null : 'category')}>과거 분류 기록 {historyType === 'category' ? '닫기' : '보기'}</button>}{canAnalyze && <button className="reanalyze-button" disabled={analyzing} onClick={onAnalyze}>{analyzing ? '재분석 중...' : '현재 텍스트로 재분석'}</button>}</div>
++    <div className="analysis-footer-actions">{(grouped.summary?.length ?? 0) > 1 && <button onClick={() => setHistoryType(historyType === 'summary' ? null : 'summary')}>과거 요약 기록 {historyType === 'summary' ? '닫기' : '보기'}</button>}{(grouped.category?.length ?? 0) > 1 && <button onClick={() => setHistoryType(historyType === 'category' ? null : 'category')}>과거 분류 기록 {historyType === 'category' ? '닫기' : '보기'}</button>}{canAnalyze && <button className="reanalyze-button" disabled={analyzing} onClick={onAnalyze}>{analyzing ? '재분석 중...' : '현재 텍스트로 재분석'}</button>}{amountButton}</div>
+     {historyType && <AnalysisHistory analyses={(grouped[historyType] ?? []).slice(1)} type={historyType} textVersion={document.text_version}/>}
+   </div>
+ }
+diff --git a/frontend/src/features/projects/PortfolioDashboard.jsx b/frontend/src/features/projects/PortfolioDashboard.jsx
+index f351832..854cb5b 100644
+--- a/frontend/src/features/projects/PortfolioDashboard.jsx
++++ b/frontend/src/features/projects/PortfolioDashboard.jsx
+@@ -45,7 +45,7 @@ export default function PortfolioDashboard({ user, projects, invitations, onCrea
+     total.openTasks += data?.open_tasks ?? 0
+     total.failed += data?.documents?.failed ?? 0
+     total.review += data?.review_pending ?? 0
+-    total.amounts += data?.pending_amount_items ?? 0
++    if (row.project.role !== 'VIEWER') total.amounts += data?.pending_amount_items ?? 0
+     total.completed += data?.documents?.completed ?? 0
+     total.extracted += data?.documents?.extracted ?? 0
+     total.processing += data?.documents?.processing ?? 0
+@@ -129,11 +129,12 @@ function ProjectRow({ project, dashboard, marker, onOpen }) {
+ 
+ function AttentionCard({ invitations, rows, onOpen }) {
+   const definitions = [
+-    ['OCR 검수', data => data?.review_pending ?? 0, 'documents', '?document_state=REVIEW_REQUIRED'],
+-    ['금액 승인', data => data?.pending_amount_items ?? 0, 'amounts', ''],
+-    ['처리 실패', data => data?.documents?.failed ?? 0, 'documents', '?document_state=FAILED'],
++    ['OCR 검수', data => data?.review_pending ?? 0, 'documents', '?document_state=REVIEW_REQUIRED', () => true],
++    ['금액 승인', data => data?.pending_amount_items ?? 0, 'amounts', '', project => project.role !== 'VIEWER'],
++    ['처리 실패', data => data?.documents?.failed ?? 0, 'documents', '?document_state=FAILED', () => true],
+   ]
+   const items = rows.flatMap(({ project, dashboard }) => definitions
++    .filter(([, , , , isVisible]) => isVisible(project))
+     .map(([label, countOf, tab, query]) => ({ project, label, count:countOf(dashboard), tab, query }))
+     .filter(item => item.count > 0))
+     .sort((a,b) => b.count - a.count || a.project.name.localeCompare(b.project.name, 'ko'))
+diff --git a/frontend/src/features/projects/ProjectSidebar.jsx b/frontend/src/features/projects/ProjectSidebar.jsx
+index 854279f..b8f290c 100644
+--- a/frontend/src/features/projects/ProjectSidebar.jsx
++++ b/frontend/src/features/projects/ProjectSidebar.jsx
+@@ -30,7 +30,7 @@ export default function ProjectSidebar({ projects, activeProjectId, activeTab, p
+       {projects.length ? projects.map(project => {
+       const active = String(project.id) === String(activeProjectId)
+       const marker = projectColorIndex(project.id)
+-      return <div className={`project-sidebar__project${active ? ' is-open' : ''}`} key={project.id}><button className="project-sidebar__project-button" aria-current={active ? 'page' : undefined} title={project.name} onClick={() => onSelect(project)}><i className={`project-sidebar__marker marker-${marker}`} aria-hidden="true"/><span className="project-sidebar__text">{project.name}</span>{project.status === 'ARCHIVED' ? <small className="project-sidebar__text">보관</small> : <b className="project-sidebar__text" aria-hidden="true"><Icon name="chevron"/></b>}</button>{active && <div className="project-sidebar__menus">{PROJECT_MENUS.map(([key,icon,label]) => <button className={activeTab === key ? 'is-active' : ''} aria-current={activeTab === key ? 'page' : undefined} title={label} onClick={() => onNavigateTab(key)} key={key}><Icon name={icon}/><span className="project-sidebar__text">{label}</span></button>)}</div>}</div>
++      return <div className={`project-sidebar__project${active ? ' is-open' : ''}`} key={project.id}><button className="project-sidebar__project-button" aria-current={active ? 'page' : undefined} title={project.name} onClick={() => onSelect(project)}><i className={`project-sidebar__marker marker-${marker}`} aria-hidden="true"/><span className="project-sidebar__text">{project.name}</span>{project.status === 'ARCHIVED' ? <small className="project-sidebar__text">보관</small> : <b className="project-sidebar__text" aria-hidden="true"><Icon name="chevron"/></b>}</button>{active && <div className="project-sidebar__menus">{PROJECT_MENUS.filter(([key]) => key !== 'amounts' || project.role !== 'VIEWER').map(([key,icon,label]) => <button className={activeTab === key ? 'is-active' : ''} aria-current={activeTab === key ? 'page' : undefined} title={label} onClick={() => onNavigateTab(key)} key={key}><Icon name={icon}/><span className="project-sidebar__text">{label}</span></button>)}</div>}</div>
+     }) : <p className="project-sidebar__text">참여 중인 프로젝트가 없습니다.</p>}</nav>
+   </aside>
+ }
+diff --git a/frontend/src/pages/DocumentDetailPage.jsx b/frontend/src/pages/DocumentDetailPage.jsx
+index c35e1d0..9e02cf1 100644
+--- a/frontend/src/pages/DocumentDetailPage.jsx
++++ b/frontend/src/pages/DocumentDetailPage.jsx
+@@ -27,7 +27,7 @@ import '../styles/document-detail-page.css'
+ import '../styles/document-detail-updates.css'
+ 
+ const TABS = [['content', '문서 내용'], ['review', 'OCR 검수'], ['analysis', '분석 결과'], ['history', '변경 이력']]
+-const ANALYZER_LABELS = { summary: '요약', category: '문서 분류', decision: '결정사항', schedule: '일정', action_task: '액션 태스크' }
++const ANALYZER_LABELS = { summary: '요약', category: '문서 분류', decision: '결정사항', schedule: '일정', action_task: '액션 태스크', amount: '금액' }
+ 
+ function getDocumentListUrl(projectId, candidate) {
+   const fallback = `/projects/${projectId}/documents`
+@@ -78,7 +78,10 @@ export default function DocumentDetailPage({ user, onLogout, notify }) {
+       queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'documents', documentId, 'schedule-review'] })
+       queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'documents', documentId, 'task-suggestion-review'] })
+       queryClient.invalidateQueries({ queryKey: ['projects', Number(projectId), 'documents'] })
+-      queryClient.invalidateQueries({ queryKey: ['projects', Number(projectId), 'dashboard'] })
++      for (const key of ['amount-pending', 'amount-summary', 'amount-items', 'amount-rejected', 'dashboard', 'deliverable-preview', 'deliverable-content']) {
++        queryClient.invalidateQueries({ queryKey: ['projects', Number(projectId), key] })
++      }
++      queryClient.invalidateQueries({ queryKey: ['portfolio-dashboard'] })
+       if (previousJob.current === job.job_id) notify(job.status === 'PARTIAL' ? 'warning' : 'success', job.status === 'PARTIAL' ? '문서 일부 분석 완료' : '문서 분석 완료', job.status === 'PARTIAL' ? '일부 단계는 처리하지 못했지만 정상 결과는 저장했습니다.' : '분석 결과를 생성했습니다.')
+     }
+     previousJob.current = ['PENDING', 'RUNNING'].includes(job?.status) ? job.job_id : null
+@@ -86,6 +89,9 @@ export default function DocumentDetailPage({ user, onLogout, notify }) {
+   const analyzeMutation = useMutation({ mutationFn: () => startDocumentAnalysis(projectId, documentId),
+     onSuccess: data => { queryClient.setQueryData(jobKey, data); notify('success', '문서 분석 접수', '화면을 닫아도 분석은 계속됩니다.') },
+     onError: error => notify('error', '문서 분석 실패', error.message) })
++  const amountAnalyzeMutation = useMutation({ mutationFn: () => startDocumentAnalysis(projectId, documentId, ['amount']),
++    onSuccess: data => { queryClient.setQueryData(jobKey, data); notify('success', '금액 추출 접수', '화면을 닫아도 금액 추출은 계속됩니다.') },
++    onError: error => notify('error', '금액 추출 실패', error.message) })
+   const deleteMutation = useMutation({ mutationFn: () => deleteDocument(projectId, documentId), onSuccess: () => { queryClient.removeQueries({ queryKey: documentKey }); queryClient.invalidateQueries({ queryKey: ['projects', Number(projectId), 'documents'] }); queryClient.invalidateQueries({ queryKey: ['projects', Number(projectId), 'dashboard'] }); notify('success', '문서 삭제 완료', `${document.filename} 문서를 삭제했습니다.`); navigate(documentListUrl, { replace: true }) }, onError: error => notify('error', '문서 삭제 실패', error.message) })
+   const downloadMutation = useMutation({ mutationFn: () => downloadDocumentSource(projectId, documentId, document.filename), onError: error => notify('error', '원본 다운로드 실패', error.message) })
+   const summaryDownloadMutation = useMutation({ mutationFn: () => downloadSummary(projectId, documentId, `${document.filename.replace(/\.[^.]+$/, '')}_요약.txt`), onSuccess: () => notify('success', '분석 결과 다운로드 완료', '최신 요약과 분류 결과를 저장했습니다.'), onError: error => notify('error', '분석 결과 다운로드 실패', error.message) })
+@@ -121,7 +127,7 @@ export default function DocumentDetailPage({ user, onLogout, notify }) {
+         {activeTab === 'content' && <DocumentContentTab document={document}/>}
+         {activeTab === 'review' && <DocumentReviewTab document={document} onOpenReview={() => navigate(`/projects/${projectId}/documents/${documentId}/review`, { state: { documentListUrl } })}/>}
+         {activeTab === 'analysis' && <div className="document-analysis-layout">
+-          <DocumentAnalysisTab document={document} canAnalyze={canEdit} analyzing={analyzeMutation.isPending || analysisRunning} onAnalyze={() => analyzeMutation.mutate()} downloading={summaryDownloadMutation.isPending} onDownload={() => summaryDownloadMutation.mutate()}/>
++          <DocumentAnalysisTab document={document} canAnalyze={canEdit} analyzing={analyzeMutation.isPending || amountAnalyzeMutation.isPending || analysisRunning} onAnalyze={() => analyzeMutation.mutate()} onAnalyzeAmount={() => amountAnalyzeMutation.mutate()} hasAmountAnalysis={(document.analyses ?? []).some(analysis => analysis.analyzer_type === 'amount')} downloading={summaryDownloadMutation.isPending} onDownload={() => summaryDownloadMutation.mutate()}/>
+           <div><AnalysisSidePanels projectId={projectId} documentId={documentId} canEdit={canEdit} notify={notify}/></div>
+         </div>}
+         {activeTab === 'history' && <DocumentHistoryTab projectId={projectId} document={document}/>}
+diff --git a/frontend/src/pages/WorkspacePage.jsx b/frontend/src/pages/WorkspacePage.jsx
+index 9daf686..92055f0 100644
+--- a/frontend/src/pages/WorkspacePage.jsx
++++ b/frontend/src/pages/WorkspacePage.jsx
+@@ -58,6 +58,7 @@ export default function WorkspacePage({ user, onLogout, notify }) {
+   if (!TABS.some(([key]) => key === tab)) return <Navigate to={`/projects/${projectId}/dashboard`} replace/>
+   if (projectQuery.isPending) return <LoadingState label="프로젝트 접근 권한을 확인하는 중..."/>
+   if (projectQuery.isError || !project) return <Navigate to="/projects" replace/>
++  if (tab === 'amounts' && project.role === 'VIEWER') return <Navigate to={`/projects/${projectId}/dashboard`} replace/>
+   return <WorkspaceContent project={project} projects={projects} tab={tab} navigate={navigate} notify={notify} user={user} onLogout={onLogout} createMutation={createMutation} deleteMutation={deleteMutation} recentInvitees={recentInvitees}/>
+ }
+ 
+@@ -175,7 +176,7 @@ function WorkspaceContent({ project, projects, tab, navigate, notify, user, onLo
+ function TabContent({ tab, project, data, documentType, documentState, onDocumentTypeChange, onDocumentStateChange, onClearDocumentFilters, canEdit, notify, onUpload, onFileDrop, uploadQueue, onRetryUpload, onClearUploadQueue, onDeleteProject, deleting }) {
+   if (tab === 'documents') return <DocumentsView projectId={project.id} documents={data.documents} documentsTotal={data.documentsTotal} documentType={documentType} documentState={documentState} onDocumentTypeChange={onDocumentTypeChange} onDocumentStateChange={onDocumentStateChange} onClearFilters={onClearDocumentFilters} canEdit={canEdit} onUpload={onUpload} onFileDrop={onFileDrop} uploadQueue={uploadQueue} onRetryUpload={onRetryUpload} onClearUploadQueue={onClearUploadQueue} onRetry={data.retryDocument} retryingDocumentId={data.retryingDocumentId}/>
+   if (tab === 'settings') return <MembersView project={project} members={data.members} invitations={data.invitations} onUpdateProject={data.updateProject} updatingProject={data.updatingProject} onInvite={data.invite} onCancelInvitation={data.cancelInvitation} onRole={data.changeRole} onRemove={data.excludeMember} onDeleteProject={onDeleteProject} deleting={deleting}/>
+-  if (tab === 'dashboard') return <DashboardView projectId={project.id} documents={data.documents} members={data.members}/>
++  if (tab === 'dashboard') return <DashboardView projectId={project.id} documents={data.documents} members={data.members} canEdit={canEdit}/>
+   // 검색은 워크스페이스 데이터(문서 목록 · 멤버)를 쓰지 않는다. 자기 상태만
+   // 들고 api/search.js 를 부른다. 범위 토글에 쓸 프로젝트 이름만 넘긴다.
+   if (tab === 'search') return <SearchView projectId={project.id} projectName={project.name}/>
