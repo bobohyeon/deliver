@@ -140,7 +140,7 @@ index c35e1d0..9e02cf1 100644
          </div>}
          {activeTab === 'history' && <DocumentHistoryTab projectId={projectId} document={document}/>}
 diff --git a/frontend/src/pages/WorkspacePage.jsx b/frontend/src/pages/WorkspacePage.jsx
-index 9daf686..92055f0 100644
+index c7bfab1..d4c632e 100644
 --- a/frontend/src/pages/WorkspacePage.jsx
 +++ b/frontend/src/pages/WorkspacePage.jsx
 @@ -58,6 +58,7 @@ export default function WorkspacePage({ user, onLogout, notify }) {
@@ -151,9 +151,9 @@ index 9daf686..92055f0 100644
    return <WorkspaceContent project={project} projects={projects} tab={tab} navigate={navigate} notify={notify} user={user} onLogout={onLogout} createMutation={createMutation} deleteMutation={deleteMutation} recentInvitees={recentInvitees}/>
  }
  
-@@ -175,7 +176,7 @@ function WorkspaceContent({ project, projects, tab, navigate, notify, user, onLo
- function TabContent({ tab, project, data, documentType, documentState, onDocumentTypeChange, onDocumentStateChange, onClearDocumentFilters, canEdit, notify, onUpload, onFileDrop, uploadQueue, onRetryUpload, onClearUploadQueue, onDeleteProject, deleting }) {
-   if (tab === 'documents') return <DocumentsView projectId={project.id} documents={data.documents} documentsTotal={data.documentsTotal} documentType={documentType} documentState={documentState} onDocumentTypeChange={onDocumentTypeChange} onDocumentStateChange={onDocumentStateChange} onClearFilters={onClearDocumentFilters} canEdit={canEdit} onUpload={onUpload} onFileDrop={onFileDrop} uploadQueue={uploadQueue} onRetryUpload={onRetryUpload} onClearUploadQueue={onClearUploadQueue} onRetry={data.retryDocument} retryingDocumentId={data.retryingDocumentId}/>
+@@ -193,7 +194,7 @@ function WorkspaceContent({ project, projects, tab, navigate, notify, user, onLo
+ function TabContent({ tab, project, data, documentType, documentState, onDocumentTypeChange, onDocumentStateChange, onClearDocumentFilters, onDocumentPageChange, canEdit, notify, onUpload, onFileDrop, uploadQueue, onRetryUpload, onClearUploadQueue, onDeleteProject, deleting }) {
+   if (tab === 'documents') return <DocumentsView projectId={project.id} documents={data.documents} documentsTotal={data.documentsTotal} documentsPage={data.documentsPage} documentsTotalPages={data.documentsTotalPages} documentType={documentType} documentState={documentState} onDocumentTypeChange={onDocumentTypeChange} onDocumentStateChange={onDocumentStateChange} onClearFilters={onClearDocumentFilters} onPageChange={onDocumentPageChange} canEdit={canEdit} onUpload={onUpload} onFileDrop={onFileDrop} uploadQueue={uploadQueue} onRetryUpload={onRetryUpload} onClearUploadQueue={onClearUploadQueue} onRetry={data.retryDocument} retryingDocumentId={data.retryingDocumentId}/>
    if (tab === 'settings') return <MembersView project={project} members={data.members} invitations={data.invitations} onUpdateProject={data.updateProject} updatingProject={data.updatingProject} onInvite={data.invite} onCancelInvitation={data.cancelInvitation} onRole={data.changeRole} onRemove={data.excludeMember} onDeleteProject={onDeleteProject} deleting={deleting}/>
 -  if (tab === 'dashboard') return <DashboardView projectId={project.id} documents={data.documents} members={data.members}/>
 +  if (tab === 'dashboard') return <DashboardView projectId={project.id} documents={data.documents} members={data.members} canEdit={canEdit}/>
