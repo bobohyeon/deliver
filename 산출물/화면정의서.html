@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><title>Tasqra 화면정의서</title>
 <style>@font-face{font-family:'Noto Sans KR';src:url('포트폴리오/NotoSansKR.ttf') format('truetype');font-weight:100 900}
-@page{size:A4 landscape;margin:8mm}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#e8edf5;color:#0f172a;font-family:"Noto Sans KR",Pretendard,"Malgun Gothic",sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}body{counter-reset:page}.page{counter-increment:page;position:relative;width:281mm;height:194mm;margin:8mm auto;padding:7mm;background:#fff;overflow:hidden;page-break-after:always;break-after:page;box-shadow:0 4px 24px rgba(15,23,42,.12)}.page:last-child{page-break-after:auto;break-after:auto}.page-number{position:absolute;right:7mm;bottom:4mm;font-size:8pt;color:#64748b}.page-number:after{content:counter(page)}.cover{background:linear-gradient(135deg,#0e162f 0%,#16234a 54%,#223672 100%);color:#fff;padding:20mm}.cover-brand{font-size:25pt;font-weight:900;letter-spacing:-.04em}.cover-line{width:25mm;height:1.5mm;margin:30mm 0 11mm;background:#5d7df0}.cover h1{margin:0;font-size:42pt;letter-spacing:-.05em}.cover-sub{margin-top:7mm;font-size:16pt;color:#cbd5e1}.cover-meta{position:absolute;left:20mm;bottom:18mm;font-size:10pt;line-height:1.8;color:#cbd5e1}.cover-orbit{position:absolute;right:20mm;top:24mm;width:78mm;height:78mm;border:1px solid rgba(255,255,255,.22);border-radius:50%}.cover-orbit:before,.cover-orbit:after{content:"";position:absolute;border:1px solid rgba(93,125,240,.55);border-radius:50%}.cover-orbit:before{inset:12mm}.cover-orbit:after{inset:27mm;background:#315bd8}.cover-t{position:absolute;right:48mm;top:52mm;font-size:36pt;font-weight:900;z-index:2}.doc-head{display:flex;justify-content:space-between;align-items:flex-end;height:17mm;border-bottom:.5mm solid #16234a;padding-bottom:3mm}.doc-head h1{margin:0;font-size:20pt;letter-spacing:-.04em}.doc-head .meta{text-align:right;font-size:8.5pt;color:#64748b;line-height:1.5}.flow img,.flow svg{display:block;width:100%;height:158mm;object-fit:contain;margin-top:4mm;border:.3mm solid #e2e8f0;border-radius:3mm;background:#f5f7fb}.screen-head{display:flex;justify-content:space-between;align-items:flex-end;height:17mm;border-bottom:.45mm solid #cbd5e1;padding-bottom:3mm}.screen-title{display:flex;align-items:baseline;gap:4mm}.screen-id{font-size:10pt;font-weight:900;color:#315bd8;letter-spacing:.06em}.screen-head h2{margin:0;font-size:18pt;letter-spacing:-.04em}.screen-meta{text-align:right;font-size:8.3pt;color:#64748b;line-height:1.5}.screen-body{display:grid;grid-template-columns:minmax(0,2.15fr) minmax(72mm,.85fr);gap:5mm;height:157mm;padding-top:4mm}.screen-figure{margin:0;display:flex;align-items:flex-start;justify-content:center;min-width:0;height:153mm;border:.3mm solid #d7e0ec;border-radius:2.5mm;background:#f5f7fb;overflow:hidden}.screen-figure img,.screen-figure svg{display:block;width:100%;height:100%;object-fit:contain}.index-panel{height:153mm;overflow:hidden}.index-panel h3{margin:0 0 2.5mm;padding:2.4mm 3mm;border-radius:2mm;background:#16234a;color:#fff;font-size:10.5pt}.index-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:8.1pt;line-height:1.35}.index-table th,.index-table td{border:.25mm solid #cbd5e1;padding:2.1mm 2mm;vertical-align:top;word-break:keep-all}.index-table th{background:#eef2ff;color:#223672;text-align:left}.index-table th:first-child,.index-table td:first-child{width:11mm;text-align:center;font-weight:900;color:#315bd8}.index-table th:nth-child(2),.index-table td:nth-child(2){width:31mm;font-weight:750}.index-table tr:nth-child(even) td{background:#f8fafc}.screen-figure{position:relative}.svg-text-layer{position:absolute;inset:0;overflow:visible;pointer-events:none;z-index:2}.svg-text-label{position:absolute;display:block;line-height:1;white-space:nowrap;transform-origin:0 0}@media print{body{background:#fff}.page{margin:0;box-shadow:none}}
+@page{size:A4 landscape;margin:8mm}*{box-sizing:border-box}html,body{margin:0;padding:0;background:#e8edf5;color:#0f172a;font-family:"Noto Sans KR",Pretendard,"Malgun Gothic",sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}body{counter-reset:page}.page{counter-increment:page;position:relative;width:281mm;height:194mm;margin:8mm auto;padding:7mm;background:#fff;overflow:hidden;page-break-after:always;break-after:page;box-shadow:0 4px 24px rgba(15,23,42,.12)}.page:last-child{page-break-after:auto;break-after:auto}.page-number{position:absolute;right:7mm;bottom:4mm;font-size:8pt;color:#64748b}.page-number:after{content:counter(page)}.cover{background:linear-gradient(135deg,#0e162f 0%,#16234a 54%,#223672 100%);color:#fff;padding:20mm}.cover-brand{font-size:25pt;font-weight:900;letter-spacing:-.04em}.cover-line{width:25mm;height:1.5mm;margin:30mm 0 11mm;background:#5d7df0}.cover h1{margin:0;font-size:42pt;letter-spacing:-.05em}.cover-sub{margin-top:7mm;font-size:16pt;color:#cbd5e1}.cover-meta{position:absolute;left:20mm;bottom:18mm;font-size:10pt;line-height:1.8;color:#cbd5e1}.cover-orbit{position:absolute;right:20mm;top:24mm;width:78mm;height:78mm;border:1px solid rgba(255,255,255,.22);border-radius:50%}.cover-orbit:before,.cover-orbit:after{content:"";position:absolute;border:1px solid rgba(93,125,240,.55);border-radius:50%}.cover-orbit:before{inset:12mm}.cover-orbit:after{inset:27mm;background:#315bd8}.cover-t{position:absolute;right:48mm;top:52mm;font-size:36pt;font-weight:900;z-index:2}.doc-head{display:flex;justify-content:space-between;align-items:flex-end;height:17mm;border-bottom:.5mm solid #16234a;padding-bottom:3mm}.doc-head h1{margin:0;font-size:20pt;letter-spacing:-.04em}.doc-head .meta{text-align:right;font-size:8.5pt;color:#64748b;line-height:1.5}.flow img,.flow svg{display:block;width:100%;height:158mm;object-fit:contain;margin-top:4mm;border:.3mm solid #e2e8f0;border-radius:3mm;background:#f5f7fb}.screen-head{display:flex;justify-content:space-between;align-items:flex-end;height:17mm;border-bottom:.45mm solid #cbd5e1;padding-bottom:3mm}.screen-title{display:flex;align-items:baseline;gap:4mm}.screen-id{font-size:10pt;font-weight:900;color:#315bd8;letter-spacing:.06em}.screen-head h2{margin:0;font-size:18pt;letter-spacing:-.04em}.screen-meta{text-align:right;font-size:8.3pt;color:#64748b;line-height:1.5}.screen-body{display:grid;grid-template-columns:minmax(0,2.15fr) minmax(72mm,.85fr);gap:5mm;height:157mm;padding-top:4mm}.screen-figure{margin:0;display:flex;align-items:flex-start;justify-content:center;min-width:0;height:153mm;border:.3mm solid #d7e0ec;border-radius:2.5mm;background:#f5f7fb;overflow:hidden}.screen-figure img,.screen-figure svg{display:block;width:100%;height:100%;object-fit:contain}.index-panel{height:153mm;overflow:hidden}.index-panel h3{margin:0 0 2.5mm;padding:2.4mm 3mm;border-radius:2mm;background:#16234a;color:#fff;font-size:10.5pt}.index-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:8.1pt;line-height:1.35}.index-table th,.index-table td{border:.25mm solid #cbd5e1;padding:2.1mm 2mm;vertical-align:top;word-break:keep-all}.index-table th{background:#eef2ff;color:#223672;text-align:left}.index-table th:first-child,.index-table td:first-child{width:11mm;text-align:center;font-weight:900;color:#315bd8}.index-table th:nth-child(2),.index-table td:nth-child(2){width:31mm;font-weight:750}.index-table tr:nth-child(even) td{background:#f8fafc}@media print{body{background:#fff}.page{margin:0;box-shadow:none}}
 </style></head><body>
 <section class="page cover"><div class="cover-brand">Tasqra</div><div class="cover-orbit"></div><div class="cover-t">T</div><div class="cover-line"></div><h1>화면정의서</h1><p class="cover-sub">문서 기반 프로젝트 실행 관리 서비스</p><div class="cover-meta">작성일&nbsp;&nbsp;2026-09-08<br>기준 Tasqra&nbsp;&nbsp;ba09d52ef9d2200c48300dd0a97b890d402691b5<br>구성&nbsp;&nbsp;화면흐름도 · 화면별 구성</div><span class="page-number"></span></section>
 <section class="page flow"><header class="doc-head"><h1>화면흐름도</h1><div class="meta">로그인부터 프로젝트 업무까지<br>주요 화면 이동</div></header><img src="화면흐름도.svg" alt="Tasqra 화면흐름도"><span class="page-number"></span></section>
@@ -34,7 +34,7 @@ window.__svgReady=(async()=>{
   await svgFont.load();
   document.fonts.add(svgFont);
   await Promise.all([...document.querySelectorAll('img[src$=".svg"]')].map(async image=>{
-    const response=await fetch(image.src);
+    const response=await fetch(image.src,{cache:'no-store'});
     if(!response.ok) throw new Error(`SVG 로드 실패: ${image.src}`);
     const source=await response.text();
     const parsed=new DOMParser().parseFromString(source,'image/svg+xml');
@@ -48,49 +48,6 @@ window.__svgReady=(async()=>{
   }));
   await document.fonts.ready;
   await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-  document.querySelectorAll('.page svg').forEach(svg=>{
-    const host=svg.parentElement;
-    const hostStyle=getComputedStyle(host);
-    if(hostStyle.position==='static') host.style.position='relative';
-    const hostRect=host.getBoundingClientRect();
-    const layer=document.createElement('div');
-    layer.className='svg-text-layer';
-    [...svg.querySelectorAll('text')].forEach(text=>{
-      if(text.closest('.pin')) return;
-      const value=text.textContent;
-      if(!value) return;
-      const matrix=text.getScreenCTM();
-      if(!matrix) return;
-      const point=svg.createSVGPoint();
-      point.x=parseFloat(text.getAttribute('x')||'0');
-      point.y=parseFloat(text.getAttribute('y')||'0');
-      const screenPoint=point.matrixTransform(matrix);
-      const style=getComputedStyle(text);
-      const scale=Math.hypot(matrix.a,matrix.b)||1;
-      const size=(parseFloat(style.fontSize)||16)*scale;
-      const span=document.createElement('span');
-      span.className='svg-text-label';
-      span.style.fontFamily="'Noto Sans KR'";
-      span.textContent=value;
-      span.style.left='0px';
-      span.style.top='0px';
-      span.style.visibility='hidden';
-      span.style.fontSize=`${size}px`;
-      span.style.fontWeight=style.fontWeight;
-      span.style.letterSpacing=style.letterSpacing==='normal'?'normal':`${(parseFloat(style.letterSpacing)||0)*scale}px`;
-      span.style.color=style.fill;
-      layer.appendChild(span);
-      const width=span.getBoundingClientRect().width;
-      const height=span.getBoundingClientRect().height;
-      const left=screenPoint.x-hostRect.left-(style.textAnchor==='middle'?width/2:style.textAnchor==='end'?width:0);
-      const top=screenPoint.y-hostRect.top-(style.dominantBaseline==='middle'?height/2:height*.82);
-      span.style.left=`${left}px`;
-      span.style.top=`${top}px`;
-      span.style.visibility='visible';
-      text.remove();
-    });
-    host.appendChild(layer);
-  });
   document.documentElement.dataset.svgReady='true';
 })();
 </script></body></html>
