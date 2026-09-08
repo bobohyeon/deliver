@@ -1,592 +1,105 @@
-﻿ID,CASE,순번,절차,테스트 데이터,시험일자,시험결과,Y/N,결함/이상 내용
-UT-AUTH-001,"인증 토큰
-관련 기능: 로그인·토큰 갱신(AUTH-002-1~4)
-대상: refresh token 생성·저장",1,refresh 토큰이 매번 무작위이며 DB에는 원문이 아닌 해시만 저장되는지 검증한다.,동일 사용자 토큰 2개,2026-09-07,"예상: 두 토큰 원문이 다르고 저장 가능한 값은 해시다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_refresh_tokens.py::test_refresh_token_is_random_and_only_hash_is_persistable
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-AUTH-002,"인증 토큰
-관련 기능: 회원가입 및 계정 생성(AUTH-001)
-대상: 회원가입 API·User 저장",2,유효 입력은 생성하고 중복 로그인 ID·이메일 및 잘못된 입력은 차단하는 API 시험을 추가한다.,정상·중복 ID·중복 이메일·빈 값,,"예상: 정상 입력만 계정이 생성되고 오류별 계약 코드가 반환된다.
-실제: 미실행(자동시험 없음)",,"구분: 신규 시험 필요
-증적: 연결된 자동시험 없음"
-UT-AUTH-003,"인증 토큰
-관련 기능: 로그인(AUTH-002-1)
-대상: 로그인 API",3,정상 비밀번호와 틀린 비밀번호의 발급·401 경계를 시험한다.,등록 계정·틀린 비밀번호,,"예상: 정상 계정만 access·refresh 토큰을 받는다.
-실제: 미실행(자동시험 없음)",,"구분: 신규 시험 필요
-증적: 연결된 자동시험 없음"
-UT-AUTH-004,"인증 토큰
-관련 기능: 토큰 갱신(AUTH-002-3)
-대상: refresh 회전",4,refresh 사용 시 새 토큰을 발급하고 이전 토큰 재사용을 차단하는 시험을 추가한다.,유효 refresh·이미 사용한 refresh,,"예상: 최초 갱신만 성공하고 재사용은 401이다.
-실제: 미실행(자동시험 없음)",,"구분: 신규 시험 필요
-증적: 연결된 자동시험 없음"
-UT-AUTH-005,"인증 토큰
-관련 기능: 로그아웃(AUTH-002-4)
-대상: refresh 폐기",5,로그아웃 시 revoked_at을 기록하고 같은 refresh의 재사용을 차단한다.,로그인 세션 1건,,"예상: 로그아웃 뒤 갱신이 401로 차단된다.
-실제: 미실행(자동시험 없음)",,"구분: 신규 시험 필요
-증적: 연결된 자동시험 없음"
-UT-AUTH-006,"인증 토큰
-관련 기능: 인증 미들웨어(SYS-001-1)
-대상: access token 검증",6,만료·위조·누락 access token이 모두 보호 API에서 차단되는지 시험한다.,정상·만료·위조·누락 토큰,,"예상: 정상 토큰만 통과하고 나머지는 401이다.
-실제: 미실행(자동시험 없음)",,"구분: 신규 시험 필요
-증적: 연결된 자동시험 없음"
-UT-PRJ-001,"프로젝트·초대·역할
-관련 기능: 프로젝트 정보 수정(PRJ-003-1)
-대상: 권한 dependency",1,VIEWER가 프로젝트 수정을 할 수 없는지 검증한다.,VIEWER 멤버,2026-09-07,"예상: PROJECT_FORBIDDEN 403이다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_permissions.py::test_viewer_cannot_edit_project
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-PRJ-002,"프로젝트·초대·역할
-관련 기능: 멤버 관리·프로젝트 삭제(PRJ-003-3, PRJ-004)
-대상: OWNER 권한",2,실제 OWNER만 멤버 관리와 프로젝트 삭제를 수행하는지 검증한다.,OWNER·EDITOR 계정,2026-09-07,"예상: OWNER만 관리·삭제할 수 있다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_permissions.py::test_only_actual_owner_can_manage_members_or_delete
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-PRJ-003,"프로젝트·초대·역할
-관련 기능: 멤버 초대(PRJ-004-1)
-대상: 초대 중복 방지",3,같은 사용자에게 PENDING 초대를 두 번 보낼 수 없는지 검증한다.,동일 프로젝트·동일 피초대자,2026-09-07,"예상: 두 번째 초대가 충돌로 차단된다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_project_service.py::test_pending_invitation_cannot_be_sent_twice
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-PRJ-004,"프로젝트·초대·역할
-관련 기능: 프로젝트 생성(PRJ-001-1)
-대상: 프로젝트·OWNER 멤버 저장",4,프로젝트 생성과 생성자 OWNER 등록의 원자성을 시험한다.,신규 사용자·프로젝트명,,"예상: 프로젝트와 OWNER 멤버가 함께 생성된다.
-실제: 미실행(자동시험 없음)",,"구분: 신규 시험 필요
-증적: 연결된 자동시험 없음"
-UT-PRJ-005,"프로젝트·초대·역할
-관련 기능: 내 프로젝트 목록(PRJ-001-2)
-대상: 프로젝트 목록 API",5,내가 멤버인 프로젝트만 반환하는 API 시험을 추가한다.,멤버 프로젝트 2건·비멤버 1건,,"예상: 멤버 프로젝트 2건만 반환된다.
-실제: 미실행(자동시험 없음)",,"구분: 신규 시험 필요
-증적: 연결된 자동시험 없음"
-UT-PRJ-006,"프로젝트·초대·역할
-관련 기능: 초대 수락·거절·취소(PRJ-002-2~3, PRJ-004-2)
-대상: Invitation 상태 전이",6,PENDING에서 ACCEPTED·REJECTED·CANCELLED로 가는 상태 전이를 각각 시험한다.,초대 3건,,"예상: 각 최종 상태와 멤버 생성 여부가 계약과 일치한다.
-실제: 미실행(자동시험 없음)",,"구분: 신규 시험 필요
-증적: 연결된 자동시험 없음"
-UT-PRJ-007,"프로젝트·초대·역할
-관련 기능: 멤버 역할 변경(PRJ-004-3)
-대상: role 변경",7,역할 변경 직후 허용 동작이 바뀌는지 시험한다.,EDITOR→VIEWER,,"예상: 변경 직후 편집 API가 403이다.
-실제: 미실행(자동시험 없음)",,"구분: 신규 시험 필요
-증적: 연결된 자동시험 없음"
-UT-PRJ-008,"프로젝트·초대·역할
-관련 기능: 멤버 제외(PRJ-004-4)
-대상: 멤버 삭제·접근 차단",8,제외된 멤버가 즉시 프로젝트 데이터에 접근할 수 없는지 시험한다.,프로젝트 멤버 1명,,"예상: 제외 후 모든 프로젝트 API가 404다.
-실제: 미실행(자동시험 없음)",,"구분: 신규 시험 필요
-증적: 연결된 자동시험 없음"
-UT-PRJ-009,"프로젝트·초대·역할
-관련 기능: 프로젝트 삭제(PRJ-003-3)
-대상: cascade 삭제",9,문서·태스크가 있는 프로젝트 삭제 시 하위 데이터 정리를 시험한다.,하위 문서·태스크 포함 프로젝트,,"예상: 프로젝트와 하위 데이터가 함께 정리된다.
-실제: 미실행(자동시험 없음)",,"구분: 신규 시험 필요
-증적: 연결된 자동시험 없음"
-UT-DOC-001,"업로드·추출
-관련 기능: 파일 업로드(DOC-001)
-대상: 비동기 업로드 서비스",1,업로드 요청이 추출기를 직접 실행하지 않고 PENDING 문서를 만드는지 검증한다.,정상 파일,2026-09-07,"예상: PENDING 문서가 생성되고 extractor는 호출되지 않는다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_async_document_processing.py::test_upload_creates_pending_document_without_running_extractor
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-DOC-002,"업로드·추출
-관련 기능: 비동기 처리(DOC-003-2)
-대상: worker 성공 경로",2,worker가 문서를 EXTRACTED로 전이하는지 검증한다.,PENDING 문서,2026-09-07,"예상: 추출텍스트 저장 후 EXTRACTED가 된다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_async_document_processing.py::test_worker_moves_document_to_extracted
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-DOC-003,"업로드·추출
-관련 기능: 비동기 처리(DOC-003-2)
-대상: worker 실패 경로",3,추출 실패 원인과 FAILED 상태를 저장하는지 검증한다.,추출기 예외,2026-09-07,"예상: FAILED와 processing_error가 저장된다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_async_document_processing.py::test_worker_records_failure_reason
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-DOC-004,"업로드·추출
-관련 기능: 실패 재시도(BAT-002-2)
-대상: 재처리 준비",4,FAILED 문서를 재시도 가능한 상태로 돌리는지 검증한다.,FAILED 문서,2026-09-07,"예상: 오류가 초기화되고 다시 큐에 넣을 수 있다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_async_document_processing.py::test_failed_document_can_be_prepared_for_retry
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-DOC-005,"업로드·추출
-관련 기능: 중복 파일 검사(DOC-001)
-대상: SHA-256 프로젝트 범위",5,다른 프로젝트의 같은 파일은 허용하고 같은 프로젝트 중복만 차단하는지 검증한다.,동일 해시·서로 다른 프로젝트,2026-09-07,"예상: 중복 판정이 요청 프로젝트 안에서만 적용된다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_document_duplicate_upload.py::test_duplicate_check_is_scoped_to_requested_project
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-DOC-006,"업로드·추출
-관련 기능: 문서 글자 제한(DOC-001)
-대상: DOCX native text 제한",6,DOCX 원문이 제한을 넘으면 이미지 OCR 전에 차단되는지 검증한다.,제한 초과 DOCX,2026-09-07,"예상: DOCUMENT_TEXT_TOO_LARGE가 발생한다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_document_text_limit.py::test_docx_rejects_native_text_before_image_ocr
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-DOC-007,"업로드·추출
-관련 기능: 추출 전략(DOC-002)
-대상: PDF AUTO 전략",7,희소 텍스트와 큰 스캔 이미지 조합에서 전체 페이지 OCR을 선택하는지 검증한다.,희소 텍스트 레이어 PDF,2026-09-07,"예상: full-page OCR 전략을 선택한다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_extraction_strategy.py::test_large_scanned_page_with_sparse_text_layer_runs_full_page_ocr
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-DOC-008,"업로드·추출
-관련 기능: 문서 유형 지정(DOC-004-2)
-대상: document_type 정규화",8,7종 유형만 허용하고 입력을 정규화하는지 검증한다.,정상·미지원 유형,2026-09-07,"예상: 정상 유형만 표준 enum 값으로 저장된다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_extraction_strategy.py::test_document_type_is_normalized_and_validated
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-DOC-009,"업로드·추출
-관련 기능: 파일 업로드 안전성(DOC-001)
-대상: multipart API 경계",9,지원 형식·20MB·빈 파일·확장자 위장·경로 조작 파일명을 API 수준에서 시험한다.,PDF·DOCX·HWPX·JPG·PNG 및 오류 파일,,"예상: 유효 파일만 저장되고 오류별 코드가 구분된다.
-실제: 미실행(자동시험 없음)",,"구분: 신규 시험 필요
-증적: 연결된 자동시험 없음"
-UT-DOC-010,"업로드·추출
-관련 기능: 문서 목록·필터(DOC-004-1)
-대상: frontend 21건 페이징",10,문서 21건에서 2페이지 이동과 필터 변경 시 page 초기화를 자동화한다.,문서 21건·size 20,,"예상: 1페이지 20건, 2페이지 1건이며 URL page가 유지된다.
-실제: 미실행(자동시험 없음)",,"구분: 신규 시험 필요
-증적: 연결된 자동시험 없음"
-UT-REV-001,"OCR 검수
-관련 기능: OCR 일괄 수정(REV-002)
-대상: batch schema",1,부분 필드 수정 요청을 허용하는지 검증한다.,text만 포함한 변경,2026-09-07,"예상: 유효한 부분 수정으로 파싱된다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_ocr_batch_schema.py::test_batch_request_accepts_partial_updates
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-REV-002,"OCR 검수
-관련 기능: 박스 이동·크기 조정(REV-002-2)
-대상: geometry schema",2,잘못된 좌표를 스키마에서 차단하는지 검증한다.,음수·역전 좌표,2026-09-07,"예상: 422 validation 오류다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_ocr_batch_schema.py::test_batch_request_rejects_invalid_geometry
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-REV-003,"OCR 검수
-관련 기능: 읽기 순서 변경(REV-003-2)
-대상: 추가 박스 정렬",3,새 박스가 좌표 순서에 맞게 본문과 reading_order에 삽입되는지 검증한다.,기존 2박스 사이 좌표,2026-09-07,"예상: 본문·reading_order 모두 중간에 삽입된다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_document_service_reading_order.py::test_added_box_is_inserted_by_coordinates_in_text_and_reading_order
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-REV-004,"OCR 검수
-관련 기능: 읽기 순서 변경(REV-003-2)
-대상: 2단 문서 정렬",4,2단 페이지가 열 우선으로 읽히는지 검증한다.,좌·우 2단 요소,2026-09-07,"예상: 왼쪽 열 전체 뒤 오른쪽 열 순서다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_ocr_reading_order.py::test_true_two_column_paragraphs_keep_column_first_order
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-REV-005,"OCR 검수
-관련 기능: 표 구조 보존(REV-003-3)
-대상: table metadata",5,표 행 구조 메타데이터가 청킹까지 보존되는지 검증한다.,표 OCR 요소,2026-09-07,"예상: 행·열 구조 메타데이터가 응답에 남는다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_ocr_element_structure.py::test_table_rows_keep_structure_metadata
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-REV-006,"OCR 검수
-관련 기능: 동시 수정 충돌 방지(REV-004-4)
-대상: version lock",6,잠근 행을 읽은 뒤 version을 비교하는지 검증한다.,같은 요소의 오래된 version,2026-09-07,"예상: 오래된 요청은 충돌로 거부된다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_ocr_review_integrity.py::test_update_ocr_element_checks_version_after_loading_locked_rows
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-REV-007,"OCR 검수
-관련 기능: 일괄 수정 원자성(REV-002)
-대상: batch rollback",7,한 항목이 stale이면 전체 수정이 롤백되는지 검증한다.,정상 1건·stale 1건,2026-09-07,"예상: 두 항목 모두 변경되지 않는다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_ocr_review_integrity.py::test_batch_update_rolls_back_all_items_on_stale_version
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-REV-008,"OCR 검수
-관련 기능: 검수 후 재인덱싱(RAG-001-3)
-대상: stale marking",8,단락 변경이 text_version을 한 번 올리고 청크를 stale로 표시하는지 검증한다.,paragraph 변경,2026-09-07,"예상: 버전은 1회 증가하고 stale 표시가 남는다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_ocr_review_integrity.py::test_batch_paragraph_change_marks_chunks_stale_once
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-REV-009,"OCR 검수
-관련 기능: 페이지 이미지 정규화(REV-001-1)
-대상: EXIF orientation",9,OCR과 검수 이미지가 같은 EXIF 정규화 결과를 쓰는지 검증한다.,회전 EXIF 이미지,2026-09-07,"예상: OCR 좌표와 검수 이미지 방향이 일치한다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_ocr_image_normalization.py::test_image_extractor_uses_exif_normalized_image_for_ocr_and_review
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-REV-010,"OCR 검수
-관련 기능: OCR 박스 표시(REV-001-1)
-대상: frontend review canvas",10,확대·축소 후 이미지와 박스 좌표가 일치하는 UI 시험을 추가한다.,스캔 문서·zoom 50/100/200%,,"예상: 모든 배율에서 박스가 같은 문자를 감싼다.
-실제: 미실행(자동시험 없음)",,"구분: 신규 시험 필요
-증적: 연결된 자동시험 없음"
-UT-REV-011,"OCR 검수
-관련 기능: 박스 생성·삭제·복원(REV-002-3, REV-004-3)
-대상: 검수 UI·API",11,박스 생성·분석 제외·복원 후 본문 재조립을 시험한다.,OCR 요소 3건,,"예상: 현재 포함 요소만 순서대로 본문에 반영된다.
-실제: 미실행(자동시험 없음)",,"구분: 신규 시험 필요
-증적: 연결된 자동시험 없음"
-UT-REV-012,"OCR 검수
-관련 기능: 선택 영역 재OCR(REV-002-5)
-대상: 재OCR 확인 흐름",12,재OCR 결과를 사용자가 확인하기 전 원문을 덮지 않는지 시험한다.,선택 영역 1건,,"예상: 확인 전 기존 값 유지, 확인 후 새 값 반영이다.
-실제: 미실행(자동시험 없음)",,"구분: 신규 시험 필요
-증적: 연결된 자동시험 없음"
-UT-REV-013,"OCR 검수
-관련 기능: 검수 완료 처리(REV-004-1)
-대상: complete API→청킹 큐",13,검수 완료가 확정 텍스트 저장과 재청킹 enqueue를 연결하는 API 시험을 추가한다.,수정 완료 문서,,"예상: 확정 리비전 저장 뒤 build_chunks 작업이 큐에 등록된다.
-실제: 미실행(자동시험 없음)",,"구분: 신규 시험 필요
-증적: 연결된 자동시험 없음"
-UT-AI-001,"AI·결정·일정
-관련 기능: 문서 요약(ANL-001-1)
-대상: summary validator",1,형식이 틀린 요약을 raw text로 저장하지 않는지 검증한다.,깨진 JSON 응답,2026-09-07,"예상: AI_INVALID_RESPONSE이며 결과를 저장하지 않는다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_ai_analysis.py::test_invalid_summary_is_not_saved_as_raw_text
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-AI-002,"AI·결정·일정
-관련 기능: 문서 요약(ANL-001-1)
-대상: evidence grounding",2,원문에 없는 인용을 가진 요약 전체를 실패시키는지 검증한다.,조작된 source_quote,2026-09-07,"예상: 무근거 요약이 저장되지 않는다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_ai_analysis.py::test_invented_quote_fails_whole_summary
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-AI-003,"AI·결정·일정
-관련 기능: 일정·기한 추출(ANL-002-3)
-대상: 날짜 후보 선별",3,원문 날짜가 없으면 모델을 호출하지 않는지 검증한다.,날짜 없는 본문,2026-09-07,"예상: 빈 일정 결과이며 모델 호출 0회다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_ai_analysis.py::test_날짜가_없으면_모델을_아예_부르지_않는다
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-AI-004,"AI·결정·일정
-관련 기능: 일정·기한 추출(ANL-002-3)
-대상: 날짜 ID 검증",4,후보 목록 밖 날짜 ID를 선택할 수 없는지 검증한다.,존재하지 않는 date ID,2026-09-07,"예상: AI_INVALID_RESPONSE다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_ai_analysis.py::test_목록에_없는_날짜는_고를_수_없다
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-AI-005,"AI·결정·일정
-관련 기능: 문서 유형 분류(ANL-001-2)
-대상: 7종 category contract",5,현재 범위 7종 코드만 허용하는지 검증한다.,7종 정상 코드,2026-09-07,"예상: 모든 코드가 계약 스키마를 통과한다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_ai_analysis.py::test_new_document_classification_contract_has_seven_types
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-AI-006,"AI·결정·일정
-관련 기능: 재분석 실행(DOC-006-2)
-대상: source snapshot",6,worker 시작 전에 원문이 바뀌면 모델을 호출하지 않는지 검증한다.,enqueue 후 text_version 변경,2026-09-07,"예상: ANALYSIS_SOURCE_CHANGED이며 호출 0회다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_analysis_jobs.py::test_changed_source_before_worker_does_not_call_model
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-AI-007,"AI·결정·일정
-관련 기능: 분석 진행률(ANL-003-1)
-대상: partial job",7,한 분석기 실패 시 성공 결과를 저장하고 job을 PARTIAL로 만드는지 검증한다.,성공 분석기+실패 분석기,2026-09-07,"예상: 성공 결과는 저장되고 상태는 PARTIAL이다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_analysis_jobs.py::test_failed_analyzer_saves_successful_results_as_partial
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-AI-008,"AI·결정·일정
-관련 기능: 결정사항 추출·검토(ANL-002-2)
-대상: 결정 review API",8,PENDING 결정의 승인·수정·거절·취소 상태 전이를 API 수준에서 시험한다.,결정 후보 4건,,"예상: 각 review_decision·결정자·시각이 정확히 저장된다.
-실제: 미실행(자동시험 없음)",,"구분: 신규 시험 필요
-증적: 연결된 자동시험 없음"
-UT-AI-009,"AI·결정·일정
-관련 기능: 일정·기한 추출·검토(ANL-002-3)
-대상: 일정 review API",9,PENDING 일정의 승인·수정·거절·취소 상태 전이를 API 수준에서 시험한다.,일정 후보 4건,,"예상: 승인 상태만 하류 집계에 포함된다.
-실제: 미실행(자동시험 없음)",,"구분: 신규 시험 필요
-증적: 연결된 자동시험 없음"
-UT-AI-010,"AI·결정·일정
-관련 기능: 분석 진행률(ANL-003-1)
-대상: frontend job polling",10,분석기 추가·PARTIAL·FAILED 상태를 화면이 동적으로 표시하는 시험을 추가한다.,COMPLETED·PARTIAL·FAILED job,,"예상: 분석기 수를 하드코딩하지 않고 상태를 표시한다.
-실제: 미실행(자동시험 없음)",,"구분: 신규 시험 필요
-증적: 연결된 자동시험 없음"
-UT-AI-011,"AI·결정·일정
-관련 기능: 로컬 sLLM 경로(SYS-003-3)
-대상: Docker→Ollama schema",11,실제 Docker worker에서 Ollama 구조화 출력과 오류 코드를 통합 시험한다.,정상 JSON·schema 오류·연결 실패,,"예상: 정상 저장, schema 오류 AI_INVALID_RESPONSE, 연결 실패 AI_PROVIDER_ERROR다.
-실제: 미실행(자동시험 없음)",,"구분: 신규 시험 필요
-증적: 연결된 자동시험 없음"
-UT-TSK-001,"액션 아이템·태스크
-관련 기능: 액션 아이템 추출(ANL-002-1)
-대상: 분석 대상 scope",1,계약 계열 문서에서만 기본 액션 분석기가 도는지 검증한다.,계약·회의록 문서,2026-09-07,"예상: 계약에서 실행되고 비대상 유형에서는 호출하지 않는다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_action_task_scope.py::test_계약_계열이면_돈다
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-TSK-002,"액션 아이템·태스크
-관련 기능: 액션 아이템 추출(ANL-002-1)
-대상: grounded candidate",2,원문 후보에 근거한 항목만 결과로 반환하는지 검증한다.,실제 후보+모델 조작 후보,2026-09-07,"예상: 실제 후보만 남는다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_action_task_suggestions.py::test_action_analyzer_only_returns_grounded_candidates
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-TSK-003,"액션 아이템·태스크
-관련 기능: 액션 아이템 추출(ANL-002-1)
-대상: 빈 후보 short-circuit",3,후보가 없으면 모델을 호출하지 않는지 검증한다.,액션 문장 없는 본문,2026-09-07,"예상: 빈 결과와 모델 호출 0회다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_action_task_suggestions.py::test_no_action_candidate_skips_model_call
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-TSK-004,"액션 아이템·태스크
-관련 기능: AI 제안 교체(TSK-002)
-대상: PENDING replace",4,같은 분석기의 미검토 후보만 재분석 결과로 교체하는지 검증한다.,기존 PENDING·APPROVED 후보,2026-09-07,"예상: PENDING만 교체되고 검토 완료 후보는 보존된다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_task_suggestion_replace.py::test_같은_분석기의_미검토_후보는_교체된다
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-TSK-005,"액션 아이템·태스크
-관련 기능: AI 제안 승인(TSK-002-1)
-대상: 승인→Task transaction",5,승인 트랜잭션이 AI_APPROVED 태스크를 정확히 한 건 만드는 API 시험을 추가한다.,PENDING 제안 1건,,"예상: 승인 상태와 Task 생성이 함께 커밋된다.
-실제: 미실행(자동시험 없음)",,"구분: 신규 시험 필요
-증적: 연결된 자동시험 없음"
-UT-TSK-006,"액션 아이템·태스크
-관련 기능: AI 제안 거절(TSK-002-2)
-대상: 거절·취소 UI",6,거절 후 보드에 나타나지 않고 거절 목록과 결정자 정보가 남는지 시험한다.,PENDING 제안 1건,,"예상: Task는 생기지 않고 REJECTED 이력이 표시된다.
-실제: 미실행(자동시험 없음)",,"구분: 신규 시험 필요
-증적: 연결된 자동시험 없음"
-UT-AMT-001,"금액
-관련 기능: 금액 항목 추출(AMT-001-1)
-대상: strict JSON parser",1,정상 JSON을 정규화해 계약 스키마로 반환하는지 검증한다.,문자열 숫자가 포함된 정상 JSON,2026-09-07,"예상: 정규화된 AmountExtractionOut이다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_amount_parser_writer.py::test_parser_normalizes_valid_json_and_accepts_ai_result
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-AMT-002,"금액
-관련 기능: 금액 항목 추출(AMT-001-1)
-대상: JSON 형식 검증",2,코드펜스·잘못된 root·NaN·Infinity를 거부하는지 검증한다.,비표준 JSON 세트,2026-09-07,"예상: 모두 AI_INVALID_RESPONSE다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_amount_parser_writer.py::test_parser_rejects_code_fence_malformed_root_and_nonstandard_json
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-AMT-003,"금액
-관련 기능: 금액 항목 추출(AMT-001-1)
-대상: schema 외 필드",3,허용하지 않은 필드가 있으면 거부하는지 검증한다.,unknown 필드 포함 JSON,2026-09-07,"예상: AI_INVALID_RESPONSE다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_amount_parser_writer.py::test_parser_rejects_unknown_fields
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-AMT-004,"금액
-관련 기능: 금액 항목 추출(AMT-001-1)
-대상: 숫자 유효성",4,음수·정규화 불가능 숫자를 null로 숨기지 않는지 검증한다.,음수·깨진 숫자,2026-09-07,"예상: AI_INVALID_RESPONSE다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_amount_parser_writer.py::test_parser_rejects_invalid_or_negative_numbers
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-AMT-005,"금액
-관련 기능: 금액 항목 저장(AMT-001-1)
-대상: PENDING writer",5,검증된 값과 source revision을 PENDING 행으로 저장하는지 검증한다.,정상 AmountExtractionOut,2026-09-07,"예상: 모든 항목이 PENDING이며 revision이 기록된다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_amount_parser_writer.py::test_writer_maps_validated_values_to_pending_rows_and_revisions
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-AMT-006,"금액
-관련 기능: 금액 재분석(AMT-001-1)
-대상: PENDING replace",6,재분석이 미검토 항목만 교체하고 검토 이력을 보존하는지 검증한다.,PENDING·APPROVED 혼합,2026-09-07,"예상: PENDING만 교체된다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_amount_parser_writer.py::test_duplicate_write_replaces_only_pending_and_preserves_review_history
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-AMT-007,"금액
-관련 기능: 금액 계산·합계 검증(AMT-002-1)
-대상: VAT 제외",7,부가세 항목을 item_total에서 제외하는지 검증한다.,공급가액+VAT,2026-09-07,"예상: item_total은 공급가액만 포함한다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_amount_calculator.py::test_vat_is_excluded_from_item_total
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-AMT-008,"금액
-관련 기능: 금액 계산·합계 검증(AMT-002-1)
-대상: 불일치 검산",8,문서 금액과 계산값이 다르면 고치지 않고 차이를 보고하는지 검증한다.,수량×단가≠기재금액,2026-09-07,"예상: mismatch가 반환되고 원값은 유지된다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_amount_calculator.py::test_total_mismatch_is_reported_not_fixed
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-AMT-009,"금액
-관련 기능: 프로젝트 금액 집계(AMT-002-2)
-대상: 통화 일관성",9,서로 다른 통화가 섞이면 집계를 거부하는지 검증한다.,KRW·USD 문서,2026-09-07,"예상: 혼합 통화 오류가 발생한다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_amount_calculator.py::test_aggregate_project_rejects_mixed_currency
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-AMT-010,"금액
-관련 기능: 재분석 유효 스냅샷(AMT-002-2)
-대상: 부분 검토 원자 전환",10,부분 승인 중에는 이전 완료 스냅샷을 유지하는지 검증한다.,이전 완료+신규 일부 승인,2026-09-07,"예상: 합계가 급락하지 않고 전체 검토 후 전환된다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_amount_effective_snapshot.py::test_부분_검토_중에는_이전_완료_스냅샷을_유지하고_완료_후_전환한다
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-AMT-011,"금액
-관련 기능: 프로젝트 금액 집계(AMT-002-2)
-대상: 프로젝트·문서별 snapshot",11,문서마다 유효 분석을 고르고 다른 프로젝트를 섞지 않는지 검증한다.,프로젝트 2개·재분석 다건,2026-09-07,"예상: 요청 프로젝트의 유효 행만 반환된다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_amount_effective_snapshot.py::test_문서마다_다른_유효_분석을_고르고_다른_프로젝트는_섞지_않는다
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-AMT-012,"금액
-관련 기능: 금액 현황(AMT-003-2)
-대상: 승인 상태 필터",12,승인·수정 승인만 집계되는지 검증한다.,APPROVED·EDITED·PENDING·REJECTED,2026-09-07,"예상: APPROVED와 EDITED만 집계된다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_amount_summary.py::test_only_approved_decisions_are_counted
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-AMT-013,"금액
-관련 기능: 금액 항목 승인·수정(AMT-001-2)
-대상: review API 상태 전이",13,승인·수정 승인·거절·취소와 허용 수정 필드를 API 수준에서 시험한다.,PENDING 항목 4건,,"예상: 상태·결정자·결정시각과 수정값이 계약대로 저장된다.
-실제: 미실행(자동시험 없음)",,"구분: 신규 시험 필요
-증적: 연결된 자동시험 없음"
-UT-AMT-014,"금액
-관련 기능: 금액 현황·권한(AMT-003-2)
-대상: frontend VIEWER·cache",14,VIEWER 탭·직접 URL·API 차단과 분석 완료 후 금액 캐시 무효화를 시험한다.,OWNER·EDITOR·VIEWER 및 완료 job,,"예상: VIEWER는 제한되고 OWNER·EDITOR 화면은 새 집계로 갱신된다.
-실제: 미실행(자동시험 없음)",,"구분: 신규 시험 필요
-증적: 연결된 자동시험 없음
-비고: amount-precedents는 현재 정책상 VIEWER 허용 예외로 별도 기록한다."
-UT-RAG-001,"검색·RAG·질의응답
-관련 기능: 텍스트 정규화·청킹(RAG-001-1)
-대상: 구조 기반 청킹",1,기존 문단·표 구조를 존중해 청크를 만드는지 검증한다.,문단+표 구조 요소,2026-09-07,"예상: 표 행이 깨지지 않고 구조 경계가 유지된다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_chunking.py::test_respect_existing_structure
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-RAG-002,"검색·RAG·질의응답
-관련 기능: 프롬프트 컨텍스트 조립(RAG-002-1)
-대상: token budget",2,조립 결과가 예산을 넘지 않는지 검증한다.,긴 청크 다건·budget 4000,2026-09-07,"예상: 최종 컨텍스트가 4000 token 이하다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_context_assembly.py::test_never_exceeds_budget
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-RAG-003,"검색·RAG·질의응답
-관련 기능: 하이브리드 검색(SRH-004)
-대상: RRF",3,벡터·키워드 양쪽 순위를 합산하는지 검증한다.,양쪽에 등장하는 같은 chunk,2026-09-07,"예상: 양쪽 점수 합이 적용된다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_search_hybrid.py::test_rrf_sums_both_legs
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-RAG-004,"검색·RAG·질의응답
-관련 기능: 검색 결과 재순위(SRH-002-1)
-대상: reranker 호출",4,하이브리드 경로가 실제 reranker를 호출하는지 검증한다.,후보 다건,2026-09-07,"예상: reranker 결과 순서가 반환된다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_search_hybrid.py::test_hybrid_path_actually_calls_the_reranker
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-RAG-005,"검색·RAG·질의응답
-관련 기능: 검색 결과 재순위(SRH-002-1)
-대상: reranker 장애 폴백",5,reranker 실패 시 융합 순서로 검색을 계속하는지 검증한다.,reranker 예외,2026-09-07,"예상: 검색 전체가 실패하지 않고 결과를 반환한다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_search_hybrid.py::test_search_survives_a_broken_reranker
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-RAG-006,"검색·RAG·질의응답
-관련 기능: 키워드 검색(SRH-003)
-대상: LIKE wildcard escape",6,사용자 %·_ 문자가 전체 일치로 확장되지 않는지 검증한다.,검색어 %_,2026-09-07,"예상: 와일드카드가 escape된다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_search_keyword.py::test_like_pattern_kills_wildcards
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-RAG-007,"검색·RAG·질의응답
-관련 기능: 키워드 검색(SRH-003)
-대상: 비멤버 프로젝트",7,비멤버가 project_id를 지정하면 404인지 검증한다.,비멤버 project_id,2026-09-07,"예상: 존재를 숨기는 404다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_search_keyword.py::test_non_member_project_is_404_not_403
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-RAG-008,"검색·RAG·질의응답
-관련 기능: 문서 기반 질의응답(CHAT-001)
-대상: evidence ID 검증",8,조립하지 않은 evidence ID를 모델이 참조할 수 없는지 검증한다.,범위 밖 evidence ID,2026-09-07,"예상: AI_INVALID_RESPONSE 또는 보류 응답이다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_chat_service.py::test_llm_cannot_reference_an_unassembled_evidence
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-RAG-009,"검색·RAG·질의응답
-관련 기능: 문서 기반 질의응답(CHAT-001)
-대상: 검색 결과 없음",9,검색 결과가 없으면 모델을 호출하지 않는지 검증한다.,검색 0건,2026-09-07,"예상: 근거 없음 응답과 모델 호출 0회다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_chat_service.py::test_no_search_results_returns_without_calling_llm
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-RAG-010,"검색·RAG·질의응답
-관련 기능: 검색 품질 측정(RAG-002-2)
-대상: 실제 임베딩 평가",10,확정 평가셋과 동일 지표 정의로 R@1을 측정한다.,평가셋·선정 임베딩 모델,,"예상: accuracy@1 정의로 결과를 재현하고 표준 recall과 혼동하지 않는다.
-실제: 미실행(자동시험 없음)",,"구분: 신규 시험 필요
-증적: 연결된 자동시험 없음
-비고: 모델이 필요한 측정은 재정님·세현님 담당이며 이 산출물에서는 중복 실행하지 않는다."
-UT-RAG-011,"검색·RAG·질의응답
-관련 기능: 검수 확정 시 재인덱싱(RAG-001-3)
-대상: stale 검색 차단",11,OCR 확정 직후 worker 교체 전 낡은 청크가 검색되는 구간을 E2E로 시험한다.,본문 변경 직후 검색,,"예상: 새 청크 반영 전에는 낡은 근거를 최신으로 표시하지 않는다.
-실제: 미실행(자동시험 없음)",,"구분: 신규 시험 필요
-증적: 연결된 자동시험 없음"
-UT-LAB-001,"인건비 계산
-관련 기능: 문서 기반 질의응답(CHAT-001)
-대상: 명시 인월 계산",1,단가×명시 인월을 LLM 없이 계산하는지 검증한다.,"단가 9,500,000원·6인월",2026-09-07,"예상: 57,000,000원과 근거가 반환된다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_chat_service.py::test_explicit_person_month_quantity_calculates_single_amount_without_llm
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-LAB-002,"인건비 계산
-관련 기능: 문서 기반 질의응답(CHAT-001)
-대상: 기술자별 인월 계산",2,서로 다른 기술자별 인월을 각 단가에 매핑하는지 검증한다.,기술자 2명·서로 다른 인월,2026-09-07,"예상: 각 항목별 계산 결과가 분리된다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_chat_service.py::test_person_month_quantity_calculates_each_technician_amount
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-LAB-003,"인건비 계산
-관련 기능: 문서 기반 질의응답(CHAT-001)
-대상: 투입률 계산",3,단가×인원×개월×50% 계산의 전용 회귀 시험을 추가한다.,"9,500,000원×2명×3개월×50%",,"예상: 28,500,000원이며 57,000,000원으로 계산하지 않는다.
-실제: 미실행(자동시험 없음)",,"구분: 신규 시험 필요
-증적: 연결된 자동시험 없음"
-UT-LAB-004,"인건비 계산
-관련 기능: 문서 기반 질의응답(CHAT-001)
-대상: 모호한 매핑",4,복수 인원·기간·투입률이 항목에 명확히 연결되지 않으면 계산을 보류한다.,기술자 2명·인월 2개·이름 매핑 없음,,"예상: 임의 배분하지 않고 명확화 질문을 반환한다.
-실제: 미실행(자동시험 없음)",,"구분: 신규 시험 필요
-증적: 연결된 자동시험 없음"
-UT-LAB-005,"인건비 계산
-관련 기능: 문서 기반 질의응답(CHAT-001)
-대상: 경계·반올림",5,0%·100%·100% 초과와 소수 인월의 반올림 정책을 시험한다.,"0%, 100%, 120%, 1.5인월",,"예상: 유효 범위만 계산하고 원 단위 반올림이 일관된다.
-실제: 미실행(자동시험 없음)",,"구분: 신규 시험 필요
-증적: 연결된 자동시험 없음"
-UT-DLV-001,"산출물
-관련 기능: 프로젝트 현황 한 장 생성(DLV-002-2)
-대상: PROJECT_STATUS count",1,기간을 무시하고 현재 자료 전체를 세는지 검증한다.,기간 파라미터+현재 자료,2026-09-07,"예상: period는 None이며 현재 건수가 반환된다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_deliverable_preview.py::test_project_status_counts_all_without_period
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-DLV-002,"산출물
-관련 기능: 프로젝트 현황 한 장 생성(DLV-002-2)
-대상: 구조화 본문",2,LLM 없이 기본정보·진행상태·주요성과·일정이슈·향후계획을 만드는지 검증한다.,프로젝트·태스크·일정 자료,2026-09-07,"예상: 다섯 절과 현재 자료 표가 생성된다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_deliverable_preview.py::test_preview_content_builds_structured_status_without_llm_call
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-DLV-003,"산출물
-관련 기능: 주간 보고서 생성(DLV-002-1)
-대상: 본문 실제 행",3,DB 재료가 렌더링 본문에 포함되는지 검증한다.,문서·태스크·결정·일정·금액,2026-09-07,"예상: 각 실제 행이 본문에 표시된다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_deliverable_generate.py::test_body_contains_real_rows
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-DLV-004,"산출물
-관련 기능: 출력 형식(DLV-001-1)
-대상: MD·HTML section parity",4,MD와 HTML이 같은 절을 갖는지 검증한다.,같은 DeliverableMaterials,2026-09-07,"예상: 절 제목과 개수가 같다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_deliverable_html.py::test_both_formats_have_the_same_sections
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-DLV-005,"산출물
-관련 기능: XLSX 생성(DLV-002)
-대상: numeric amount cell",5,XLSX 금액이 문자열이 아닌 숫자 셀인지 검증한다.,금액 항목 1건,2026-09-07,"예상: 금액 셀 데이터형이 숫자다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_deliverable_xlsx.py::test_amounts_are_numbers_not_text
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-DLV-006,"산출물
-관련 기능: 갱신 필요 판정(DLV-003-4)
-대상: source growth",6,원천 자료가 늘면 stale로 표시하는지 검증한다.,생성 snapshot 뒤 문서 1건 추가,2026-09-07,"예상: is_stale과 증가 항목이 반환된다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_deliverable_staleness.py::test_stale_when_material_grew
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-DLV-007,"산출물
-관련 기능: 생성 이력·다운로드(DLV-003-3)
-대상: project scoped history",7,다른 프로젝트의 산출물을 열 수 없는지 검증한다.,프로젝트 A 요청·B 산출물 ID,2026-09-07,"예상: DELIVERABLE_NOT_FOUND다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_deliverable_history.py::test_delete_scopes_by_project
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-DLV-008,"산출물
-관련 기능: 담길 내용 건수·본문(DLV-001-2~3)
-대상: effective amount snapshot",8,count와 list가 같은 유효 금액 snapshot을 사용하는지 검증한다.,재분석·부분 승인 금액,2026-09-07,"예상: 미리보기 건수와 본문 항목 수가 같은 규칙을 쓴다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_amount_effective_snapshot.py::test_문서마다_다른_유효_분석을_고르고_다른_프로젝트는_섞지_않는다
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-DLV-009,"산출물
-관련 기능: 프로젝트 현황 생성·다운로드(DLV-002-2, DLV-003-3)
-대상: frontend→API→파일 E2E",9,화면에서 PROJECT_STATUS를 선택해 네 형식 생성·이력·다운로드를 시험한다.,MD·HTML·XLSX·PDF,,"예상: 네 파일이 생성되고 제목 파일명으로 재다운로드된다.
-실제: 미실행(자동시험 없음)",,"구분: 신규 시험 필요
-증적: 연결된 자동시험 없음
-비고: 본문 절별 200행 상한이면 생략 건수 안내가 있어야 한다."
-UT-SYS-001,"오류·request_id·worker
-관련 기능: 오류코드 체계(SYS-003-1)
-대상: exception handlers",1,모든 handler가 code·message·request_id 같은 키를 반환하는지 검증한다.,404·405·409·422,2026-09-07,"예상: 오류 응답 키가 동일하다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_error_response_format.py::test_every_handler_returns_the_same_keys
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-SYS-002,"오류·request_id·worker
-관련 기능: 요청 로깅(SYS-003-1)
-대상: request_id fallback",2,middleware를 거치지 않은 오류도 request_id를 갖는지 검증한다.,middleware 없는 request,2026-09-07,"예상: fallback request_id가 응답에 포함된다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_error_response_format.py::test_request_id_falls_back_when_middleware_did_not_run
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-SYS-003,"오류·request_id·worker
-관련 기능: 요청 로깅(SYS-003-1)
-대상: retry worker request_id",3,문서 재처리 API의 request_id가 worker 로그까지 이어지는 시험을 추가한다.,X-Request-ID 고정값,,"예상: API·queue message·worker log에서 같은 값이 보인다.
-실제: 미실행(자동시험 없음)",,"구분: 신규 시험 필요
-증적: 연결된 자동시험 없음"
-UT-SYS-004,"오류·request_id·worker
-관련 기능: 로컬 sLLM 옵션(SYS-003-3)
-대상: provider 오류 분류",4,Ollama 연결 실패와 schema 실패가 서로 다른 오류 코드인지 시험한다.,연결 거부·malformed JSON,,"예상: 각각 AI_PROVIDER_ERROR·AI_INVALID_RESPONSE다.
-실제: 미실행(자동시험 없음)",,"구분: 신규 시험 필요
-증적: 연결된 자동시험 없음"
-UT-SYS-005,"오류·request_id·worker
-관련 기능: 비동기 작업 큐(SYS-002-2)
-대상: worker restart",5,처리 중 worker 종료·재시작 뒤 작업이 유실되지 않는 통합 시험을 추가한다.,실행 중 강제 종료,,"예상: 재시작 후 재수행 또는 명시적 실패로 수렴한다.
-실제: 미실행(자동시험 없음)",,"구분: 신규 시험 필요
-증적: 연결된 자동시험 없음"
-UT-ISO-001,"프로젝트 데이터 격리
-관련 기능: 프로젝트 금액 집계(AMT-002-2)
-대상: amount project scope",1,유효 snapshot 조회가 다른 프로젝트 행을 섞지 않는지 검증한다.,동일 document id 맥락의 프로젝트 2개,2026-09-07,"예상: 요청 프로젝트 금액만 반환된다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_amount_effective_snapshot.py::test_문서마다_다른_유효_분석을_고르고_다른_프로젝트는_섞지_않는다
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-ISO-002,"프로젝트 데이터 격리
-관련 기능: 문서 기반 질의응답(CHAT-001)
-대상: document·chunk project join",2,문서와 청크가 같은 프로젝트일 때만 컨텍스트로 쓰는지 검증한다.,다른 프로젝트 document·chunk,2026-09-07,"예상: 교차 프로젝트 근거가 제외된다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_chat_service.py::test_context_query_requires_document_and_chunk_project_to_match
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-ISO-003,"프로젝트 데이터 격리
-관련 기능: 중복 파일 검사(DOC-001)
-대상: duplicate project scope",3,파일 중복 검사가 프로젝트 범위를 넘지 않는지 검증한다.,같은 hash·프로젝트 2개,2026-09-07,"예상: 각 프로젝트에 한 번씩 업로드할 수 있다.
-실제: 실행 불가(수집 단계: 필수 의존성 미설치)",,"구분: 자동시험 있음
-증적: backend/tests/test_document_duplicate_upload.py::test_duplicate_check_is_scoped_to_requested_project
-실행: pytest 수집 오류 45건(pydantic·sqlalchemy·fastapi·Pillow 등 미설치)"
-UT-ISO-004,"프로젝트 데이터 격리
-관련 기능: 프로젝트 스코프 강제(SYS-001-2)
-대상: 직접 URL·API matrix",4,문서·OCR·분석·금액·산출물 ID를 다른 프로젝트 URL에 넣는 API 행렬 시험을 추가한다.,프로젝트 A 사용자·B 리소스 ID,,"예상: 모든 경로가 404이며 존재 여부를 노출하지 않는다.
-실제: 미실행(자동시험 없음)",,"구분: 신규 시험 필요
-증적: 연결된 자동시험 없음"
-UT-ISO-005,"프로젝트 데이터 격리
-관련 기능: 멤버 제외(PRJ-004-4)
-대상: 권한 캐시·즉시 차단",5,멤버 제외 직후 열린 화면과 직접 API가 모두 차단되는지 시험한다.,제외 전 로그인 세션,,"예상: 기존 토큰이어도 프로젝트 접근이 즉시 차단된다.
-실제: 미실행(자동시험 없음)",,"구분: 신규 시험 필요
-증적: 연결된 자동시험 없음"
+﻿시험일자,CASE,순번,절차,테스트 데이터,시험결과,Y/N,결함/이상 내용
+,인증 토큰,1,refresh 토큰이 매번 무작위이며 DB에는 원문이 아닌 해시만 저장되는지 확인한다.,동일 사용자 토큰 2개,두 토큰 원문이 다르고 저장 가능한 값은 해시다.,,
+,,2,유효 입력은 생성하고 중복 로그인 ID·이메일 및 잘못된 입력은 차단하는 API 동작을 확인한다.,정상·중복 ID·중복 이메일·빈 값,정상 입력만 계정이 생성되고 오류별 계약 코드가 반환된다.,,
+,,3,정상 비밀번호와 틀린 비밀번호의 발급·401 경계를 확인한다.,등록 계정·틀린 비밀번호,정상 계정만 access·refresh 토큰을 받는다.,,
+,,4,refresh 사용 시 새 토큰을 발급하고 이전 토큰 재사용을 차단하는 동작을 확인한다.,유효 refresh·이미 사용한 refresh,최초 갱신만 성공하고 재사용은 401이다.,,
+,,5,로그아웃 시 revoked_at을 기록하고 같은 refresh의 재사용을 차단한다.,로그인 세션 1건,로그아웃 뒤 갱신이 401로 차단된다.,,
+,,6,만료·위조·누락 access token이 모두 보호 API에서 차단되는지 확인한다.,정상·만료·위조·누락 토큰,정상 토큰만 통과하고 나머지는 401이다.,,
+,프로젝트·초대·역할,1,VIEWER가 프로젝트 수정을 할 수 없는지 확인한다.,VIEWER 멤버,PROJECT_FORBIDDEN 403이다.,,
+,,2,실제 OWNER만 멤버 관리와 프로젝트 삭제를 수행하는지 확인한다.,OWNER·EDITOR 계정,OWNER만 관리·삭제할 수 있다.,,
+,,3,같은 사용자에게 PENDING 초대를 두 번 보낼 수 없는지 확인한다.,동일 프로젝트·동일 피초대자,두 번째 초대가 충돌로 차단된다.,,
+,,4,프로젝트 생성과 생성자 OWNER 등록의 원자성을 확인한다.,신규 사용자·프로젝트명,프로젝트와 OWNER 멤버가 함께 생성된다.,,
+,,5,내가 멤버인 프로젝트만 반환하는 API 동작을 확인한다.,멤버 프로젝트 2건·비멤버 1건,멤버 프로젝트 2건만 반환된다.,,
+,,6,PENDING에서 ACCEPTED·REJECTED·CANCELLED로 가는 상태 전이를 각각 확인한다.,초대 3건,각 최종 상태와 멤버 생성 여부가 계약과 일치한다.,,
+,,7,역할 변경 직후 허용 동작이 바뀌는지 확인한다.,EDITOR→VIEWER,변경 직후 편집 API가 403이다.,,
+,,8,제외된 멤버가 즉시 프로젝트 데이터에 접근할 수 없는지 확인한다.,프로젝트 멤버 1명,제외 후 모든 프로젝트 API가 404다.,,
+,,9,문서·태스크가 있는 프로젝트 삭제 시 하위 데이터 정리를 확인한다.,하위 문서·태스크 포함 프로젝트,프로젝트와 하위 데이터가 함께 정리된다.,,
+,업로드·추출,1,업로드 요청이 추출기를 직접 실행하지 않고 PENDING 문서를 만드는지 확인한다.,정상 파일,PENDING 문서가 생성되고 extractor는 호출되지 않는다.,,
+,,2,worker가 문서를 EXTRACTED로 전이하는지 확인한다.,PENDING 문서,추출텍스트 저장 후 EXTRACTED가 된다.,,
+,,3,추출 실패 원인과 FAILED 상태를 저장하는지 확인한다.,추출기 예외,FAILED와 processing_error가 저장된다.,,
+,,4,FAILED 문서를 재시도 가능한 상태로 돌리는지 확인한다.,FAILED 문서,오류가 초기화되고 다시 큐에 넣을 수 있다.,,
+,,5,다른 프로젝트의 같은 파일은 허용하고 같은 프로젝트 중복만 차단하는지 확인한다.,동일 해시·서로 다른 프로젝트,중복 판정이 요청 프로젝트 안에서만 적용된다.,,
+,,6,DOCX 원문이 제한을 넘으면 이미지 OCR 전에 차단되는지 확인한다.,제한 초과 DOCX,DOCUMENT_TEXT_TOO_LARGE가 발생한다.,,
+,,7,희소 텍스트와 큰 스캔 이미지 조합에서 전체 페이지 OCR을 선택하는지 확인한다.,희소 텍스트 레이어 PDF,full-page OCR 전략을 선택한다.,,
+,,8,7종 유형만 허용하고 입력을 정규화하는지 확인한다.,정상·미지원 유형,정상 유형만 표준 enum 값으로 저장된다.,,
+,,9,지원 형식·20MB·빈 파일·확장자 위장·경로 조작 파일명을 API 수준에서 확인한다.,PDF·DOCX·HWPX·JPG·PNG 및 오류 파일,유효 파일만 저장되고 오류별 코드가 구분된다.,,
+,,10,문서 21건에서 2페이지 이동과 필터 변경 시 page 초기화를 확인한다.,문서 21건·size 20,"1페이지 20건, 2페이지 1건이며 URL page가 유지된다.",,
+,OCR 검수,1,부분 필드 수정 요청을 허용하는지 확인한다.,text만 포함한 변경,유효한 부분 수정으로 파싱된다.,,
+,,2,잘못된 좌표를 스키마에서 차단하는지 확인한다.,음수·역전 좌표,422 validation 오류다.,,
+,,3,새 박스가 좌표 순서에 맞게 본문과 reading_order에 삽입되는지 확인한다.,기존 2박스 사이 좌표,본문·reading_order 모두 중간에 삽입된다.,,
+,,4,2단 페이지가 열 우선으로 읽히는지 확인한다.,좌·우 2단 요소,왼쪽 열 전체 뒤 오른쪽 열 순서다.,,
+,,5,표 행 구조 메타데이터가 청킹까지 보존되는지 확인한다.,표 OCR 요소,행·열 구조 메타데이터가 응답에 남는다.,,
+,,6,잠근 행을 읽은 뒤 version을 비교하는지 확인한다.,같은 요소의 오래된 version,오래된 요청은 충돌로 거부된다.,,
+,,7,한 항목이 stale이면 전체 수정이 롤백되는지 확인한다.,정상 1건·stale 1건,두 항목 모두 변경되지 않는다.,,
+,,8,단락 변경이 text_version을 한 번 올리고 청크를 stale로 표시하는지 확인한다.,paragraph 변경,버전은 1회 증가하고 stale 표시가 남는다.,,
+,,9,OCR과 검수 이미지가 같은 EXIF 정규화 결과를 쓰는지 확인한다.,회전 EXIF 이미지,OCR 좌표와 검수 이미지 방향이 일치한다.,,
+,,10,확대·축소 후 이미지와 박스 좌표가 일치하는 화면 동작을 확인한다.,스캔 문서·zoom 50/100/200%,모든 배율에서 박스가 같은 문자를 감싼다.,,
+,,11,박스 생성·분석 제외·복원 후 본문 재조립을 확인한다.,OCR 요소 3건,현재 포함 요소만 순서대로 본문에 반영된다.,,
+,,12,재OCR 결과를 사용자가 확인하기 전 원문을 덮지 않는지 확인한다.,선택 영역 1건,"확인 전 기존 값 유지, 확인 후 새 값 반영이다.",,
+,,13,검수 완료가 확정 텍스트 저장과 재청킹 enqueue를 연결하는 API 동작을 확인한다.,수정 완료 문서,확정 리비전 저장 뒤 build_chunks 작업이 큐에 등록된다.,,
+,AI·결정·일정,1,형식이 틀린 요약을 raw text로 저장하지 않는지 확인한다.,깨진 JSON 응답,AI_INVALID_RESPONSE이며 결과를 저장하지 않는다.,,
+,,2,원문에 없는 인용을 가진 요약 전체를 실패시키는지 확인한다.,조작된 source_quote,무근거 요약이 저장되지 않는다.,,
+,,3,원문 날짜가 없으면 모델을 호출하지 않는지 확인한다.,날짜 없는 본문,빈 일정 결과이며 모델 호출 0회다.,,
+,,4,후보 목록 밖 날짜 ID를 선택할 수 없는지 확인한다.,존재하지 않는 date ID,AI_INVALID_RESPONSE다.,,
+,,5,현재 범위 7종 코드만 허용하는지 확인한다.,7종 정상 코드,모든 코드가 계약 스키마를 통과한다.,,
+,,6,worker 시작 전에 원문이 바뀌면 모델을 호출하지 않는지 확인한다.,enqueue 후 text_version 변경,ANALYSIS_SOURCE_CHANGED이며 호출 0회다.,,
+,,7,한 분석기 실패 시 성공 결과를 저장하고 job을 PARTIAL로 만드는지 확인한다.,성공 분석기+실패 분석기,성공 결과는 저장되고 상태는 PARTIAL이다.,,
+,,8,PENDING 결정의 승인·수정·거절·취소 상태 전이를 API 수준에서 확인한다.,결정 후보 4건,각 review_decision·결정자·시각이 정확히 저장된다.,,
+,,9,PENDING 일정의 승인·수정·거절·취소 상태 전이를 API 수준에서 확인한다.,일정 후보 4건,승인 상태만 하류 집계에 포함된다.,,
+,,10,분석기 추가·PARTIAL·FAILED 상태를 화면이 동적으로 표시하는 동작을 확인한다.,COMPLETED·PARTIAL·FAILED job,분석기 수를 하드코딩하지 않고 상태를 표시한다.,,
+,,11,실제 Docker worker에서 Ollama 구조화 출력과 오류 코드를 통합 확인한다.,정상 JSON·schema 오류·연결 실패,"정상 저장, schema 오류 AI_INVALID_RESPONSE, 연결 실패 AI_PROVIDER_ERROR다.",,
+,액션 아이템·태스크,1,계약 계열 문서에서만 기본 액션 분석기가 도는지 확인한다.,계약·회의록 문서,계약에서 실행되고 비대상 유형에서는 호출하지 않는다.,,
+,,2,원문 후보에 근거한 항목만 결과로 반환하는지 확인한다.,실제 후보+모델 조작 후보,실제 후보만 남는다.,,
+,,3,후보가 없으면 모델을 호출하지 않는지 확인한다.,액션 문장 없는 본문,빈 결과와 모델 호출 0회다.,,
+,,4,같은 분석기의 미검토 후보만 재분석 결과로 교체하는지 확인한다.,기존 PENDING·APPROVED 후보,PENDING만 교체되고 검토 완료 후보는 보존된다.,,
+,,5,승인 트랜잭션이 AI_APPROVED 태스크를 정확히 한 건 만드는 API 동작을 확인한다.,PENDING 제안 1건,승인 상태와 Task 생성이 함께 커밋된다.,,
+,,6,거절 후 보드에 나타나지 않고 거절 목록과 결정자 정보가 남는지 확인한다.,PENDING 제안 1건,Task는 생기지 않고 REJECTED 이력이 표시된다.,,
+,금액,1,정상 JSON을 정규화해 계약 스키마로 반환하는지 확인한다.,문자열 숫자가 포함된 정상 JSON,정규화된 AmountExtractionOut이다.,,
+,,2,코드펜스·잘못된 root·NaN·Infinity를 거부하는지 확인한다.,비표준 JSON 세트,모두 AI_INVALID_RESPONSE다.,,
+,,3,허용하지 않은 필드가 있으면 거부하는지 확인한다.,unknown 필드 포함 JSON,AI_INVALID_RESPONSE다.,,
+,,4,음수·정규화 불가능 숫자를 null로 숨기지 않는지 확인한다.,음수·깨진 숫자,AI_INVALID_RESPONSE다.,,
+,,5,검증된 값과 source revision을 PENDING 행으로 저장하는지 확인한다.,정상 AmountExtractionOut,모든 항목이 PENDING이며 revision이 기록된다.,,
+,,6,재분석이 미검토 항목만 교체하고 검토 이력을 보존하는지 확인한다.,PENDING·APPROVED 혼합,PENDING만 교체된다.,,
+,,7,부가세 항목을 item_total에서 제외하는지 확인한다.,공급가액+VAT,item_total은 공급가액만 포함한다.,,
+,,8,문서 금액과 계산값이 다르면 고치지 않고 차이를 보고하는지 확인한다.,수량×단가≠기재금액,mismatch가 반환되고 원값은 유지된다.,,
+,,9,서로 다른 통화가 섞이면 집계를 거부하는지 확인한다.,KRW·USD 문서,혼합 통화 오류가 발생한다.,,
+,,10,부분 승인 중에는 이전 완료 스냅샷을 유지하는지 확인한다.,이전 완료+신규 일부 승인,합계가 급락하지 않고 전체 검토 후 전환된다.,,
+,,11,문서마다 유효 분석을 고르고 다른 프로젝트를 섞지 않는지 확인한다.,프로젝트 2개·재분석 다건,요청 프로젝트의 유효 행만 반환된다.,,
+,,12,승인·수정 승인만 집계되는지 확인한다.,APPROVED·EDITED·PENDING·REJECTED,APPROVED와 EDITED만 집계된다.,,
+,,13,승인·수정 승인·거절·취소와 허용 수정 필드를 API 수준에서 확인한다.,PENDING 항목 4건,상태·결정자·결정시각과 수정값이 계약대로 저장된다.,,
+,,14,VIEWER 탭·직접 URL·API 차단과 분석 완료 후 금액 캐시 무효화를 확인한다.,OWNER·EDITOR·VIEWER 및 완료 job,VIEWER는 제한되고 OWNER·EDITOR 화면은 새 집계로 갱신된다.,,
+,검색·RAG·질의응답,1,기존 문단·표 구조를 존중해 청크를 만드는지 확인한다.,문단+표 구조 요소,표 행이 깨지지 않고 구조 경계가 유지된다.,,
+,,2,조립 결과가 예산을 넘지 않는지 확인한다.,긴 청크 다건·budget 4000,최종 컨텍스트가 4000 token 이하다.,,
+,,3,벡터·키워드 양쪽 순위를 합산하는지 확인한다.,양쪽에 등장하는 같은 chunk,양쪽 점수 합이 적용된다.,,
+,,4,하이브리드 경로가 실제 reranker를 호출하는지 확인한다.,후보 다건,reranker 결과 순서가 반환된다.,,
+,,5,reranker 실패 시 융합 순서로 검색을 계속하는지 확인한다.,reranker 예외,검색 전체가 실패하지 않고 결과를 반환한다.,,
+,,6,사용자 %·_ 문자가 전체 일치로 확장되지 않는지 확인한다.,검색어 %_,와일드카드가 escape된다.,,
+,,7,비멤버가 project_id를 지정하면 404인지 확인한다.,비멤버 project_id,존재를 숨기는 404다.,,
+,,8,조립하지 않은 evidence ID를 모델이 참조할 수 없는지 확인한다.,범위 밖 evidence ID,AI_INVALID_RESPONSE 또는 보류 응답이다.,,
+,,9,검색 결과가 없으면 모델을 호출하지 않는지 확인한다.,검색 0건,근거 없음 응답과 모델 호출 0회다.,,
+,,10,확정 평가셋과 동일 지표 정의로 R@1을 측정한다.,평가셋·선정 임베딩 모델,accuracy@1 정의로 결과를 재현하고 표준 recall과 혼동하지 않는다.,,
+,,11,OCR 확정 직후 worker 교체 전 낡은 청크가 검색되는 구간을 전체 흐름에서 확인한다.,본문 변경 직후 검색,새 청크 반영 전에는 낡은 근거를 최신으로 표시하지 않는다.,,
+,인건비 계산,1,단가×명시 인월을 LLM 없이 계산하는지 확인한다.,"단가 9,500,000원·6인월","57,000,000원과 근거가 반환된다.",,
+,,2,서로 다른 기술자별 인월을 각 단가에 매핑하는지 확인한다.,기술자 2명·서로 다른 인월,각 항목별 계산 결과가 분리된다.,,
+,,3,단가×인원×개월×50% 계산의 전용 회귀 동작을 확인한다.,"9,500,000원×2명×3개월×50%","28,500,000원이며 57,000,000원으로 계산하지 않는다.",,
+,,4,복수 인원·기간·투입률이 항목에 명확히 연결되지 않으면 계산을 보류한다.,기술자 2명·인월 2개·이름 매핑 없음,임의 배분하지 않고 명확화 질문을 반환한다.,,
+,,5,0%·100%·100% 초과와 소수 인월의 반올림 정책을 확인한다.,"0%, 100%, 120%, 1.5인월",유효 범위만 계산하고 원 단위 반올림이 일관된다.,,
+,산출물,1,기간을 무시하고 현재 자료 전체를 세는지 확인한다.,기간 파라미터+현재 자료,period는 None이며 현재 건수가 반환된다.,,
+,,2,LLM 없이 기본정보·진행상태·주요성과·일정이슈·향후계획을 만드는지 확인한다.,프로젝트·태스크·일정 자료,다섯 절과 현재 자료 표가 생성된다.,,
+,,3,DB 재료가 렌더링 본문에 포함되는지 확인한다.,문서·태스크·결정·일정·금액,각 실제 행이 본문에 표시된다.,,
+,,4,MD와 HTML이 같은 절을 갖는지 확인한다.,같은 DeliverableMaterials,절 제목과 개수가 같다.,,
+,,5,XLSX 금액이 문자열이 아닌 숫자 셀인지 확인한다.,금액 항목 1건,금액 셀 데이터형이 숫자다.,,
+,,6,원천 자료가 늘면 stale로 표시하는지 확인한다.,생성 snapshot 뒤 문서 1건 추가,is_stale과 증가 항목이 반환된다.,,
+,,7,다른 프로젝트의 산출물을 열 수 없는지 확인한다.,프로젝트 A 요청·B 산출물 ID,DELIVERABLE_NOT_FOUND다.,,
+,,8,count와 list가 같은 유효 금액 snapshot을 사용하는지 확인한다.,재분석·부분 승인 금액,미리보기 건수와 본문 항목 수가 같은 규칙을 쓴다.,,
+,,9,화면에서 PROJECT_STATUS를 선택해 네 형식 생성·이력·다운로드를 확인한다.,MD·HTML·XLSX·PDF,네 파일이 생성되고 제목 파일명으로 재다운로드된다.,,
+,오류·request_id·worker,1,모든 handler가 code·message·request_id 같은 키를 반환하는지 확인한다.,404·405·409·422,오류 응답 키가 동일하다.,,
+,,2,middleware를 거치지 않은 오류도 request_id를 갖는지 확인한다.,middleware 없는 request,fallback request_id가 응답에 포함된다.,,
+,,3,문서 재처리 API의 request_id가 worker 로그까지 이어지는 동작을 확인한다.,X-Request-ID 고정값,API·queue message·worker log에서 같은 값이 보인다.,,
+,,4,Ollama 연결 실패와 schema 실패가 서로 다른 오류 코드인지 확인한다.,연결 거부·malformed JSON,각각 AI_PROVIDER_ERROR·AI_INVALID_RESPONSE다.,,
+,,5,처리 중 worker 종료·재시작 뒤 작업이 유실되지 않는 연동을 확인한다.,실행 중 강제 종료,재시작 후 재수행 또는 명시적 실패로 수렴한다.,,
+,프로젝트 데이터 격리,1,유효 snapshot 조회가 다른 프로젝트 행을 섞지 않는지 확인한다.,동일 document id 맥락의 프로젝트 2개,요청 프로젝트 금액만 반환된다.,,
+,,2,문서와 청크가 같은 프로젝트일 때만 컨텍스트로 쓰는지 확인한다.,다른 프로젝트 document·chunk,교차 프로젝트 근거가 제외된다.,,
+,,3,파일 중복 검사가 프로젝트 범위를 넘지 않는지 확인한다.,같은 hash·프로젝트 2개,각 프로젝트에 한 번씩 업로드할 수 있다.,,
+,,4,문서·OCR·분석·금액·산출물 ID를 다른 프로젝트 URL에 넣는 API 행렬 동작을 확인한다.,프로젝트 A 사용자·B 리소스 ID,모든 경로가 404이며 존재 여부를 노출하지 않는다.,,
+,,5,멤버 제외 직후 열린 화면과 직접 API가 모두 차단되는지 확인한다.,제외 전 로그인 세션,기존 토큰이어도 프로젝트 접근이 즉시 차단된다.,,
