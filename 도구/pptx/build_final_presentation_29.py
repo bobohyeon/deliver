@@ -500,24 +500,51 @@ def slide16():
 
 def slide17():
     p = svg_base(17, "DASHBOARD · OUTPUTS", "김보현", "김보현 · 최재정")
-    slide_title(p, "FROM APPROVED DATA", "승인된 정보가 대시보드와 산출물로 이어집니다", "사람 검토를 통과한 동일 데이터를 화면과 문서가 함께 소비합니다.", size=45)
-    # dashboard side
-    p.append(panel(80,310,770,590,fill=C["navy"],stroke="#31477A",rx=30,shadow=True))
-    p.append(text(125,365,"PROJECT DASHBOARD",17,800,C["cyan"],spacing=1.6))
-    metrics=[("문서 상태","PENDING · EXTRACTED"),("열린 태스크","담당자 · 기한"),("승인 일정","달력"),("금액 검토","대기 건수")]
-    for i,(h,b) in enumerate(metrics):
-        x=125+(i%2)*345;y=425+(i//2)*185
-        p.append(panel(x,y,300,145,fill="#1D2E5B",stroke="#3A4F82",rx=22,shadow=False))
-        p.append(text(x+24,y+50,h,20,800,"#FFFFFF"));p.append(text(x+24,y+98,b,16,500,"#BFCBE5"))
-    p.append(text(125,845,"※ 대시보드의 승인 대기 집계는 현재 금액 중심입니다.",16,500,"#9FAFCE"))
-    # outputs
-    p.append(text(930,330,"DELIVERABLES",17,800,C["blue"],spacing=1.6))
+    slide_title(p, "FROM APPROVED DATA", "승인된 정보가 대시보드와 산출물로 이어집니다", "사람 검토를 통과한 동일 데이터를 화면과 문서가 함께 사용합니다.", size=45)
+    # 실제 제품 대시보드 상단을 축약한 UI 미리보기
+    p.append(panel(70,310,900,610,fill="#F7F9FD",stroke=C["border"],rx=28,shadow=True))
+    p.append(text(105,350,"PROJECT OVERVIEW",13,800,C["blue"],spacing=1.4))
+    p.append(text(105,390,"대시보드",28,800,C["text"]))
+    p.append(text(105,420,"지금 확인할 문서와 우선 처리할 액션 태스크를 확인하세요.",14,500,C["body"]))
+    kpis=[("전체 문서","24",C["blue"]),("처리 중","2",C["cyan"]),("추출 완료","20","#298451"),("처리 실패","2","#B34C4C"),("열린 태스크","7",C["blue2"])]
+    for i,(label,value,accent) in enumerate(kpis):
+        x=105+i*164
+        p.append(panel(x,450,148,88,fill=C["panel"],stroke=accent,rx=16,shadow=False))
+        p.append(text(x+16,482,label,13,700,C["muted"]))
+        p.append(text(x+16,522,value,28,800,accent))
+    # 실제 화면의 ‘확인이 필요한 일’ 강조 패널
+    p.append(panel(105,565,495,305,fill=C["navy"],stroke="#31477A",rx=22,shadow=False))
+    p.append(text(130,610,"확인이 필요한 일",22,800,"#FFFFFF"))
+    p.append(pill(510,585,62,34,"6건","#243866",C["cyan"],size=14))
+    reviews=[("문서","처리 실패","1","확인하기"),("문서","OCR 검수","2","검수하기"),("금액","승인 대기","3","검토하기")]
+    for i,(kind,heading,count,action) in enumerate(reviews):
+        y=640+i*68
+        p.append(panel(130,y,445,54,fill="#1D315F",stroke="#3A5289",rx=13,shadow=False))
+        p.append(pill(144,y+12,58,29,kind,"#293F73",C["cyan"],size=11))
+        p.append(text(218,y+34,heading,16,800,"#FFFFFF"))
+        p.append(text(425,y+34,count+"건",15,800,C["lime"],anchor="end"))
+        p.append(text(552,y+34,action,13,700,"#C8D4EC",anchor="end"))
+    # 실제 화면의 액션 태스크 카드
+    p.append(panel(620,565,315,305,fill=C["panel"],stroke=C["border"],rx=22,shadow=False))
+    p.append(text(645,610,"액션 태스크",22,800,C["text"]))
+    p.append(text(910,610,"7건",14,800,C["blue"],anchor="end"))
+    tasks=[("진행 중","계약 검토 의견 반영","김보현 · 9. 12."),("할 일","보고서 초안 검토","담당자 미정")]
+    for i,(state,heading,meta) in enumerate(tasks):
+        y=640+i*86
+        p.append(panel(645,y,265,72,fill="#F8FAFD",stroke=C["border"],rx=14,shadow=False))
+        p.append(pill(660,y+10,70,27,state,C["soft_blue"],C["blue"],size=11))
+        p.append(text(660,y+56,heading,15,800,C["text"]))
+        p.append(text(892,y+56,meta,11,600,C["muted"],anchor="end"))
+    p.append(panel(645,825,265,30,fill=C["soft_blue"],stroke=C["border"],rx=10,shadow=False))
+    p.append(text(777,846,"전체 보드 보기  →",13,800,C["blue"],anchor="middle"))
+    # 오른쪽: 같은 승인 정보로 만드는 실제 산출물
+    p.append(text(1030,345,"만들 수 있는 문서",17,800,C["blue"],spacing=1.4))
     outputs=[("01","주간 보고서","기간 내 문서·완료 태스크"),("02","프로젝트 현황","전체 재료와 향후 계획"),("03","결정사항 대장","승인된 결정 전체"),("04","회의 안건","승인됐지만 미결인 결정")]
     for i,(no,h,b) in enumerate(outputs):
-        x=930+(i%2)*440;y=385+(i//2)*230
-        card_title(p,x,y,no,h,[C["blue"],C["cyan"],C["lime"],C["blue2"]][i],width=395,height=195,body_lines=(b,))
-    p.append(panel(930,860,835,68,fill=C["soft_blue"],stroke=C["border"],rx=18,shadow=False))
-    p.append(text(975,904,"출력 형식",17,800,C["blue"]));p.append(text(1130,904,"XLSX · HTML · MD · PDF",20,800,C["navy"]))
+        x=1030+(i%2)*390;y=390+(i//2)*225
+        card_title(p,x,y,no,h,[C["blue"],C["cyan"],C["lime"],C["blue2"]][i],width=355,height=190,body_lines=(b,),heading_size=25,body_size=17)
+    p.append(panel(1030,850,745,58,fill=C["soft_blue"],stroke=C["border"],rx=16,shadow=False))
+    p.append(text(1065,888,"출력 형식",16,800,C["blue"]));p.append(text(1215,888,"엑셀 · 웹 문서 · 마크다운 · PDF",19,800,C["navy"]))
     return finish(p)
 
 
@@ -545,22 +572,21 @@ def slide18():
 
 def slide19():
     p = svg_base(19, "OCR REVIEW", "박세현", "박세현")
-    slide_title(p, "TEXT INTEGRITY", "OCR 박스를 고치면 본문과 오프셋도 함께 바뀝니다", "화면의 수정과 검색 원문이 어긋나지 않도록 범위·버전·revision을 한 트랜잭션에서 갱신합니다.", size=43)
+    slide_title(p, "TEXT INTEGRITY", "글자 인식 결과를 고치면 검색용 본문도 함께 고칩니다", "수정 범위, 본문, 뒤 문장의 위치, 문서 버전을 한 번에 바꿔 서로 어긋나지 않게 합니다.", size=43)
     p.append(panel(80,300,1760,335,fill="#F8FAFD",stroke=C["border"],rx=28,shadow=False))
-    p.append(text(120,350,"SINGLE TRANSACTION",15,800,C["blue"],spacing=1.5))
-    p.append(pill(1510,325,275,38,"BEGIN  →  COMMIT",C["soft_blue"],C["navy"],size=15))
+    p.append(text(120,350,"한 번에 모두 처리",16,800,C["blue"],spacing=1.3))
+    p.append(pill(1510,325,275,38,"시작  →  저장 완료",C["soft_blue"],C["navy"],size=15))
     stages=[
         ("01","박스 수정",C["blue"]),("02","범위 검증",C["cyan"]),("03","본문 구간 교체",C["lime"]),
-        ("04","뒤 오프셋 이동",C["blue2"]),("05","revision 증가",C["cyan"]),("06","검수 재확정",C["lime"]),
+        ("04","뒤 문장 위치 조정",C["blue2"]),("05","문서 버전 올리기",C["cyan"]),("06","검수 재확정",C["lime"]),
     ]
-    xs=[190,500,810,1120,1430,1740]
-    p.append(line(190,480,1740,480,"#C6D3E8",6))
+    xs=[105,395,685,975,1265,1555]
     for i,(no,head,accent) in enumerate(stages):
-        p.append(circle(xs[i],480,66,C["panel"],stroke=accent,sw=4,extra='filter="url(#softShadow)"'))
-        p.append(text(xs[i],466,no,15,800,accent,anchor="middle"))
-        p.append(text(xs[i],510,head,17,800,C["text"],anchor="middle"))
-        if i<5:p.append(arrow(xs[i]+72,480,xs[i+1]-72,480,"#9EB0CE",3))
-    p.append(text(120,590,"수정 범위 뒤쪽의 content_start / content_end를 같은 delta만큼 이동",17,600,C["body"]))
+        p.append(panel(xs[i],405,255,130,fill=C["panel"],stroke=accent,rx=24,shadow=True,sw=3))
+        p.append(pill(xs[i]+20,425,58,32,no,C["soft_blue"],accent,size=14))
+        p.append(text(xs[i]+127,500,head,17 if i in {3,4} else 19,800,C["text"],anchor="middle"))
+        if i<5:p.append(arrow(xs[i]+262,470,xs[i+1]-8,470,"#9EB0CE",3))
+    p.append(text(120,590,"수정한 글자 수만큼 뒤 문장들의 시작·끝 위치도 함께 옮깁니다.",18,700,C["body"]))
     p.append(panel(80,680,835,225,fill=C["navy"],stroke="#31477A",rx=28,shadow=True))
     p.append(text(125,735,"문제가 생기면 전체 취소",23,800,C["cyan"]))
     guards=[("이미 바뀐 문서","저장하지 않음"),("여러 곳 수정","뒤에서부터 교체"),("문서 버전","한 번만 증가")]
@@ -685,36 +711,37 @@ def slide23():
 
 def slide24():
     p = svg_base(24, "LONG DOCUMENT FIX", "박세현", "박세현")
-    slide_title(p, "INVISIBLE CHARACTER", "보이지 않는 제어문자 516개가 근거 대조를 깨뜨렸습니다", "사람 눈에는 같은 문장이지만 모델 인용과 원문 문자열 비교는 실패했습니다.", size=42)
-    # 진단 수치 헤더
-    metrics=[("516","C0·DEL 탐지"),("1:1","문자 길이 보존"),("SPAN","원문 좌표 복원")]
-    for i,(value,label) in enumerate(metrics):
-        x=90+i*430
-        p.append(panel(x,285,390,105,fill=C["panel"],stroke=[C["blue"],C["cyan"],C["lime"]][i],rx=20,shadow=True))
-        p.append(text(x+25,340,value,34,800,[C["blue"],C["cyan"],"#87A800"][i]))
-        p.append(text(x+130,340,label,17,700,C["text"]))
-    p.append(panel(1400,285,430,105,fill=C["navy"],stroke="#31477A",rx=20,shadow=True))
-    p.append(text(1430,327,"ERROR SIGNATURE",13,800,C["cyan"],spacing=1.2))
-    p.append(text(1430,365,"quote_not_in_source",22,800,"#FFFFFF"))
-    # 전후 코드 비교
-    p.append(panel(90,430,800,255,fill="#FFF3F3",stroke="#E9A2A2",rx=26,shadow=True))
-    p.append(text(130,478,"BEFORE · RAW TEXT",15,800,"#B34C4C",spacing=1.2))
-    p.append(panel(130,505,720,72,fill="#2A1D2A",stroke="#5A364F",rx=14,shadow=False))
-    p.append(text(160,550,"…계약에 관한 법률」  \\x01  제5조의2…",23,700,"#FFFFFF"))
-    p.append(text(130,625,"모델 인용에는 \\x01이 없어 문자열 대조 실패",18,700,"#B34C4C"))
-    p.append(panel(1030,430,800,255,fill="#F0FAF4",stroke="#86C99B",rx=26,shadow=True))
-    p.append(text(1070,478,"AFTER · SANITIZED TEXT",15,800,"#298451",spacing=1.2))
-    p.append(panel(1070,505,720,72,fill="#163129",stroke="#2D6B54",rx=14,shadow=False))
-    p.append(text(1100,550,"…계약에 관한 법률」      제5조의2…",23,700,"#FFFFFF"))
-    p.append(text(1070,625,"같은 길이의 공백으로 치환해 원문 span 복원",18,700,"#298451"))
-    p.append(arrow(910,555,1010,555,C["blue"],5))
-    fixes=[("01","추출 경계 정리","C0·DEL → 한 글자 공백","offset · char_count 유지",C["blue"]),("02","근거 대조 개선","공백·제어문자 차이 허용","틀린 인용만 제거",C["cyan"])]
-    for i,(no,head,b1,b2,accent) in enumerate(fixes):
-        x=90+i*870
-        p.append(panel(x,735,800,175,fill=C["panel"],stroke=accent,rx=24,shadow=True))
-        p.append(number_badge(x+30,765,no,accent));p.append(text(x+125,795,head,24,800,C["text"]))
-        p.append(text(x+30,850,b1,18,600,C["body"]));p.append(text(x+420,850,b2,18,600,C["body"]))
-    p.append(text(960,962,"PR #89 · d47502e  |  탭·줄바꿈·캐리지리턴은 문단 구조를 위해 보존",17,700,C["muted"],anchor="middle"))
+    slide_title(p, "INVISIBLE CHARACTER", "눈에 보이지 않는 특수문자 516개 때문에 인용문 확인이 실패했습니다", "원인을 찾고, 원문 위치를 보존해 정리한 뒤, 인용문 확인 방식을 보완했습니다.", size=41)
+    # 왼쪽의 세로 단계만 따라가면 원인 → 수정 → 결과가 읽힌다.
+    flow=[
+        ("01","문제 발견","특수문자 516개",("사람 눈에는 같은 문장", "프로그램은 다른 문장으로 판단"),C["blue"]),
+        ("02","원문 정리","같은 길이의 공백으로 변경",("글자 수와 원문 위치 유지", "탭과 줄바꿈은 그대로 보존"),C["cyan"]),
+        ("03","확인 방식 보완","공백·특수문자 차이 허용",("틀린 인용만 제거", "원문 시작·끝 위치 복원"),C["lime"]),
+    ]
+    for i,(no,head,key,body,accent) in enumerate(flow):
+        y=315+i*205
+        p.append(panel(100,y,650,170,fill=C["navy"] if i==2 else C["panel"],stroke=accent,rx=26,shadow=True))
+        p.append(number_badge(130,y+28,no,accent,dark=(i==2)))
+        p.append(text(225,y+58,head,27,800,"#FFFFFF" if i==2 else C["text"]))
+        p.append(text(130,y+110,key,21,800,accent if i<2 else C["lime"]))
+        p.append(multiline(430,y+100,body,16,600,"#C8D4EC" if i==2 else C["body"],line_height=1.45))
+        if i<2:p.append(arrow(425,y+177,425,y+198,"#9EB0CE",3))
+    # 오른쪽은 전후 문장을 위아래로 배치해 한 번에 한 쌍만 비교한다.
+    p.append(panel(830,315,990,590,fill="#F8FAFD",stroke=C["border"],rx=28,shadow=True))
+    p.append(text(875,365,"실제 문장 변화",18,800,C["blue"],spacing=1.2))
+    p.append(panel(875,405,900,150,fill="#FFF3F3",stroke="#E9A2A2",rx=20,shadow=False))
+    p.append(text(910,445,"수정 전 · 원문",16,800,"#B34C4C"))
+    p.append(panel(910,465,830,54,fill="#2A1D2A",stroke="#5A364F",rx=12,shadow=False))
+    p.append(text(935,501,"…계약에 관한 법률」  \\x01  제5조의2…",22,700,"#FFFFFF"))
+    p.append(arrow(1325,570,1325,620,C["blue"],4))
+    p.append(text(1370,603,"같은 길이의 공백으로 변경",17,800,C["blue"]))
+    p.append(panel(875,635,900,150,fill="#F0FAF4",stroke="#86C99B",rx=20,shadow=False))
+    p.append(text(910,675,"수정 후 · 정리한 원문",16,800,"#298451"))
+    p.append(panel(910,695,830,54,fill="#163129",stroke="#2D6B54",rx=12,shadow=False))
+    p.append(text(935,731,"…계약에 관한 법률」      제5조의2…",22,700,"#FFFFFF"))
+    p.append(panel(875,815,900,58,fill=C["soft_blue"],stroke=C["border"],rx=16,shadow=False))
+    p.append(text(1325,853,"결과  ·  인용문 확인 성공 + 원문 위치 유지",20,800,C["navy"],anchor="middle"))
+    p.append(text(960,960,"수정 기록  PR #89 · d47502e  |  글자 수를 유지해 기존 원문 좌표를 다시 계산하지 않습니다",17,700,C["muted"],anchor="middle"))
     return finish(p)
 
 
@@ -839,7 +866,6 @@ def apply_content_review(slide_no: int, content: str) -> str:
             "PROBLEM": "문제",
             "WHY TASQRA": "왜 TASQRA인가",
             "INFORMATION GAP": "정보와 실행의 단절",
-            "액션아이템이 실제 태스크로 연결되지 않아": "계약 문서의 행동·의무가 실제 태스크로 연결되지 않아",
         },
         3: {
             "SERVICE GOAL": "서비스 목표",
