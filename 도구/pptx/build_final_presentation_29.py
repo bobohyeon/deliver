@@ -29,7 +29,7 @@ finish = v2.finish
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "산출물" / "최종발표" / "전체본"
 PNG_DIR = Path(os.environ.get("TASQRA_FINAL_PNG_DIR", str(OUT / "png")))
-PPTX_PATH = OUT / "Tasqra_최종발표_29장_v1.pptx"
+PPTX_PATH = OUT / "Tasqra_최종발표_29장_v2.pptx"
 
 
 def svg_base(no: int, section: str, presenter: str, owner: str, *, dark: bool = False):
@@ -39,8 +39,8 @@ def svg_base(no: int, section: str, presenter: str, owner: str, *, dark: bool = 
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">',
         '<defs>',
         '<style>@font-face{font-family:NotoKR;src:url("../../포트폴리오/NotoSansKR.ttf") format("truetype");} text{font-family:NotoKR,Arial,sans-serif;}</style>',
-        '<filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#0E162F" flood-opacity="0.11"/></filter>',
-        '<filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="7" stdDeviation="10" flood-color="#0E162F" flood-opacity="0.08"/></filter>',
+        '<filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#09111F" flood-opacity="0.06"/></filter>',
+        '<filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="2" stdDeviation="5" flood-color="#09111F" flood-opacity="0.05"/></filter>',
         '</defs>',
         rect(0, 0, W, H, bg),
         text(80, 60, f"{no:02d}  /  {section}", 17, 800, C["cyan"] if dark else C["blue"], spacing=2),
@@ -59,8 +59,8 @@ def slide_title(p, kicker: str, title_value: str, subtitle: str | None = None, *
         p.append(text(82, 245, subtitle, 22, 500, "#B9C6E5" if dark else C["body"]))
 
 
-def panel(x, y, w, h, *, fill="#FFFFFF", stroke=None, rx=24, shadow=True, sw=2):
-    return rect(x, y, w, h, fill, rx=rx, stroke=stroke or C["border"], sw=sw, extra='filter="url(#softShadow)"' if shadow else "")
+def panel(x, y, w, h, *, fill="#FFFFFF", stroke=None, rx=8, shadow=False, sw=1):
+    return rect(x, y, w, h, fill, rx=rx, stroke=stroke or C["border"], sw=sw)
 
 
 def number_badge(x, y, value, color=None, dark=False):
@@ -79,15 +79,15 @@ def arrow(x1, y1, x2, y2, color="#AEBDE0", sw=4):
             head = f'M {x2-11} {y2-15} L {x2} {y2} L {x2+11} {y2-15}'
         else:
             head = f'M {x2-11} {y2+15} L {x2} {y2} L {x2+11} {y2+15}'
-    return line(x1, y1, x2, y2, color, sw) + f'<path d="{head}" fill="none" stroke="{color}" stroke-width="{sw}" stroke-linecap="round" stroke-linejoin="round"/>'
+    return line(x1, y1, x2, y2, color, sw) + f'<path d="{head}" fill="none" stroke="{color}" stroke-width="{sw}" stroke-linecap="square" stroke-linejoin="miter"/>'
 
 
 def small_note(p, x, y, w, title_value, body, *, color=None, dark=False):
     color = color or C["blue"]
     fill = "#192953" if dark else C["panel"]
     body_color = "#C7D3EC" if dark else C["body"]
-    p.append(panel(x, y, w, 112, fill=fill, stroke="#30436F" if dark else C["border"], rx=20, shadow=not dark))
-    p.append(rect(x, y, 8, 112, color, rx=4))
+    p.append(panel(x, y, w, 112, fill=fill, stroke="#30436F" if dark else C["border"], rx=6, shadow=False))
+    p.append(rect(x, y, 5, 112, color))
     p.append(text(x + 28, y + 40, title_value, 20, 800, "#FFFFFF" if dark else C["text"]))
     p.append(text(x + 28, y + 79, body, 17, 500, body_color))
 
@@ -95,12 +95,12 @@ def small_note(p, x, y, w, title_value, body, *, color=None, dark=False):
 def card_title(p, x, y, no, heading, accent, *, width=470, height=250, body_lines=(), icon_kind=None, dark=False):
     fill = "#17264F" if dark else C["panel"]
     stroke = accent if dark else C["border"]
-    p.append(panel(x, y, width, height, fill=fill, stroke=stroke, rx=26, shadow=True, sw=2))
-    p.append(rect(x, y, width, 10, accent, rx=5))
+    p.append(panel(x, y, width, height, fill=fill, stroke=stroke, rx=8, shadow=False, sw=1))
+    p.append(rect(x, y, 5, height, accent))
     p.append(number_badge(x + 28, y + 32, no, accent, dark=dark))
     if icon_kind:
-        p.append(circle(x + width - 62, y + 63, 35, "#24345F" if dark else C["soft"], stroke=accent, sw=2))
-        p.append(icon(icon_kind, x + width - 62, y + 63, 32, accent, 3))
+        p.append(rect(x + width - 98, y + 28, 70, 70, "#24345F" if dark else C["soft"], rx=5, stroke=accent, sw=1))
+        p.append(icon(icon_kind, x + width - 63, y + 63, 32, accent, 3))
     p.append(text(x + 30, y + 116, heading, 30, 800, "#FFFFFF" if dark else C["text"]))
     if body_lines:
         p.append(multiline(x + 30, y + 166, body_lines, 20, 500, "#C8D4EC" if dark else C["body"], line_height=1.5))
@@ -109,7 +109,8 @@ def card_title(p, x, y, no, heading, accent, *, width=470, height=250, body_line
 def metric(p, x, y, value, label, *, color=None, suffix="", dark=False, width=300):
     color = color or C["blue"]
     fill = "#17264F" if dark else C["panel"]
-    p.append(panel(x, y, width, 150, fill=fill, stroke=color, rx=24, shadow=True))
+    p.append(panel(x, y, width, 150, fill=fill, stroke=color, rx=6, shadow=False, sw=1))
+    p.append(rect(x, y, width, 4, color))
     p.append(text(x + 24, y + 72, value + suffix, 48, 800, color))
     p.append(text(x + 25, y + 116, label, 18, 600, "#C6D2EA" if dark else C["body"]))
 
@@ -121,7 +122,7 @@ def label_tag(p, x, y, value, *, fill=None, color=None, width=None):
 
 def polyline(points, stroke, sw=5, opacity=1):
     pts = " ".join(f"{x},{y}" for x, y in points)
-    return f'<polyline points="{pts}" fill="none" stroke="{stroke}" stroke-width="{sw}" stroke-linecap="round" stroke-linejoin="round" opacity="{opacity}"/>'
+    return f'<polyline points="{pts}" fill="none" stroke="{stroke}" stroke-width="{sw}" stroke-linecap="square" stroke-linejoin="miter" opacity="{opacity}"/>'
 
 
 
@@ -139,13 +140,13 @@ def slide6():
     p.append(text(1290, 395, "Redis Queue", 30, 800, "#FFFFFF"))
     p.append(arrow(1400, 438, 1660, 438, "#536DAA", 4))
     p.append(circle(1355, 438, 42, "#203568", stroke=C["cyan"], sw=2)); p.append(text(1355, 446, "Q", 22, 800, C["cyan"], anchor="middle"))
-    p.append(circle(1710, 438, 42, "#203568", stroke=C["lime"], sw=2)); p.append(text(1710, 446, "W", 22, 800, C["lime"], anchor="middle"))
+    p.append(circle(1710, 438, 42, "#203568", stroke=C["signal"], sw=2)); p.append(text(1710, 446, "W", 22, 800, C["signal"], anchor="middle"))
     p.append(text(1290, 510, "Celery Worker", 26, 800, "#FFFFFF"))
     p.append(multiline(1290, 554, ("OCR · 청킹 · 임베딩", "LLM 분석 작업 분리"), 19, 500, "#C8D4EC", line_height=1.5))
     p.append(line(1290, 648, 1790, 648, "#354B7E", 2))
     p.append(text(1290, 690, "공유 저장소", 18, 800, C["cyan"]))
     p.append(text(1450, 690, "./backend/uploads", 18, 600, "#FFFFFF"))
-    p.append(text(1290, 735, "로컬 AI", 18, 800, C["lime"]))
+    p.append(text(1290, 735, "로컬 AI", 18, 800, C["signal"]))
     p.append(text(1450, 735, "Ollama / OpenAI 호환", 18, 600, "#FFFFFF"))
     small_note(p, 80, 575, 1100, "실제 실행 구조", "API와 Worker가 같은 PostgreSQL·uploads·모델 캐시를 공유합니다.", color=C["blue"])
     small_note(p, 80, 710, 1100, "운영 경계", "현재 compose는 개발 구성입니다. S3·Kubernetes·오토스케일링은 포함하지 않습니다.", color=C["lime"])
@@ -155,21 +156,22 @@ def slide6():
 def slide7():
     p = svg_base(7, "DATA MODEL", "김보현", "최재정")
     slide_title(p, "RELATIONAL CORE", "핵심 데이터 구조", "Project와 Document를 중심으로 검색·분석·업무 데이터가 외래키로 연결됩니다.")
-    # central nodes
-    p.append(circle(960, 575, 112, C["navy"], stroke=C["blue"], sw=5, extra='filter="url(#shadow)"'))
-    p.append(text(960, 565, "PROJECT", 22, 800, C["cyan"], anchor="middle", spacing=1.5))
-    p.append(text(960, 612, "업무 범위", 30, 800, "#FFFFFF", anchor="middle"))
     nodes = [
         (360, 370, "USER · MEMBER", ("소유자와 구성원", "OWNER · EDITOR · VIEWER"), C["cyan"]),
         (1560, 370, "DOCUMENT", ("원문 경로와 메타데이터", "추출본문 · OCR · 분석 이력"), C["blue"]),
         (360, 780, "TASK · REVIEW", ("태스크와 검토 제안", "결정 · 일정 · 액션 · 금액"), C["lime"]),
         (1560, 780, "CHUNK · ANALYSIS", ("본문 구간과 1024D 벡터", "모델 · 버전 · 원문 좌표"), C["cyan"]),
     ]
-    for x, y, heading, body, accent in nodes:
+    # 관계선은 엔터티 패널보다 먼저 그려 텍스트를 가리지 않게 한다.
+    for x, y, *_ in nodes:
         p.append(line(960, 575, x, y, "#A9B9D8", 4))
-        p.append(panel(x-235, y-105, 470, 210, fill=C["panel"], stroke=accent, rx=26, shadow=True))
+    for x, y, heading, body, accent in nodes:
+        p.append(panel(x-235, y-105, 470, 210, fill=C["panel"], stroke=accent, rx=8, shadow=False))
         p.append(text(x, y-35, heading, 22, 800, accent, anchor="middle", spacing=1.0))
         p.append(multiline(x, y+18, body, 20, 500, C["body"], line_height=1.5, anchor="middle"))
+    p.append(panel(820, 455, 280, 240, fill=C["navy"], stroke=C["blue"], rx=8, shadow=False, sw=3))
+    p.append(text(960, 565, "PROJECT", 22, 800, C["cyan"], anchor="middle", spacing=1.5))
+    p.append(text(960, 612, "업무 범위", 30, 800, "#FFFFFF", anchor="middle"))
     label_tag(p, 700, 900, "Document 1:1 ExtractedText", width=270)
     label_tag(p, 995, 900, "Document 1:N Chunk / Analysis", width=330)
     p.append(text(960, 975, "파일 자체는 DB BLOB이 아니라 공유 로컬 경로로 보관합니다.", 18, 600, C["muted"], anchor="middle"))
@@ -234,9 +236,9 @@ def slide10():
                body_lines=("ILIKE로 연속 문자열 포함 보장", "word_similarity로 내부 순위", "숫자·코드·정확 표현에 강점"), icon_kind="document", dark=True)
     card_title(p, 1250, 330, "B", "의미 검색", C["blue2"], width=570, height=390,
                body_lines=("질의·청크 임베딩", "pgvector 코사인 거리", "표현이 달라도 문맥 탐색"), icon_kind="search", dark=True)
-    p.append(circle(960, 515, 130, C["lime"], stroke="#A9C932", sw=4, extra='filter="url(#shadow)"'))
-    p.append(text(960, 493, "RRF", 52, 800, C["rail"], anchor="middle"))
-    p.append(text(960, 545, "Σ 1 / (60 + 순위)", 18, 800, C["rail"], anchor="middle"))
+    p.append(panel(820, 425, 280, 180, fill=C["navy"], stroke=C["cyan"], rx=6, shadow=False, sw=2))
+    p.append(text(960, 493, "RRF", 52, 800, "#FFFFFF", anchor="middle"))
+    p.append(text(960, 545, "Σ 1 / (60 + 순위)", 18, 800, C["cyan"], anchor="middle"))
     p.append(arrow(690, 515, 810, 515, C["cyan"], 5)); p.append(arrow(1230, 515, 1110, 515, C["blue2"], 5))
     small_note(p, 100, 780, 520, "후보 폭", "두 검색에서 각각 기본 30개", color=C["blue"])
     small_note(p, 700, 780, 520, "단일 UX", "사용자는 검색 방식을 고르지 않음", color=C["cyan"])
@@ -342,7 +344,7 @@ def slide14():
         p.append(circle(770,y,18,col)); p.append(text(810,y+8,a,22,700,"#FFFFFF")); p.append(pill(1010,y-20,160,40,state,"#243766",col,size=14))
     p.append(arrow(1235,545,1380,545,C["lime"],5))
     p.append(panel(1400,330,430,430,fill=C["panel"],stroke=C["lime"],rx=30,shadow=True))
-    p.append(text(1440,390,"후속 소비",20,800,"#86A800",spacing=1.2))
+    p.append(text(1440,390,"후속 소비",20,800,C["blue"],spacing=1.2))
     p.append(multiline(1440,455,("태스크", "대시보드", "산출물", "근거 QA"),28,800,C["text"],line_height=1.6))
     p.append(panel(90,850,1740,100,fill=C["panel"],stroke=C["border"],rx=22,shadow=False))
     p.append(text(130,910,"일관된 필터",18,800,C["blue"]))
@@ -387,10 +389,10 @@ def slide16():
         p.append(panel(x,740,280,150,fill=C["panel"],stroke=C["cyan"] if i<2 else C["lime"],rx=24,shadow=False))
         p.append(text(x+24,790,h,20,800,C["text"]));p.append(text(x+24,840,b,17,600,C["body"]))
         if i<2:p.append(arrow(x+287,815,x+323,815,"#9EB0D0",3))
-    # switch
-    p.append(circle(1090,615,90,C["lime"],stroke="#9DBD25",sw=4,extra='filter="url(#shadow)"'))
-    p.append(text(1090,605,"원자",24,800,C["rail"],anchor="middle"));p.append(text(1090,642,"전환",24,800,C["rail"],anchor="middle"))
-    p.append(arrow(990,815,1080,690,C["lime"],4));p.append(arrow(1180,615,1270,615,C["lime"],4))
+    # atomic switch
+    p.append(panel(1010, 550, 160, 130, fill=C["navy"], stroke=C["cyan"], rx=6, shadow=False, sw=2))
+    p.append(text(1090,605,"원자",24,800,"#FFFFFF",anchor="middle"));p.append(text(1090,642,"전환",24,800,C["cyan"],anchor="middle"))
+    p.append(arrow(990,815,1080,690,C["blue"],4));p.append(arrow(1180,615,1270,615,C["blue"],4))
     p.append(panel(1290,420,500,390,fill=C["navy"],stroke="#31477A",rx=30,shadow=True))
     p.append(text(1335,480,"새 유효 스냅샷",22,800,C["lime"]))
     p.append(multiline(1335,545,("미결 행 0", "원래 추출 행 수와 일치", "전부 거절·0건도 완료"),24,700,"#FFFFFF",line_height=1.6))
@@ -449,7 +451,7 @@ def slide19():
     ]
     xs=[105,395,685,975,1265,1555]
     for i,(no,head,accent) in enumerate(stages):
-        p.append(circle(xs[i],500,74,C["panel"],stroke=accent,sw=4,extra='filter="url(#softShadow)"'))
+        p.append(panel(xs[i]-74,426,148,148,fill=C["panel"],stroke=accent,rx=6,shadow=False,sw=2))
         p.append(text(xs[i],484,no,16,800,accent,anchor="middle"))
         p.append(text(xs[i],526,head,19,800,C["text"],anchor="middle"))
         if i<5:p.append(arrow(xs[i]+82,500,xs[i+1]-82,500,"#A7B8D7",3))
@@ -457,7 +459,7 @@ def slide19():
     p.append(text(145,720,"동시 수정 방어",18,800,C["cyan"],spacing=1.2))
     p.append(multiline(145,770,("stale version이면 전체 롤백", "여러 범위는 뒤에서부터 교체", "문서 버전은 배치당 한 번 증가"),21,600,"#FFFFFF",line_height=1.55))
     p.append(panel(960,665,800,220,fill=C["panel"],stroke=C["lime"],rx=28,shadow=True))
-    p.append(text(1005,720,"검수 완료 후",18,800,"#87A800",spacing=1.2))
+    p.append(text(1005,720,"검수 완료 후",18,800,C["blue"],spacing=1.2))
     p.append(multiline(1005,770,("제외·복원 요소를 본문에 반영", "is_confirmed 확정", "청킹·임베딩 재작업 enqueue"),21,600,C["text"],line_height=1.55))
     return finish(p)
 
@@ -511,27 +513,17 @@ def slide21():
 
 
 def slide22():
-    p = svg_base(22, "TASK-SPECIFIC FINE-TUNING", "박세현", "박세현")
-    slide_title(p, "TWO DEPLOYED MODELS", "하나로 합치지 않고 태스크별 모델 2개를 배포했습니다", "같은 Qwen2.5-3B 베이스에 요약·분류 LoRA를 따로 학습해 각각 병합했습니다.", size=43)
-    # shared base
-    p.append(panel(690,300,540,105,fill=C["navy"],stroke=C["blue"],rx=24,shadow=True))
-    p.append(text(960,345,"COMMON BASE",16,800,C["cyan"],anchor="middle",spacing=1.5))
-    p.append(text(960,383,"Qwen2.5-3B-Instruct",25,800,"#FFFFFF",anchor="middle"))
-    p.append(line(960,405,510,490,"#A8B9D8",4));p.append(line(960,405,1410,490,"#A8B9D8",4))
-    # two models
-    p.append(panel(120,480,760,390,fill=C["panel"],stroke=C["blue"],rx=30,shadow=True))
-    p.append(text(165,540,"분류 모델",20,800,C["blue"],spacing=1.2))
-    p.append(text(165,630,"93.2%",72,800,C["blue"]))
-    p.append(text(165,680,"실제 문서 103건 · 5-fold 교차검증",21,700,C["text"]))
-    p.append(text(165,725,"±2.5%p · 7종 분류 · q8_0",18,500,C["body"]))
-    label_tag(p,165,785,"Tasqra-classification",width=310)
-    p.append(panel(1040,480,760,390,fill=C["navy"],stroke=C["cyan"],rx=30,shadow=True))
-    p.append(text(1085,540,"요약 모델",20,800,C["cyan"],spacing=1.2))
-    p.append(text(1085,630,"65.4%",72,800,C["cyan"]))
-    p.append(text(1085,680,"평가 26건 · 오차 약 ±8%p",21,700,"#FFFFFF"))
-    p.append(text(1085,725,"2~3문장 200자 · q4_k_m · 재학습 예정",18,500,"#BFCBE5"))
-    label_tag(p,1085,785,"Tasqra-summation",fill="#243866",color=C["lime"],width=300)
-    p.append(text(960,935,"어댑터 둘을 하나로 합치지 못해 배포 모델도 2개입니다.",18,700,C["muted"],anchor="middle"))
+    p = svg_base(22, "SEHYEON INSERT", "박세현", "박세현")
+    slide_title(p, "CONTENT HANDOFF", "박세현 발표자료 삽입 위치", "세현님이 전달할 최종 파인튜닝 자료로 이 슬라이드를 교체합니다.", size=46)
+    p.append(panel(120, 330, 1680, 520, fill=C["panel"], stroke=C["border"], rx=8, shadow=False, sw=1))
+    p.append(rect(120, 330, 7, 520, C["blue"]))
+    p.append(text(180, 410, "SLIDE 22", 18, 800, C["blue"], spacing=2.0))
+    p.append(text(180, 500, "박세현 자료 삽입 예정", 54, 800, C["text"]))
+    p.append(text(180, 565, "현재 내용은 자리표시자이며 최종 발표 전 교체 대상입니다.", 24, 500, C["body"]))
+    p.append(line(180, 630, 1740, 630, C["border"], 2))
+    p.append(text(180, 700, "권장 포함 항목", 18, 800, C["blue"], spacing=1.2))
+    p.append(text(420, 700, "학습 목적  /  데이터 조건  /  평가 결과  /  실제 배포 형태", 24, 700, C["navy"]))
+    p.append(text(180, 790, "※ 슬라이드 번호와 발표자 전환 흐름을 유지하기 위해 빈 자리를 남깁니다.", 18, 600, C["muted"]))
     return finish(p)
 
 
@@ -728,7 +720,7 @@ def package_pptx():
     layout='''<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:sldLayout xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" type="blank"><p:cSld name="Blank"><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr></p:spTree></p:cSld></p:sldLayout>'''
     (stage/'ppt/slideLayouts/slideLayout1.xml').write_text(layout,encoding='utf-8')
     (stage/'ppt/slideLayouts/_rels/slideLayout1.xml.rels').write_text('''<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="../slideMasters/slideMaster1.xml"/></Relationships>''',encoding='utf-8')
-    theme='''<?xml version="1.0" encoding="UTF-8" standalone="yes"?><a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Tasqra"><a:themeElements><a:clrScheme name="Tasqra"><a:dk1><a:srgbClr val="0E162F"/></a:dk1><a:lt1><a:srgbClr val="FFFFFF"/></a:lt1><a:dk2><a:srgbClr val="16234A"/></a:dk2><a:lt2><a:srgbClr val="F4F7FC"/></a:lt2><a:accent1><a:srgbClr val="315BD8"/></a:accent1><a:accent2><a:srgbClr val="3BC7F4"/></a:accent2><a:accent3><a:srgbClr val="C9E85B"/></a:accent3><a:accent4><a:srgbClr val="5576E8"/></a:accent4><a:accent5><a:srgbClr val="475569"/></a:accent5><a:accent6><a:srgbClr val="DCE5F1"/></a:accent6><a:hlink><a:srgbClr val="315BD8"/></a:hlink><a:folHlink><a:srgbClr val="16234A"/></a:folHlink></a:clrScheme><a:fontScheme name="Tasqra"><a:majorFont><a:latin typeface="Noto Sans KR"/><a:ea typeface="Noto Sans KR"/><a:cs typeface="Arial"/></a:majorFont><a:minorFont><a:latin typeface="Noto Sans KR"/><a:ea typeface="Noto Sans KR"/><a:cs typeface="Arial"/></a:minorFont></a:fontScheme><a:fmtScheme name="Tasqra"><a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst><a:lnStyleLst><a:ln w="6350"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:lnStyleLst><a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst><a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:bgFillStyleLst></a:fmtScheme></a:themeElements></a:theme>'''
+    theme='''<?xml version="1.0" encoding="UTF-8" standalone="yes"?><a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Tasqra"><a:themeElements><a:clrScheme name="Tasqra"><a:dk1><a:srgbClr val="0E162F"/></a:dk1><a:lt1><a:srgbClr val="FFFFFF"/></a:lt1><a:dk2><a:srgbClr val="16234A"/></a:dk2><a:lt2><a:srgbClr val="F4F7FC"/></a:lt2><a:accent1><a:srgbClr val="315BD8"/></a:accent1><a:accent2><a:srgbClr val="3BC7F4"/></a:accent2><a:accent3><a:srgbClr val="2FA8CC"/></a:accent3><a:accent4><a:srgbClr val="5576E8"/></a:accent4><a:accent5><a:srgbClr val="475569"/></a:accent5><a:accent6><a:srgbClr val="DCE5F1"/></a:accent6><a:hlink><a:srgbClr val="315BD8"/></a:hlink><a:folHlink><a:srgbClr val="16234A"/></a:folHlink></a:clrScheme><a:fontScheme name="Tasqra"><a:majorFont><a:latin typeface="Noto Sans KR"/><a:ea typeface="Noto Sans KR"/><a:cs typeface="Arial"/></a:majorFont><a:minorFont><a:latin typeface="Noto Sans KR"/><a:ea typeface="Noto Sans KR"/><a:cs typeface="Arial"/></a:minorFont></a:fontScheme><a:fmtScheme name="Tasqra"><a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst><a:lnStyleLst><a:ln w="6350"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:lnStyleLst><a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst><a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:bgFillStyleLst></a:fmtScheme></a:themeElements></a:theme>'''
     (stage/'ppt/theme/theme1.xml').write_text(theme,encoding='utf-8')
     for i,png in enumerate(pngs,start=1):
         shutil.copyfile(png,stage/f'ppt/media/image{i}.png')
