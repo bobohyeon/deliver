@@ -20,7 +20,7 @@ EMU_W, EMU_H = 12192000, 6858000
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "산출물" / "최종발표" / "파일럿"
 PNG_DIR = Path(os.environ.get("TASQRA_PILOT_PNG_DIR", str(OUT)))
-PPTX_PATH = OUT / "Tasqra_최종발표_5장_파일럿_v1.pptx"
+PPTX_PATH = OUT / "Tasqra_최종발표_5장_파일럿_v2.pptx"
 
 C = {
     "navy": "#16234A",
@@ -197,25 +197,36 @@ def slide1():
         text(116, 760, "DOCUMENT  →  EVIDENCE  →  ACTION", 18, 700, C["cyan"], spacing=2.8),
         # Right composition panel.
         rect(1030, 120, 760, 840, "#111D3E", rx=46, stroke="#293965", sw=2),
-        circle(1410, 535, 150, C["navy"], stroke=C["blue"], sw=5, extra='filter="url(#shadow)"'),
-        circle(1410, 535, 118, "#1C2C59", stroke="#5E7AEC", sw=2),
-        icon("check", 1410, 475, 66, C["cyan"], 4),
-        text(1410, 572, "사람의 검토", 30, 800, "#FFFFFF", anchor="middle"),
-        text(1410, 610, "확정된 정보만 연결", 19, 500, "#AFC0E8", anchor="middle"),
+        text(1080, 180, "DOCUMENT  ·  EVIDENCE  ·  ACTION", 15, 800, "#7186B8", spacing=1.8),
     ]
+    # 연결선은 중앙 원과 노드 아래에 먼저 그려 글자와 겹치지 않게 한다.
+    connectors = [
+        (1230, 360, 1305, 430, C["cyan"]),
+        (1588, 360, 1515, 430, C["blue2"]),
+        (1230, 710, 1305, 640, C["lime"]),
+        (1588, 710, 1515, 640, C["cyan"]),
+    ]
+    for x1, y1, x2, y2, accent in connectors:
+        p.append(line(x1, y1, x2, y2, "#526696", 4, opacity=0.9))
+        p.append(circle((x1 + x2) / 2, (y1 + y2) / 2, 7, accent))
     nodes = [
-        (1165, 300, "document", "문서", C["cyan"]),
-        (1648, 300, "search", "검색", C["blue2"]),
-        (1165, 772, "structure", "분석", C["lime"]),
-        (1648, 772, "tasks", "태스크", C["cyan"]),
+        (1175, 305, "document", "문서", C["cyan"]),
+        (1645, 305, "search", "검색", C["blue2"]),
+        (1175, 765, "structure", "분석", C["lime"]),
+        (1645, 765, "tasks", "태스크", C["cyan"]),
     ]
     for x, y, kind, label, accent in nodes:
-        p.append(line(1410, 535, x, y, "#4A5D91", 3, opacity=0.8))
-        p.append(circle(x, y, 84, "#17264F", stroke=accent, sw=3, extra='filter="url(#softShadow)"'))
-        p.append(icon(kind, x, y - 12, 52, accent, 3))
-        p.append(text(x, y + 55, label, 22, 700, "#FFFFFF", anchor="middle"))
-    for cx, cy, color in [(1310, 305, C["lime"]), (1548, 390, C["cyan"]), (1280, 720, C["blue2"]), (1540, 700, C["lime"])]:
-        p.append(circle(cx, cy, 8, color))
+        p.append(circle(x, y, 78, "#17264F", stroke=accent, sw=3, extra='filter="url(#softShadow)"'))
+        p.append(icon(kind, x, y - 10, 48, accent, 3))
+        p.append(text(x, y + 51, label, 21, 700, "#FFFFFF", anchor="middle"))
+    # 핵심인 사람의 검토를 마지막에 올려 연결선과 완전히 분리한다.
+    p += [
+        circle(1410, 535, 142, C["navy"], stroke=C["blue"], sw=5, extra='filter="url(#shadow)"'),
+        circle(1410, 535, 111, "#1C2C59", stroke="#5E7AEC", sw=2),
+        icon("check", 1410, 477, 62, C["cyan"], 4),
+        text(1410, 570, "사람의 검토", 29, 800, "#FFFFFF", anchor="middle"),
+        text(1410, 607, "확정된 정보만 연결", 18, 500, "#AFC0E8", anchor="middle"),
+    ]
     return finish(p)
 
 
@@ -264,23 +275,23 @@ def slide3():
     p = base(light=True, page="02", label="SERVICE GOAL")
     title_block(p, "HUMAN IN THE LOOP", ["Tasqra는 문서에서 실행까지", "한 흐름으로 연결합니다"])
     # Connectors first.
-    center = (960, 635)
-    endpoints = [(400, 530), (1520, 530), (960, 890)]
+    center = (960, 600)
+    endpoints = [(400, 530), (1520, 530), (960, 900)]
     for ex, ey in endpoints:
         p.append(line(center[0], center[1], ex, ey, "#B8C7E6", 5))
         p.append(circle((center[0]+ex)/2, (center[1]+ey)/2, 8, C["cyan"]))
     # Center system.
     p += [
-        circle(960, 635, 190, C["navy"], stroke="#D9E3FA", sw=18, extra='filter="url(#shadow)"'),
-        circle(960, 635, 155, "#1D2E5C", stroke=C["blue"], sw=3),
-        text(960, 585, "AI가 제안하고,", 28, 500, "#C4D0EC", anchor="middle"),
-        text(960, 650, "사람이", 54, 800, "#FFFFFF", anchor="middle"),
-        text(960, 712, "확정합니다", 54, 800, C["cyan"], anchor="middle"),
+        circle(960, 600, 165, C["navy"], stroke="#D9E3FA", sw=18, extra='filter="url(#shadow)"'),
+        circle(960, 600, 137, "#1D2E5C", stroke=C["blue"], sw=3),
+        text(960, 550, "AI가 제안하고,", 26, 500, "#C4D0EC", anchor="middle"),
+        text(960, 615, "사람이", 52, 800, "#FFFFFF", anchor="middle"),
+        text(960, 672, "확정합니다", 50, 800, C["cyan"], anchor="middle"),
     ]
     cards = [
         (155, 415, 490, 260, "01", "search", "찾는다", ["문서 근거와 함께 필요한 정보를", "검색합니다."], C["blue"]),
         (1275, 415, 490, 260, "02", "structure", "구조화한다", ["결정사항·일정·액션아이템·금액을", "검토 가능한 정보로 정리합니다."], C["cyan"]),
-        (715, 815, 490, 205, "03", "tasks", "연결한다", ["승인된 정보를 태스크·대시보드·산출물에 반영합니다."], C["lime"]),
+        (715, 825, 490, 190, "03", "tasks", "연결한다", ["승인된 정보를 태스크·대시보드·산출물에 반영합니다."], C["lime"]),
     ]
     for x, y, w, h, no, kind, heading, body, accent in cards:
         p.append(rect(x, y, w, h, C["panel"], rx=28, stroke=C["border"], sw=2, extra='filter="url(#softShadow)"'))
