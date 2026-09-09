@@ -373,7 +373,7 @@ def slide5():
         text(150, 810, "ACTION ITEM  ·  단건 검토 흐름", 18, 800, C["cyan"], spacing=1.4),
     ]
     action_labels = ["액션아이템 추출", "액션 태스크 후보", "단건 승인·거절", "태스크 생성"]
-    action_xs = [185, 455, 730, 1000]
+    action_xs = [235, 490, 750, 1015]
     for i, (label, ax) in enumerate(zip(action_labels, action_xs)):
         p.append(circle(ax, 900, 34, C["blue"] if i == 2 else "#243768", stroke=C["cyan"] if i == 2 else "#536898", sw=2))
         p.append(text(ax, 908, f"{i+1}", 18, 800, "#FFFFFF", anchor="middle"))
