@@ -192,7 +192,8 @@ def slide1():
         text(116, 430, "프로젝트 문서를,", 46, 500, "#DCE7FF"),
         text(116, 500, "근거 있는 실행으로", 60, 800, C["blue"]),
         line(116, 552, 770, 552, "#41507C", 2),
-        text(116, 620, "AI 기반 프로젝트 문서 분석·검색·업무 연결 플랫폼", 27, 500, "#C9D4EC"),
+        text(116, 605, "공공 SI·용역 프로젝트를 위한", 26, 700, "#FFFFFF"),
+        text(116, 648, "문서 분석·근거 검색·업무 연결 서비스", 26, 500, "#C9D4EC"),
         text(116, 710, "김보현  ·  박세현  ·  최재정", 25, 700, "#FFFFFF"),
         text(116, 760, "DOCUMENT  →  EVIDENCE  →  ACTION", 18, 700, C["cyan"], spacing=2.8),
         # Right composition panel.
@@ -238,17 +239,18 @@ def title_block(p, kicker, title_lines, subtitle=None, *, title_size=56):
 
 
 def slide2():
-    p = base(light=True, page="01", label="PROBLEM")
+    p = base(light=True, page="01", label="TARGET")
     title_block(
         p,
-        "WHY TASQRA",
-        ["문서는 쌓이는데,", "업무는 연결되지 않습니다"],
-        "프로젝트 정보가 문서 안에 머무르면 검색·판단·후속 실행이 반복해서 끊어집니다.",
+        "WHY PUBLIC SI & SERVICE PROJECTS",
+        ["왜 공공 SI·용역인가"],
+        "기능을 먼저 정한 것이 아니라, 실제 문서 업무의 연결 구조와 검증 필요성에서 타깃을 정했습니다.",
+        title_size=54,
     )
     cards = [
-        (110, "01", "search", "찾기 어렵다", ["회의록·보고서·요구사항이 흩어져", "필요한 근거를 다시 찾아야 합니다."], C["blue"]),
-        (680, "02", "structure", "판단이 남지 않는다", ["결정사항·일정·금액이 문장 속에 묻혀", "같은 확인이 반복됩니다."], C["cyan"]),
-        (1250, "03", "tasks", "실행으로 이어지지 않는다", ["계약 문서의 행동·의무가 태스크로", "이어지지 않아 누락과 재작업이 생깁니다."], C["lime"]),
+        (110, "01", "structure", "문서가 이어집니다", ["제안요청서·입찰·계약·과업지시·", "착수·주간·완료 보고서가", "한 사업의 생애주기로 이어집니다."], C["blue"]),
+        (680, "02", "check", "사람의 확인이 필요합니다", ["제출 기한·계약 이행 의무·금액은", "자동 요약만으로 확정할 수 없어", "원문 근거와 사람 검토가 필요합니다."], C["cyan"]),
+        (1250, "03", "search", "도메인 검증이 필요합니다", ["공공 조달 문장은 일반 한국어와", "구조·어휘가 달라 실제 도메인 문서로", "검색 품질을 검증해야 합니다."], C["lime"]),
     ]
     for x, no, kind, heading, body, accent in cards:
         y, w, h = 420, 500, 345
@@ -257,16 +259,16 @@ def slide2():
         p.append(pill(x + 32, y + 40, 64, 36, no, C["soft_blue"], C["blue"], size=17))
         p.append(circle(x + 423, y + 80, 46, C["soft"], stroke=accent, sw=2))
         p.append(icon(kind, x + 423, y + 80, 42, accent, 3))
-        p.append(text(x + 34, y + 145, heading, 34, 800, C["text"]))
-        p.append(multiline(x + 34, y + 205, body, 24, 500, C["body"], line_height=1.55))
+        p.append(text(x + 34, y + 145, heading, 29, 800, C["text"]))
+        p.append(multiline(x + 34, y + 202, body, 20, 500, C["body"], line_height=1.5))
         p.append(line(x + 34, y + 300, x + 466, y + 300, C["border"], 2))
-        p.append(text(x + 34, y + 326, "INFORMATION GAP", 14, 800, C["muted"], spacing=2.0))
+        p.append(text(x + 34, y + 326, "TARGET RATIONALE", 14, 800, C["muted"], spacing=2.0))
     p += [
         rect(110, 825, 1640, 140, C["navy"], rx=28, extra='filter="url(#softShadow)"'),
         circle(180, 895, 30, C["blue"]),
         icon("document", 180, 895, 34, "#FFFFFF", 3),
-        text(240, 882, "핵심 문제", 18, 800, C["cyan"], spacing=1.3),
-        text(240, 925, "문서 보관의 문제가 아니라, 정보가 실행으로 이어지지 않는 문제입니다.", 31, 700, "#FFFFFF"),
+        text(240, 882, "선택한 타깃", 18, 800, C["cyan"], spacing=1.3),
+        text(240, 925, "공공 SI를 중심으로 한 공공 용역 사업의 수행 문서", 31, 700, "#FFFFFF"),
     ]
     return finish(p)
 
