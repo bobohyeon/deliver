@@ -230,9 +230,9 @@ def slide1():
     return finish(p)
 
 
-def title_block(p, kicker, title_lines, subtitle=None):
+def title_block(p, kicker, title_lines, subtitle=None, *, title_size=56):
     p.append(text(110, 130, kicker, 20, 800, C["blue"], spacing=1.8))
-    p.append(multiline(110, 205, title_lines, 56, 800, C["text"], line_height=1.15))
+    p.append(multiline(110, 205, title_lines, title_size, 800, C["text"], line_height=1.15))
     if subtitle:
         p.append(text(112, 340 if len(title_lines) > 1 else 295, subtitle, 25, 500, C["body"]))
 
@@ -273,7 +273,7 @@ def slide2():
 
 def slide3():
     p = base(light=True, page="02", label="SERVICE GOAL")
-    title_block(p, "HUMAN IN THE LOOP", ["Tasqra는 문서에서 실행까지", "한 흐름으로 연결합니다"])
+    title_block(p, "HUMAN IN THE LOOP", ["Tasqra는 문서에서 실행까지", "한 흐름으로 연결합니다"], title_size=48)
     # Connectors first.
     center = (960, 600)
     endpoints = [(400, 530), (1520, 530), (960, 805)]
@@ -284,22 +284,24 @@ def slide3():
     p += [
         circle(960, 600, 165, C["navy"], stroke="#D9E3FA", sw=18, extra='filter="url(#shadow)"'),
         circle(960, 600, 137, "#1D2E5C", stroke=C["blue"], sw=3),
-        text(960, 550, "AI가 제안하고,", 26, 500, "#C4D0EC", anchor="middle"),
-        text(960, 615, "사람이", 52, 800, "#FFFFFF", anchor="middle"),
-        text(960, 672, "확정합니다", 50, 800, C["cyan"], anchor="middle"),
+        text(960, 550, "AI가 제안하고,", 22, 500, "#C4D0EC", anchor="middle"),
+        text(960, 615, "사람이", 44, 800, "#FFFFFF", anchor="middle"),
+        text(960, 668, "확정합니다", 42, 800, C["cyan"], anchor="middle"),
     ]
     cards = [
         (155, 415, 490, 260, "01", "search", "찾는다", ["문서 근거와 함께 필요한 정보를", "검색합니다."], C["blue"]),
         (1275, 415, 490, 260, "02", "structure", "구조화한다", ["결정사항·일정·액션아이템·금액을", "검토 가능한 정보로 정리합니다."], C["cyan"]),
-        (715, 825, 490, 190, "03", "tasks", "연결한다", ["승인된 정보를 태스크·대시보드·산출물에 반영합니다."], C["lime"]),
+        (715, 825, 490, 190, "03", "tasks", "연결한다", ["승인된 정보를 태스크·대시보드에", "반영하고 문서로 만듭니다."], C["lime"]),
     ]
     for x, y, w, h, no, kind, heading, body, accent in cards:
         p.append(rect(x, y, w, h, C["panel"], rx=28, stroke=C["border"], sw=2, extra='filter="url(#softShadow)"'))
         p.append(circle(x + 65, y + 70, 36, C["soft"], stroke=accent, sw=2))
         p.append(icon(kind, x + 65, y + 70, 34, accent, 3))
-        p.append(text(x + 120, y + 55, no, 17, 800, accent, spacing=1.6))
-        p.append(text(x + 120, y + 102, heading, 33, 800, C["text"]))
-        p.append(multiline(x + 42, y + 165, body, 22 if h < 230 else 24, 500, C["body"], line_height=1.5))
+        p.append(text(x + 120, y + 55, no, 16, 800, accent, spacing=1.4))
+        p.append(text(x + 120, y + 100, heading, 28, 800, C["text"]))
+        body_y = y + (146 if h < 230 else 164)
+        body_size = 18 if h < 230 else 20
+        p.append(multiline(x + 42, body_y, body, body_size, 500, C["body"], line_height=1.45))
     return finish(p)
 
 
