@@ -239,18 +239,18 @@ def title_block(p, kicker, title_lines, subtitle=None, *, title_size=56):
 
 
 def slide2():
-    p = base(light=True, page="01", label="TARGET")
+    p = base(light=True, page="01", label="TARGET SELECTION")
     title_block(
         p,
         "WHY PUBLIC SI & SERVICE PROJECTS",
-        ["왜 공공 SI·용역인가"],
-        "기능을 먼저 정한 것이 아니라, 실제 문서 업무의 연결 구조와 검증 필요성에서 타깃을 정했습니다.",
-        title_size=54,
+        ["공개 데이터가 많을 것이라는", "가설에서 시작했습니다"],
+        "타깃 선정 당시의 판단과 프로젝트를 진행하며 확인한 한계를 구분했습니다.",
+        title_size=50,
     )
     cards = [
-        (110, "01", "structure", "문서가 이어집니다", ["제안요청서·입찰·계약·과업지시·", "착수·주간·완료 보고서가", "한 사업의 생애주기로 이어집니다."], C["blue"]),
-        (680, "02", "check", "사람의 확인이 필요합니다", ["제출 기한·계약 이행 의무·금액은", "자동 요약만으로 확정할 수 없어", "원문 근거와 사람 검토가 필요합니다."], C["cyan"]),
-        (1250, "03", "search", "도메인 검증이 필요합니다", ["공공 조달 문장은 일반 한국어와", "구조·어휘가 달라 실제 도메인 문서로", "검색 품질을 검증해야 합니다."], C["lime"]),
+        (110, "01", "search", "초기 가설", ["나라장터 등에 공개된 문서가 많아", "학습과 검증에 필요한 데이터를", "쉽게 확보할 수 있을 것으로 봤습니다."], C["blue"]),
+        (680, "02", "document", "타깃 선정", ["공개 문서를 활용할 수 있는", "공공 SI 중심의 공공 용역 사업을", "프로젝트 대상으로 정했습니다."], C["cyan"]),
+        (1250, "03", "check", "진행 후 확인", ["원문 문서는 많았지만 정답 표시가 된", "학습·평가용 샘플은 부족해", "직접 정리하고 평가 기준을 만들었습니다."], C["lime"]),
     ]
     for x, no, kind, heading, body, accent in cards:
         y, w, h = 420, 500, 345
@@ -262,13 +262,13 @@ def slide2():
         p.append(text(x + 34, y + 145, heading, 29, 800, C["text"]))
         p.append(multiline(x + 34, y + 202, body, 20, 500, C["body"], line_height=1.5))
         p.append(line(x + 34, y + 300, x + 466, y + 300, C["border"], 2))
-        p.append(text(x + 34, y + 326, "TARGET RATIONALE", 14, 800, C["muted"], spacing=2.0))
+        p.append(text(x + 34, y + 326, "HYPOTHESIS  →  SELECTION  →  LEARNING", 12, 800, C["muted"], spacing=1.2))
     p += [
         rect(110, 825, 1640, 140, C["navy"], rx=28, extra='filter="url(#softShadow)"'),
         circle(180, 895, 30, C["blue"]),
-        icon("document", 180, 895, 34, "#FFFFFF", 3),
-        text(240, 882, "선택한 타깃", 18, 800, C["cyan"], spacing=1.3),
-        text(240, 925, "공공 SI를 중심으로 한 공공 용역 사업의 수행 문서", 31, 700, "#FFFFFF"),
+        icon("structure", 180, 895, 34, "#FFFFFF", 3),
+        text(240, 882, "선정 후 확인한 문제 적합성", 18, 800, C["cyan"], spacing=1.1),
+        text(240, 925, "발주·계약·과업·보고 문서가 이어지고, 중요한 정보에는 원문 근거와 사람의 확인이 필요했습니다.", 27, 700, "#FFFFFF"),
     ]
     return finish(p)
 
@@ -312,7 +312,7 @@ def slide4():
     title_block(p, "ONE PRODUCT · THREE EXPERTISE", ["한 제품 흐름을 세 영역의 전문성으로", "완성했습니다"])
     cards = [
         (110, "김보현", "RAG 검색·정보 활용", "search", C["blue"], ["RAG 청킹·임베딩 색인", "하이브리드 검색·근거 QA", "금액 검토·대시보드·산출물"]),
-        (680, "박세현", "LLM·임베딩 모델", "structure", C["cyan"], ["LLM 요약·분류 파인튜닝", "임베딩·리랭커 파인튜닝", "구조화 분석·AI 추천"]),
+        (680, "박세현", "LLM·임베딩 모델", "structure", C["cyan"], ["LLM 요약·분류 파인튜닝", "임베딩·리랭커 파인튜닝", "긴 문서 분석 오류 개선"]),
         (1250, "최재정", "OCR·핵심 업무 흐름", "tasks", C["lime"], ["OCR 추출·본문 복원", "OCR 검수·재OCR", "프로젝트·문서 처리·태스크 보드"]),
     ]
     for idx, (x, name, role, kind, accent, bullets) in enumerate(cards, start=1):
