@@ -309,9 +309,9 @@ def slide4():
     p = base(light=True, page="03", label="TEAM")
     title_block(p, "ONE PRODUCT · THREE EXPERTISE", ["한 제품 흐름을 세 영역의 전문성으로", "완성했습니다"])
     cards = [
-        (110, "김보현", "SEARCH & PRODUCT INTELLIGENCE", "search", C["blue"], ["검색·RAG 품질 개선", "근거 기반 QA와 금액 검토", "대시보드·산출물 연결"]),
-        (680, "박세현", "OCR & LLM INTELLIGENCE", "structure", C["cyan"], ["OCR·텍스트 복원", "로컬 LLM 비교·멀티태스크 학습", "구조화 추출·긴 문서 안정화"]),
-        (1250, "최재정", "CORE PLATFORM & WORKFLOW", "tasks", C["lime"], ["사용자·프로젝트·문서 관리", "워크스페이스·태스크 업무 흐름", "공통 서비스·기능 통합"]),
+        (110, "김보현", "RAG 검색·정보 활용", "search", C["blue"], ["RAG 청킹·임베딩 색인", "하이브리드 검색·근거 QA", "금액 검토·대시보드·산출물"]),
+        (680, "박세현", "LLM·임베딩 모델", "structure", C["cyan"], ["LLM 요약·분류 파인튜닝", "임베딩·리랭커 파인튜닝", "구조화 분석·AI 추천"]),
+        (1250, "최재정", "OCR·핵심 업무 흐름", "tasks", C["lime"], ["OCR 추출·본문 복원", "OCR 검수·재OCR", "프로젝트·문서 처리·태스크 보드"]),
     ]
     for idx, (x, name, role, kind, accent, bullets) in enumerate(cards, start=1):
         y, w, h = 410, 500, 430
@@ -326,7 +326,7 @@ def slide4():
         for j, bullet in enumerate(bullets):
             by = y + 292 + j * 48
             p.append(circle(x + 46, by - 8, 5, accent))
-            p.append(text(x + 68, by, bullet, 22, 500, C["body"]))
+            p.append(text(x + 68, by, bullet, 20, 500, C["body"]))
     p += [
         rect(110, 890, 1640, 96, C["navy"], rx=24),
         text(155, 948, "발표 흐름", 18, 800, C["cyan"], spacing=1.5),

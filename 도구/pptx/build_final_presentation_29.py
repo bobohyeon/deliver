@@ -550,7 +550,7 @@ def slide17():
 
 
 def slide18():
-    p = svg_base(18, "OCR EVOLUTION", "박세현", "박세현")
+    p = svg_base(18, "OCR EVOLUTION", "박세현", "최재정")
     slide_title(p, "PARK SEHYEON SECTION", "PDF에 이미 있는 글자를 살려서 읽습니다", "페이지에 글자가 있는지와 스캔 이미지인지에 따라 세 가지 방법 중 하나를 선택합니다.", size=44)
     modes=[
         ("01","PDF의 기존 글자",("들어 있는 글자를 그대로 읽고", "불필요한 이미지 인식은 생략"),C["blue"],"document"),
@@ -571,7 +571,7 @@ def slide18():
 
 
 def slide19():
-    p = svg_base(19, "OCR REVIEW", "박세현", "박세현")
+    p = svg_base(19, "OCR REVIEW", "박세현", "최재정")
     slide_title(p, "TEXT INTEGRITY", "글자 인식 결과를 고치면 검색용 본문도 함께 고칩니다", "수정 범위, 본문, 뒤 문장의 위치, 문서 버전을 한 번에 바꿔 서로 어긋나지 않게 합니다.", size=43)
     p.append(panel(80,300,1760,335,fill="#F8FAFD",stroke=C["border"],rx=28,shadow=False))
     p.append(text(120,350,"한 번에 모두 처리",16,800,C["blue"],spacing=1.3))
