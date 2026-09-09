@@ -319,7 +319,7 @@ def slide4():
         y, w, h = 410, 500, 430
         p.append(rect(x, y, w, h, C["panel"], rx=30, stroke=C["border"], sw=2, extra='filter="url(#softShadow)"'))
         p.append(rect(x, y, w, 13, accent, rx=7))
-        p.append(circle(x + 73, y + 85, 45, C["navy"] if accent == C["lime"] else C["soft"] , stroke=accent, sw=3))
+        p.append(circle(x + 73, y + 85, 45, C["soft"], stroke=accent, sw=3))
         p.append(icon(kind, x + 73, y + 85, 40, accent if accent != C["lime"] else C["lime"], 3))
         p.append(text(x + 445, y + 68, f"0{idx}", 18, 800, C["muted"], anchor="end", spacing=1.8))
         p.append(text(x + 36, y + 165, name, 40, 800, C["text"]))
