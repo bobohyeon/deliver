@@ -29,7 +29,7 @@ finish = v2.finish
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "산출물" / "최종발표" / "전체본"
 PNG_DIR = Path(os.environ.get("TASQRA_FINAL_PNG_DIR", str(OUT / "png")))
-PPTX_PATH = OUT / "Tasqra_최종발표_29장_v2.pptx"
+PPTX_PATH = OUT / "Tasqra_최종발표_29장_v1.pptx"
 
 
 def svg_base(no: int, section: str, presenter: str, owner: str, *, dark: bool = False):
@@ -39,8 +39,8 @@ def svg_base(no: int, section: str, presenter: str, owner: str, *, dark: bool = 
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">',
         '<defs>',
         '<style>@font-face{font-family:NotoKR;src:url("../../포트폴리오/NotoSansKR.ttf") format("truetype");} text{font-family:NotoKR,Arial,sans-serif;}</style>',
-        '<filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#09111F" flood-opacity="0.06"/></filter>',
-        '<filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="2" stdDeviation="5" flood-color="#09111F" flood-opacity="0.05"/></filter>',
+        '<filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#0E162F" flood-opacity="0.11"/></filter>',
+        '<filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="7" stdDeviation="10" flood-color="#0E162F" flood-opacity="0.08"/></filter>',
         '</defs>',
         rect(0, 0, W, H, bg),
         text(80, 60, f"{no:02d}  /  {section}", 17, 800, C["cyan"] if dark else C["blue"], spacing=2),
@@ -59,8 +59,8 @@ def slide_title(p, kicker: str, title_value: str, subtitle: str | None = None, *
         p.append(text(82, 245, subtitle, 22, 500, "#B9C6E5" if dark else C["body"]))
 
 
-def panel(x, y, w, h, *, fill="#FFFFFF", stroke=None, rx=8, shadow=False, sw=1):
-    return rect(x, y, w, h, fill, rx=rx, stroke=stroke or C["border"], sw=sw)
+def panel(x, y, w, h, *, fill="#FFFFFF", stroke=None, rx=24, shadow=True, sw=2):
+    return rect(x, y, w, h, fill, rx=rx, stroke=stroke or C["border"], sw=sw, extra='filter="url(#softShadow)"' if shadow else "")
 
 
 def number_badge(x, y, value, color=None, dark=False):
@@ -79,15 +79,15 @@ def arrow(x1, y1, x2, y2, color="#AEBDE0", sw=4):
             head = f'M {x2-11} {y2-15} L {x2} {y2} L {x2+11} {y2-15}'
         else:
             head = f'M {x2-11} {y2+15} L {x2} {y2} L {x2+11} {y2+15}'
-    return line(x1, y1, x2, y2, color, sw) + f'<path d="{head}" fill="none" stroke="{color}" stroke-width="{sw}" stroke-linecap="square" stroke-linejoin="miter"/>'
+    return line(x1, y1, x2, y2, color, sw) + f'<path d="{head}" fill="none" stroke="{color}" stroke-width="{sw}" stroke-linecap="round" stroke-linejoin="round"/>'
 
 
 def small_note(p, x, y, w, title_value, body, *, color=None, dark=False):
     color = color or C["blue"]
     fill = "#192953" if dark else C["panel"]
     body_color = "#C7D3EC" if dark else C["body"]
-    p.append(panel(x, y, w, 112, fill=fill, stroke="#30436F" if dark else C["border"], rx=6, shadow=False))
-    p.append(rect(x, y, 5, 112, color))
+    p.append(panel(x, y, w, 112, fill=fill, stroke="#30436F" if dark else C["border"], rx=20, shadow=not dark))
+    p.append(rect(x, y, 8, 112, color, rx=4))
     p.append(text(x + 28, y + 40, title_value, 20, 800, "#FFFFFF" if dark else C["text"]))
     p.append(text(x + 28, y + 79, body, 17, 500, body_color))
 
@@ -95,12 +95,12 @@ def small_note(p, x, y, w, title_value, body, *, color=None, dark=False):
 def card_title(p, x, y, no, heading, accent, *, width=470, height=250, body_lines=(), icon_kind=None, dark=False):
     fill = "#17264F" if dark else C["panel"]
     stroke = accent if dark else C["border"]
-    p.append(panel(x, y, width, height, fill=fill, stroke=stroke, rx=8, shadow=False, sw=1))
-    p.append(rect(x, y, 5, height, accent))
+    p.append(panel(x, y, width, height, fill=fill, stroke=stroke, rx=26, shadow=True, sw=2))
+    p.append(rect(x, y, width, 10, accent, rx=5))
     p.append(number_badge(x + 28, y + 32, no, accent, dark=dark))
     if icon_kind:
-        p.append(rect(x + width - 98, y + 28, 70, 70, "#24345F" if dark else C["soft"], rx=5, stroke=accent, sw=1))
-        p.append(icon(icon_kind, x + width - 63, y + 63, 32, accent, 3))
+        p.append(circle(x + width - 62, y + 63, 35, "#24345F" if dark else C["soft"], stroke=accent, sw=2))
+        p.append(icon(icon_kind, x + width - 62, y + 63, 32, accent, 3))
     p.append(text(x + 30, y + 116, heading, 30, 800, "#FFFFFF" if dark else C["text"]))
     if body_lines:
         p.append(multiline(x + 30, y + 166, body_lines, 20, 500, "#C8D4EC" if dark else C["body"], line_height=1.5))
@@ -109,8 +109,7 @@ def card_title(p, x, y, no, heading, accent, *, width=470, height=250, body_line
 def metric(p, x, y, value, label, *, color=None, suffix="", dark=False, width=300):
     color = color or C["blue"]
     fill = "#17264F" if dark else C["panel"]
-    p.append(panel(x, y, width, 150, fill=fill, stroke=color, rx=6, shadow=False, sw=1))
-    p.append(rect(x, y, width, 4, color))
+    p.append(panel(x, y, width, 150, fill=fill, stroke=color, rx=24, shadow=True))
     p.append(text(x + 24, y + 72, value + suffix, 48, 800, color))
     p.append(text(x + 25, y + 116, label, 18, 600, "#C6D2EA" if dark else C["body"]))
 
@@ -122,85 +121,127 @@ def label_tag(p, x, y, value, *, fill=None, color=None, width=None):
 
 def polyline(points, stroke, sw=5, opacity=1):
     pts = " ".join(f"{x},{y}" for x, y in points)
-    return f'<polyline points="{pts}" fill="none" stroke="{stroke}" stroke-width="{sw}" stroke-linecap="square" stroke-linejoin="miter" opacity="{opacity}"/>'
+    return f'<polyline points="{pts}" fill="none" stroke="{stroke}" stroke-width="{sw}" stroke-linecap="round" stroke-linejoin="round" opacity="{opacity}"/>'
 
 
 
 def slide6():
     p = svg_base(6, "ARCHITECTURE", "김보현", "최재정 · 공통")
     slide_title(p, "SYSTEM MAP", "전체 시스템 아키텍처", "동기 API와 비동기 Worker가 PostgreSQL·공유 파일을 중심으로 연결됩니다.")
-    # 동기 요청 경로
-    card_title(p, 80, 315, "01", "React / Vite", C["blue"], width=320, height=205, body_lines=("사용자 화면", "Axios REST 요청"), icon_kind="users")
-    card_title(p, 470, 315, "02", "FastAPI", C["cyan"], width=320, height=205, body_lines=("Router · Service", "Repository"), icon_kind="structure")
-    card_title(p, 860, 315, "03", "PostgreSQL", C["lime"], width=320, height=205, body_lines=("업무 데이터", "pgvector 1024D"), icon_kind="document")
-    p.append(arrow(405, 415, 455, 415)); p.append(arrow(795, 415, 845, 415))
-    # 비동기 경로
-    p.append(panel(1245, 292, 595, 505, fill=C["navy"], stroke="#31477A", rx=32, shadow=True))
-    p.append(text(1290, 345, "ASYNC PATH", 17, 800, C["cyan"], spacing=1.8))
-    p.append(text(1290, 395, "Redis Queue", 30, 800, "#FFFFFF"))
-    p.append(arrow(1400, 438, 1660, 438, "#536DAA", 4))
-    p.append(circle(1355, 438, 42, "#203568", stroke=C["cyan"], sw=2)); p.append(text(1355, 446, "Q", 22, 800, C["cyan"], anchor="middle"))
-    p.append(circle(1710, 438, 42, "#203568", stroke=C["signal"], sw=2)); p.append(text(1710, 446, "W", 22, 800, C["signal"], anchor="middle"))
-    p.append(text(1290, 510, "Celery Worker", 26, 800, "#FFFFFF"))
-    p.append(multiline(1290, 554, ("OCR · 청킹 · 임베딩", "LLM 분석 작업 분리"), 19, 500, "#C8D4EC", line_height=1.5))
-    p.append(line(1290, 648, 1790, 648, "#354B7E", 2))
-    p.append(text(1290, 690, "공유 저장소", 18, 800, C["cyan"]))
-    p.append(text(1450, 690, "./backend/uploads", 18, 600, "#FFFFFF"))
-    p.append(text(1290, 735, "로컬 AI", 18, 800, C["signal"]))
-    p.append(text(1450, 735, "Ollama / OpenAI 호환", 18, 600, "#FFFFFF"))
-    small_note(p, 80, 575, 1100, "실제 실행 구조", "API와 Worker가 같은 PostgreSQL·uploads·모델 캐시를 공유합니다.", color=C["blue"])
-    small_note(p, 80, 710, 1100, "운영 경계", "현재 compose는 개발 구성입니다. S3·Kubernetes·오토스케일링은 포함하지 않습니다.", color=C["lime"])
+    p.append(panel(70,290,1780,650,fill="#EEF3FB",stroke="#C8D5EA",rx=30,shadow=False))
+    p.append(text(105,335,"DOCKER COMPOSE · SHARED RUNTIME",16,800,C["blue"],spacing=1.7))
+    # Client
+    p.append(panel(105,375,300,475,fill=C["navy"],stroke="#31477A",rx=26,shadow=True))
+    p.append(text(140,425,"CLIENT",16,800,C["cyan"],spacing=1.5))
+    p.append(circle(255,520,62,"#203568",stroke=C["cyan"],sw=2))
+    p.append(icon("users",255,520,52,C["cyan"],3))
+    p.append(text(140,625,"React / Vite",30,800,"#FFFFFF"))
+    p.append(text(140,670,"Browser UI",18,600,"#BFCBE5"))
+    p.append(panel(140,720,230,72,fill="#1E315F",stroke="#3A5289",rx=16,shadow=False))
+    p.append(text(165,750,"HTTP CLIENT",13,800,C["cyan"],spacing=1.1))
+    p.append(text(165,777,"Axios REST",18,700,"#FFFFFF"))
+    # API application stack
+    p.append(panel(485,350,520,535,fill=C["panel"],stroke=C["blue"],rx=28,shadow=True))
+    p.append(text(525,402,"APPLICATION API",16,800,C["blue"],spacing=1.5))
+    api_layers=[("ROUTER","FastAPI endpoints","권한·요청 검증"),("SERVICE","업무 규칙","상태 전이·오케스트레이션"),("REPOSITORY","SQLAlchemy","트랜잭션·영속화")]
+    for i,(tag,head,body) in enumerate(api_layers):
+        y=445+i*118
+        p.append(panel(525,y,440,92,fill="#F7F9FD",stroke=C["border"],rx=18,shadow=False))
+        p.append(pill(548,y+20,100,30,tag,C["soft_blue"],C["blue"],size=13))
+        p.append(text(675,y+42,head,20,800,C["text"]))
+        p.append(text(675,y+70,body,15,500,C["body"]))
+    p.append(panel(525,815,440,42,fill=C["navy"],stroke=C["navy"],rx=14,shadow=False))
+    p.append(text(745,842,"SYNC REQUEST PATH",14,800,"#FFFFFF",anchor="middle",spacing=1.2))
+    # Async path
+    p.append(panel(1085,350,725,245,fill=C["navy"],stroke="#31477A",rx=28,shadow=True))
+    p.append(text(1125,402,"ASYNC EXECUTION",16,800,C["cyan"],spacing=1.5))
+    p.append(panel(1125,440,220,105,fill="#1E315F",stroke="#3A5289",rx=18,shadow=False))
+    p.append(text(1155,480,"Redis Queue",24,800,"#FFFFFF"));p.append(text(1155,515,"broker · result",15,500,"#BFCBE5"))
+    p.append(arrow(1365,492,1515,492,"#5874B4",4))
+    p.append(panel(1535,440,235,105,fill="#1E315F",stroke=C["lime"],rx=18,shadow=False))
+    p.append(text(1565,480,"Celery Worker",24,800,"#FFFFFF"));p.append(text(1565,515,"late ack · retry",15,500,"#BFCBE5"))
+    # Shared infrastructure
+    p.append(panel(1085,630,725,255,fill=C["panel"],stroke=C["border"],rx=28,shadow=True))
+    p.append(text(1125,678,"SHARED INFRASTRUCTURE",16,800,C["blue"],spacing=1.5))
+    infra=[("PostgreSQL",("업무 데이터","pgvector 1024D"),C["blue"]),("uploads",("공유 로컬 파일","./backend/uploads"),C["cyan"]),("Local AI",("Ollama","OpenAI 호환"),C["lime"])]
+    for i,(head,body,accent) in enumerate(infra):
+        x=1125+i*220
+        p.append(panel(x,715,195,125,fill="#F7F9FD",stroke=accent,rx=18,shadow=False))
+        p.append(text(x+20,755,head,20,800,C["text"]))
+        p.append(multiline(x+20,790,body,14,500,C["body"],line_height=1.45))
+    # Network links, drawn last only in the gutters.
+    p.append(arrow(415,610,470,610,C["blue"],4))
+    p.append(text(442,588,"REST",12,800,C["blue"],anchor="middle"))
+    p.append(arrow(1018,470,1068,470,C["cyan"],4))
+    p.append(text(1043,448,"enqueue",12,800,C["cyan"],anchor="middle"))
+    p.append(arrow(1018,735,1068,735,C["blue"],4))
+    p.append(text(1043,713,"read / write",12,800,C["blue"],anchor="middle"))
+    p.append(text(105,905,"현재 개발 환경의 구성입니다. 화면·서버·작업 프로그램이 같은 데이터와 문서 파일을 사용합니다.",17,600,C["muted"]))
     return finish(p)
 
 
 def slide7():
     p = svg_base(7, "DATA MODEL", "김보현", "최재정")
     slide_title(p, "RELATIONAL CORE", "핵심 데이터 구조", "Project와 Document를 중심으로 검색·분석·업무 데이터가 외래키로 연결됩니다.")
-    nodes = [
-        (360, 370, "USER · MEMBER", ("소유자와 구성원", "OWNER · EDITOR · VIEWER"), C["cyan"]),
-        (1560, 370, "DOCUMENT", ("원문 경로와 메타데이터", "추출본문 · OCR · 분석 이력"), C["blue"]),
-        (360, 780, "TASK · REVIEW", ("태스크와 검토 제안", "결정 · 일정 · 액션 · 금액"), C["lime"]),
-        (1560, 780, "CHUNK · ANALYSIS", ("본문 구간과 1024D 벡터", "모델 · 버전 · 원문 좌표"), C["cyan"]),
+    # ERD처럼 관계를 수평·직각으로 분리해 선이 교차하지 않게 한다.
+    entities=[
+        (100,315,390,155,"USER · MEMBER",("소유자와 구성원","OWNER · EDITOR · VIEWER"),C["cyan"]),
+        (100,555,390,205,"PROJECT",("프로젝트 업무 범위","권한 · 문서 · 태스크의 루트"),C["blue"]),
+        (665,555,440,205,"DOCUMENT",("원문 경로와 메타데이터","추출본문 · OCR · 분석 이력"),C["blue2"]),
+        (1340,315,440,175,"CHUNK · ANALYSIS",("본문 구간과 1024D 벡터","모델 · 버전 · 원문 좌표"),C["cyan"]),
+        (1340,650,440,175,"TASK · REVIEW",("태스크와 검토 제안","결정 · 일정 · 액션 · 금액"),C["lime"]),
     ]
-    # 관계선은 엔터티 패널보다 먼저 그려 텍스트를 가리지 않게 한다.
-    for x, y, *_ in nodes:
-        p.append(line(960, 575, x, y, "#A9B9D8", 4))
-    for x, y, heading, body, accent in nodes:
-        p.append(panel(x-235, y-105, 470, 210, fill=C["panel"], stroke=accent, rx=8, shadow=False))
-        p.append(text(x, y-35, heading, 22, 800, accent, anchor="middle", spacing=1.0))
-        p.append(multiline(x, y+18, body, 20, 500, C["body"], line_height=1.5, anchor="middle"))
-    p.append(panel(820, 455, 280, 240, fill=C["navy"], stroke=C["blue"], rx=8, shadow=False, sw=3))
-    p.append(text(960, 565, "PROJECT", 22, 800, C["cyan"], anchor="middle", spacing=1.5))
-    p.append(text(960, 612, "업무 범위", 30, 800, "#FFFFFF", anchor="middle"))
-    label_tag(p, 700, 900, "Document 1:1 ExtractedText", width=270)
-    label_tag(p, 995, 900, "Document 1:N Chunk / Analysis", width=330)
-    p.append(text(960, 975, "파일 자체는 DB BLOB이 아니라 공유 로컬 경로로 보관합니다.", 18, 600, C["muted"], anchor="middle"))
+    # 관계선과 cardinality를 먼저 그린다.
+    p.append(polyline([(295,470),(295,555)],"#9FB2D5",4))
+    p.append(polyline([(490,657),(665,657)],"#6E8AC5",5))
+    p.append(polyline([(1105,625),(1220,625),(1220,402),(1340,402)],"#9FB2D5",4))
+    p.append(polyline([(295,760),(295,810),(1340,810),(1340,800)],"#9FB2D5",4))
+    label_tag(p,315,492,"1:N members",width=155)
+    label_tag(p,515,615,"1:N documents",width=170)
+    label_tag(p,1150,520,"1:N chunks / analyses",width=220)
+    label_tag(p,700,775,"1:N tasks / reviews",width=200)
+    for x,y,w,h,heading,body,accent in entities:
+        dark=heading=="PROJECT"
+        p.append(panel(x,y,w,h,fill=C["navy"] if dark else C["panel"],stroke=accent,rx=26,shadow=True))
+        p.append(text(x+30,y+52,heading,21,800,C["cyan"] if dark else accent,spacing=1.0))
+        p.append(multiline(x+30,y+98,body,18,600,"#FFFFFF" if dark else C["body"],line_height=1.45))
+        p.append(text(x+w-28,y+35,"PK" if heading in {"PROJECT","DOCUMENT"} else "FK",13,800,"#8EA3CF" if dark else C["muted"],anchor="end",spacing=1.2))
+    p.append(panel(100,860,1680,90,fill=C["panel"],stroke=C["border"],rx=20,shadow=False))
+    p.append(text(135,910,"FILE STORAGE",15,800,C["blue"],spacing=1.3))
+    p.append(text(310,910,"DB BLOB이 아니라 공유 로컬 경로",20,700,C["text"]))
+    p.append(text(890,910,"DOCUMENT TEXT",15,800,C["cyan"],spacing=1.3))
+    p.append(text(1080,910,"Document 1:1 ExtractedText",20,700,C["text"]))
     return finish(p)
 
 
 def slide8():
     p = svg_base(8, "STATE DESIGN", "김보현", "최재정 · 박세현")
     slide_title(p, "SEPARATE LIFECYCLES", "상태를 분리한 운영 설계", "문서 추출·OCR 검수·LLM 분석을 하나의 상태로 섞지 않았습니다.")
-    rails = [
-        (315, "문서 추출", ["PENDING", "EXTRACTING", "EXTRACTED"], C["blue"], "오류 시 FAILED · 재시도는 PENDING부터"),
-        (550, "OCR 검수", ["PENDING", "IN_PROGRESS", "COMPLETED"], C["cyan"], "OCR 대상이 없으면 NOT_REQUIRED"),
-        (785, "LLM 분석 Job", ["PENDING", "RUNNING", "COMPLETED / PARTIAL / FAILED"], C["lime"], "문서 상태와 별도 · 원문 revision 검증"),
+    lanes=[
+        (300,"DOCUMENT EXTRACTION","문서 추출",("PENDING","EXTRACTING","EXTRACTED"),"FAILED → PENDING 재시도",C["blue"]),
+        (505,"OCR REVIEW","OCR 검수",("PENDING","IN_PROGRESS","COMPLETED"),"대상 없음 → NOT_REQUIRED",C["cyan"]),
+        (710,"ANALYSIS JOB","LLM 분석",("PENDING","RUNNING","COMPLETED / PARTIAL / FAILED"),"text_version + 원문 revision 검증",C["lime"]),
     ]
-    for y, heading, states, accent, note in rails:
-        p.append(text(80, y+12, heading, 24, 800, C["text"]))
-        start_x = 390
-        widths = [300, 300, 450]
-        for idx, state in enumerate(states):
-            w = widths[idx]
-            x = start_x + idx * 390
-            p.append(panel(x, y-55, w, 100, fill=C["panel"], stroke=accent, rx=22, shadow=False))
-            p.append(text(x+w/2, y+6, state, 21, 800, accent, anchor="middle"))
-            if idx < 2:
-                p.append(arrow(x+w+15, y-5, start_x+(idx+1)*390-15, y-5, "#9DADCB", 3))
-        p.append(text(390, y+85, note, 17, 600, C["body"]))
-    p.append(panel(80, 910, 1760, 78, fill=C["navy"], stroke=C["navy"], rx=20, shadow=False))
-    p.append(text(120, 958, "핵심", 18, 800, C["cyan"]))
-    p.append(text(225, 958, "Document의 ANALYZING·COMPLETED enum은 선언돼 있지만 자동 대입 경로가 없어 발표 흐름에서 제외했습니다.", 18, 600, "#FFFFFF"))
+    for y,kicker,heading,states,note,accent in lanes:
+        p.append(panel(80,y,1760,170,fill=C["panel"],stroke=C["border"],rx=24,shadow=True))
+        p.append(rect(80,y,8,170,accent,rx=4))
+        p.append(text(120,y+42,kicker,14,800,accent,spacing=1.4))
+        p.append(text(120,y+88,heading,25,800,C["text"]))
+        p.append(text(120,y+128,note,15,600,C["muted"]))
+        widths=[245,245,360]
+        xs=[500,825,1150]
+        for i,(state,x,w) in enumerate(zip(states,xs,widths)):
+            active=i==1
+            p.append(panel(x,y+38,w,78,fill=C["navy"] if active else "#F8FAFD",stroke=accent,rx=18,shadow=False))
+            p.append(text(x+w/2,y+86,state,18 if i<2 else 16,800,"#FFFFFF" if active else accent,anchor="middle"))
+            if i<2:p.append(arrow(x+w+18,y+77,xs[i+1]-18,y+77,"#9DAFCE",3))
+        p.append(panel(1550,y+34,245,86,fill="#F3F6FB",stroke=C["border"],rx=16,shadow=False))
+        p.append(text(1575,y+66,"STATE OWNER",12,800,C["muted"],spacing=1.1))
+        p.append(text(1575,y+98,"Document" if y<500 else ("OCR Review" if y<700 else "AnalysisJob"),17,700,C["text"]))
+    p.append(panel(80,910,1760,75,fill=C["navy"],stroke=C["navy"],rx=20,shadow=False))
+    p.append(text(120,956,"독립 저장",17,800,C["cyan"],spacing=1.0))
+    p.append(text(260,956,"한 작업의 실패가 다른 수명주기의 성공 상태를 되돌리지 않습니다.",20,700,"#FFFFFF"))
+    p.append(pill(1490,927,305,40,"NO SHARED STATUS FLAG","#243866",C["lime"],size=15))
     return finish(p)
 
 
@@ -222,8 +263,8 @@ def slide9():
             p.append(arrow(x+292, 500, xs[idx+1]-10, 500, "#AABADB", 3))
     p.append(panel(85, 705, 1705, 210, fill=C["navy"], stroke="#31477A", rx=28, shadow=True))
     p.append(text(130, 765, "검색 요청", 20, 800, C["cyan"], spacing=1))
-    p.append(text(130, 822, "질의를 별도 임베딩 → 권한 있는 프로젝트 범위 → 같은 embedding_model의 가까운 청크 조회", 27, 700, "#FFFFFF"))
-    p.append(text(130, 870, "HNSW는 근사검색이며, 모델 변경 시 기존 청크는 재임베딩이 필요합니다.", 18, 500, "#B9C8E5"))
+    p.append(text(130, 822, "질문을 검색용 숫자로 바꾼 뒤, 권한이 있는 프로젝트 안에서 뜻이 가까운 문서 조각을 찾습니다.", 27, 700, "#FFFFFF"))
+    p.append(text(130, 870, "검색 모델을 바꾸면 기존 문서도 새 모델에 맞게 다시 준비해야 합니다.", 18, 500, "#B9C8E5"))
     label_tag(p, 1530, 755, "실모델 설정 조건", fill="#243A70", color=C["lime"], width=210)
     return finish(p)
 
@@ -236,9 +277,9 @@ def slide10():
                body_lines=("ILIKE로 연속 문자열 포함 보장", "word_similarity로 내부 순위", "숫자·코드·정확 표현에 강점"), icon_kind="document", dark=True)
     card_title(p, 1250, 330, "B", "의미 검색", C["blue2"], width=570, height=390,
                body_lines=("질의·청크 임베딩", "pgvector 코사인 거리", "표현이 달라도 문맥 탐색"), icon_kind="search", dark=True)
-    p.append(panel(820, 425, 280, 180, fill=C["navy"], stroke=C["cyan"], rx=6, shadow=False, sw=2))
-    p.append(text(960, 493, "RRF", 52, 800, "#FFFFFF", anchor="middle"))
-    p.append(text(960, 545, "Σ 1 / (60 + 순위)", 18, 800, C["cyan"], anchor="middle"))
+    p.append(circle(960, 515, 130, C["lime"], stroke="#A9C932", sw=4, extra='filter="url(#shadow)"'))
+    p.append(text(960, 493, "RRF", 52, 800, C["rail"], anchor="middle"))
+    p.append(text(960, 545, "Σ 1 / (60 + 순위)", 18, 800, C["rail"], anchor="middle"))
     p.append(arrow(690, 515, 810, 515, C["cyan"], 5)); p.append(arrow(1230, 515, 1110, 515, C["blue2"], 5))
     small_note(p, 100, 780, 520, "후보 폭", "두 검색에서 각각 기본 30개", color=C["blue"])
     small_note(p, 700, 780, 520, "단일 UX", "사용자는 검색 방식을 고르지 않음", color=C["cyan"])
@@ -323,32 +364,55 @@ def slide13():
     p.append(text(135,817,"답변 + 문서명 + 페이지 + 조각 번호 + 원문 좌표",30,800,"#FFFFFF"))
     p.append(text(135,865,"근거가 없으면 LLM을 호출하지 않고 고정 응답을 반환합니다.",18,500,"#BFCBE5"))
     label_tag(p,1380,755,"의미적 사실 검증 아님",fill="#243864",color=C["lime"],width=360)
-    p.append(text(1380,825,"서버 검증 범위는 근거 ID 계약과 권한입니다.",18,600,"#FFFFFF"))
+    p.append(text(1380,825,"서버는 근거 번호와 사용 권한만 확인합니다.",18,600,"#FFFFFF"))
     return finish(p)
 
 
 def slide14():
     p = svg_base(14, "HUMAN REVIEW", "김보현", "김보현 · 최재정")
     slide_title(p, "APPROVAL BOUNDARY", "AI 제안과 실제 업무 사이에 사람 검토를 둡니다", "자동 반영이 아니라 PENDING 제안을 승인 가능한 상태로 저장합니다.", size=47)
-    # gates
-    p.append(panel(90,330,430,430,fill="#E8EEFF",stroke=C["blue"],rx=30,shadow=True))
-    p.append(text(130,390,"AI 제안",20,800,C["blue"],spacing=1.2))
-    p.append(text(130,455,"PENDING",50,800,C["navy"]))
-    p.append(multiline(130,520,("결정 · 일정 · 금액", "액션 태스크 후보"),24,600,C["body"],line_height=1.6))
-    p.append(arrow(540,545,685,545,C["blue"],5))
-    p.append(panel(700,300,520,500,fill=C["navy"],stroke=C["blue"],rx=34,shadow=True))
-    p.append(text(960,370,"사람의 검토",34,800,"#FFFFFF",anchor="middle"))
-    actions=[("승인","APPROVED",C["cyan"]),("수정 승인","EDITED",C["lime"]),("거절","REJECTED","#F0A0A0"),("취소","PENDING","#9EAFD1")]
-    for i,(a,state,col) in enumerate(actions):
-        y=435+i*82
-        p.append(circle(770,y,18,col)); p.append(text(810,y+8,a,22,700,"#FFFFFF")); p.append(pill(1010,y-20,160,40,state,"#243766",col,size=14))
-    p.append(arrow(1235,545,1380,545,C["lime"],5))
-    p.append(panel(1400,330,430,430,fill=C["panel"],stroke=C["lime"],rx=30,shadow=True))
-    p.append(text(1440,390,"후속 소비",20,800,C["blue"],spacing=1.2))
-    p.append(multiline(1440,455,("태스크", "대시보드", "산출물", "근거 QA"),28,800,C["text"],line_height=1.6))
-    p.append(panel(90,850,1740,100,fill=C["panel"],stroke=C["border"],rx=22,shadow=False))
-    p.append(text(130,910,"일관된 필터",18,800,C["blue"]))
-    p.append(text(310,910,"승인·수정 승인된 항목만 집계와 산출물에 반영합니다.",21,700,C["text"]))
+    # 왼쪽: 실제 제안 큐처럼 보이는 데이터 행
+    p.append(panel(80,300,470,570,fill="#E8EEFF",stroke=C["blue"],rx=30,shadow=True))
+    p.append(text(120,355,"SUGGESTION QUEUE",16,800,C["blue"],spacing=1.4))
+    p.append(text(120,420,"PENDING",48,800,C["navy"]))
+    suggestions=[("DECISION","결정사항"),("SCHEDULE","일정"),("AMOUNT","금액"),("ACTION","액션 태스크 후보")]
+    for i,(kind,label) in enumerate(suggestions):
+        y=475+i*76
+        p.append(panel(120,y,390,58,fill="#F8FAFF",stroke="#C7D5F2",rx=14,shadow=False))
+        p.append(pill(138,y+14,105,30,kind,C["soft_blue"],C["blue"],size=12))
+        p.append(text(265,y+38,label,18,700,C["text"]))
+        p.append(text(480,y+38,"PENDING",12,800,C["muted"],anchor="end"))
+    # 가운데: 상태 전이 콘솔
+    p.append(arrow(570,585,660,585,C["blue"],5))
+    p.append(text(615,555,"review",12,800,C["blue"],anchor="middle",spacing=1.0))
+    p.append(panel(680,285,560,600,fill=C["navy"],stroke=C["blue"],rx=34,shadow=True))
+    p.append(text(960,350,"HUMAN REVIEW",16,800,C["cyan"],anchor="middle",spacing=1.5))
+    p.append(text(960,400,"사람의 검토",32,800,"#FFFFFF",anchor="middle"))
+    actions=[("승인","APPROVED",C["cyan"],"집계·산출물 허용"),("수정 승인","EDITED",C["lime"],"수정값으로 허용"),("거절","REJECTED","#F0A0A0","후속 기능 제외"),("승인 취소","PENDING","#9EAFD1","검토 대기로 복귀")]
+    for i,(a,state,col,desc) in enumerate(actions):
+        y=460+i*92
+        p.append(circle(735,y,14,col))
+        p.append(text(770,y+7,a,21,800,"#FFFFFF"))
+        p.append(pill(915,y-19,135,38,state,"#243766",col,size=12))
+        p.append(text(1070,y+6,desc,13,500,"#BFCBE5"))
+    p.append(panel(735,820,450,40,fill="#1D315F",stroke="#354D82",rx=12,shadow=False))
+    p.append(text(960,846,"STATUS TRANSITION + AUDIT",13,800,"#FFFFFF",anchor="middle",spacing=1.0))
+    # 오른쪽: 승인 데이터 소비처
+    p.append(arrow(1260,585,1350,585,C["lime"],5))
+    p.append(text(1305,555,"consume",12,800,"#87A800",anchor="middle",spacing=1.0))
+    p.append(panel(1370,300,470,570,fill=C["panel"],stroke=C["lime"],rx=30,shadow=True))
+    p.append(text(1410,355,"APPROVED CONSUMERS",16,800,"#87A800",spacing=1.3))
+    consumers=[("TASK","태스크"),("DASHBOARD","대시보드"),("DELIVERABLE","산출물"),("QA","근거 QA")]
+    for i,(kind,label) in enumerate(consumers):
+        x=1410+(i%2)*195;y=430+(i//2)*175
+        p.append(panel(x,y,165,135,fill="#F8FAFD",stroke=C["border"],rx=18,shadow=False))
+        p.append(text(x+18,y+34,kind,12,800,C["blue"],spacing=.8))
+        p.append(text(x+18,y+78,label,22,800,C["text"]))
+        p.append(text(x+18,y+110,"APPROVED / EDITED",11,700,C["muted"]))
+    p.append(panel(80,915,1760,68,fill=C["navy"],stroke=C["navy"],rx=18,shadow=False))
+    p.append(text(120,958,"FILTER CONTRACT",15,800,C["cyan"],spacing=1.2))
+    p.append(text(330,958,"승인·수정 승인된 항목만 집계와 산출물에 반영",20,700,"#FFFFFF"))
+    p.append(text(1790,958,"PENDING / REJECTED 제외",16,600,"#AFC0E8",anchor="end"))
     return finish(p)
 
 
@@ -375,27 +439,46 @@ def slide15():
 def slide16():
     p = svg_base(16, "AMOUNT SNAPSHOT", "김보현", "김보현")
     slide_title(p, "SAFE RE-ANALYSIS", "금액을 다시 분석해도 집계는 흔들리지 않습니다", "새 분석의 검토가 끝날 때까지 직전 완료 스냅샷을 계속 사용합니다.", size=46)
-    # old snapshot lane
-    p.append(text(100,340,"기존 유효 스냅샷",22,800,C["blue"]))
-    p.append(panel(100,380,650,230,fill=C["panel"],stroke=C["blue"],rx=28,shadow=True))
-    p.append(text(145,445,"APPROVED · EDITED",24,800,C["blue"]))
-    p.append(text(145,500,"대시보드 · QA · 산출물",28,800,C["text"]))
-    p.append(text(145,555,"새 검토가 끝날 때까지 계속 사용",18,600,C["body"]))
-    # new lane
-    p.append(text(100,700,"신규 재분석",22,800,C["cyan"]))
-    stages=[("새 Analysis","PENDING"),("단건 검토","승인·수정·거절"),("검토 완료","유효 후보")]
-    for i,(h,b) in enumerate(stages):
-        x=100+i*330
-        p.append(panel(x,740,280,150,fill=C["panel"],stroke=C["cyan"] if i<2 else C["lime"],rx=24,shadow=False))
-        p.append(text(x+24,790,h,20,800,C["text"]));p.append(text(x+24,840,b,17,600,C["body"]))
-        if i<2:p.append(arrow(x+287,815,x+323,815,"#9EB0D0",3))
-    # atomic switch
-    p.append(panel(1010, 550, 160, 130, fill=C["navy"], stroke=C["cyan"], rx=6, shadow=False, sw=2))
-    p.append(text(1090,605,"원자",24,800,"#FFFFFF",anchor="middle"));p.append(text(1090,642,"전환",24,800,C["cyan"],anchor="middle"))
-    p.append(arrow(990,815,1080,690,C["blue"],4));p.append(arrow(1180,615,1270,615,C["blue"],4))
-    p.append(panel(1290,420,500,390,fill=C["navy"],stroke="#31477A",rx=30,shadow=True))
-    p.append(text(1335,480,"새 유효 스냅샷",22,800,C["lime"]))
-    p.append(multiline(1335,545,("미결 행 0", "원래 추출 행 수와 일치", "전부 거절·0건도 완료"),24,700,"#FFFFFF",line_height=1.6))
+    # DB 레코드처럼 보이는 현재 활성 스냅샷
+    p.append(panel(80,305,610,565,fill=C["panel"],stroke=C["blue"],rx=30,shadow=True))
+    p.append(text(120,360,"ACTIVE SNAPSHOT",16,800,C["blue"],spacing=1.5))
+    p.append(text(120,415,"현재 소비 중",32,800,C["text"]))
+    rows=[("review_status","APPROVED / EDITED"),("consumers","Dashboard · QA · Deliverable"),("switch_policy","검토 완료 전 유지"),("source","latest completed analysis")]
+    for i,(k,v) in enumerate(rows):
+        y=475+i*78
+        p.append(rect(120,y,530,1,C["border"]))
+        p.append(text(120,y+40,k,14,800,C["muted"],spacing=.8))
+        p.append(text(315,y+40,v,17,700,C["text"]))
+    p.append(panel(120,795,530,48,fill=C["soft_blue"],stroke=C["border"],rx=14,shadow=False))
+    p.append(text(385,826,"ACTIVE POINTER 유지",15,800,C["blue"],anchor="middle",spacing=1.0))
+    # 신규 분석 작업 콘솔
+    p.append(panel(750,305,520,565,fill="#F8FAFD",stroke=C["cyan"],rx=30,shadow=True))
+    p.append(text(790,360,"RE-ANALYSIS JOB",16,800,C["cyan"],spacing=1.5))
+    stages=[("01","PENDING","새 Analysis"),("02","IN REVIEW","승인 · 수정 · 거절"),("03","COMPLETE","미결 행 0")]
+    for i,(no,state,desc) in enumerate(stages):
+        y=425+i*112
+        p.append(number_badge(790,y,no,C["cyan"]))
+        p.append(text(875,y+24,state,19,800,C["text"]))
+        p.append(text(875,y+55,desc,15,500,C["body"]))
+        if i<2:p.append(line(821,y+42,821,y+93,"#9EB4D3",3))
+    p.append(panel(790,760,440,78,fill=C["navy"],stroke=C["navy"],rx=18,shadow=False))
+    p.append(text(820,790,"COMPLETENESS GATE",13,800,C["lime"],spacing=1.0))
+    p.append(text(820,820,"추출 행 수 = 검토 완료 행 수",17,700,"#FFFFFF"))
+    # 소비처와 원자 전환
+    p.append(panel(1330,305,510,565,fill=C["navy"],stroke="#31477A",rx=30,shadow=True))
+    p.append(text(1370,360,"CONSISTENT CONSUMERS",16,800,C["cyan"],spacing=1.4))
+    consumers=[("대시보드","집계"),("근거 QA","검색 응답"),("산출물","XLSX · PDF")]
+    for i,(head,desc) in enumerate(consumers):
+        y=420+i*115
+        p.append(panel(1370,y,430,88,fill="#1D315F",stroke="#3A5289",rx=18,shadow=False))
+        p.append(text(1400,y+38,head,21,800,"#FFFFFF"))
+        p.append(text(1765,y+38,desc,15,600,"#BFCBE5",anchor="end"))
+        p.append(text(1400,y+67,"same active_snapshot_id",12,600,C["cyan"],spacing=.6))
+    p.append(circle(1585,790,48,C["lime"],stroke="#A8C62A",sw=3))
+    p.append(text(1585,783,"원자",17,800,C["rail"],anchor="middle"));p.append(text(1585,807,"전환",17,800,C["rail"],anchor="middle"))
+    p.append(arrow(1278,790,1520,790,C["lime"],4))
+    p.append(text(1395,765,"gate 통과 후 pointer 교체",13,700,"#87A800",anchor="middle"))
+    p.append(text(80,930,"재분석 중에도 기존 승인 데이터가 화면·QA·산출물에 계속 제공되며, 완료 순간에만 소비 기준이 한 번 바뀝니다.",18,700,C["muted"]))
     return finish(p)
 
 
@@ -445,22 +528,34 @@ def slide18():
 def slide19():
     p = svg_base(19, "OCR REVIEW", "박세현", "박세현")
     slide_title(p, "TEXT INTEGRITY", "OCR 박스를 고치면 본문과 오프셋도 함께 바뀝니다", "화면의 수정과 검색 원문이 어긋나지 않도록 범위·버전·revision을 한 트랜잭션에서 갱신합니다.", size=43)
+    p.append(panel(80,300,1760,335,fill="#F8FAFD",stroke=C["border"],rx=28,shadow=False))
+    p.append(text(120,350,"SINGLE TRANSACTION",15,800,C["blue"],spacing=1.5))
+    p.append(pill(1510,325,275,38,"BEGIN  →  COMMIT",C["soft_blue"],C["navy"],size=15))
     stages=[
         ("01","박스 수정",C["blue"]),("02","범위 검증",C["cyan"]),("03","본문 구간 교체",C["lime"]),
         ("04","뒤 오프셋 이동",C["blue2"]),("05","revision 증가",C["cyan"]),("06","검수 재확정",C["lime"]),
     ]
-    xs=[105,395,685,975,1265,1555]
+    xs=[190,500,810,1120,1430,1740]
+    p.append(line(190,480,1740,480,"#C6D3E8",6))
     for i,(no,head,accent) in enumerate(stages):
-        p.append(panel(xs[i]-74,426,148,148,fill=C["panel"],stroke=accent,rx=6,shadow=False,sw=2))
-        p.append(text(xs[i],484,no,16,800,accent,anchor="middle"))
-        p.append(text(xs[i],526,head,19,800,C["text"],anchor="middle"))
-        if i<5:p.append(arrow(xs[i]+82,500,xs[i+1]-82,500,"#A7B8D7",3))
-    p.append(panel(100,665,800,220,fill=C["navy"],stroke="#31477A",rx=28,shadow=True))
-    p.append(text(145,720,"동시 수정 방어",18,800,C["cyan"],spacing=1.2))
-    p.append(multiline(145,770,("stale version이면 전체 롤백", "여러 범위는 뒤에서부터 교체", "문서 버전은 배치당 한 번 증가"),21,600,"#FFFFFF",line_height=1.55))
-    p.append(panel(960,665,800,220,fill=C["panel"],stroke=C["lime"],rx=28,shadow=True))
-    p.append(text(1005,720,"검수 완료 후",18,800,C["blue"],spacing=1.2))
-    p.append(multiline(1005,770,("제외·복원 요소를 본문에 반영", "is_confirmed 확정", "청킹·임베딩 재작업 enqueue"),21,600,C["text"],line_height=1.55))
+        p.append(circle(xs[i],480,66,C["panel"],stroke=accent,sw=4,extra='filter="url(#softShadow)"'))
+        p.append(text(xs[i],466,no,15,800,accent,anchor="middle"))
+        p.append(text(xs[i],510,head,17,800,C["text"],anchor="middle"))
+        if i<5:p.append(arrow(xs[i]+72,480,xs[i+1]-72,480,"#9EB0CE",3))
+    p.append(text(120,590,"수정 범위 뒤쪽의 content_start / content_end를 같은 delta만큼 이동",17,600,C["body"]))
+    p.append(panel(80,680,835,225,fill=C["navy"],stroke="#31477A",rx=28,shadow=True))
+    p.append(text(125,735,"ROLLBACK GUARD",16,800,C["cyan"],spacing=1.3))
+    guard=[("stale version","전체 롤백"),("여러 범위","뒤에서부터 교체"),("문서 버전","배치당 한 번 증가")]
+    for i,(k,v) in enumerate(guard):
+        y=785+i*42
+        p.append(text(125,y,k,17,700,"#FFFFFF"));p.append(text(390,y,v,16,500,"#BFCBE5"))
+    p.append(panel(1005,680,835,225,fill=C["panel"],stroke=C["lime"],rx=28,shadow=True))
+    p.append(text(1050,735,"DOWNSTREAM REFRESH",16,800,"#87A800",spacing=1.3))
+    downstream=[("본문 반영","제외·복원 요소"),("검수 확정","is_confirmed"),("재작업","청킹·임베딩 enqueue")]
+    for i,(k,v) in enumerate(downstream):
+        y=785+i*42
+        p.append(text(1050,y,k,17,700,C["text"]));p.append(text(1280,y,v,16,500,C["body"]))
+    p.append(text(960,960,"OCR UI 수정과 검색용 원문을 하나의 무결성 경계로 관리",18,700,C["muted"],anchor="middle"))
     return finish(p)
 
 
@@ -478,7 +573,7 @@ def slide20():
     # right analysis lane
     p.append(panel(960,310,880,600,fill=C["navy"],stroke="#31477A",rx=30,shadow=True))
     p.append(text(1005,365,"LLM ANALYSIS JOB",18,800,C["cyan"],spacing=1.5))
-    items=[("활성 job 1개","PENDING/RUNNING 중복 방지"),("원문 snapshot","text_version + SHA-256 재검증"),("순차 analyzer","GPU 요청 폭주 방지"),("PARTIAL 저장","일부 성공 결과는 보존"),("timeout","앱 timeout + Celery hard limit")]
+    items=[("활성 job 1개","PENDING/RUNNING 중복 방지"),("원문 snapshot","text_version + SHA-256 재검증"),("순차 analyzer","GPU 요청 폭주 방지"),("PARTIAL 저장","일부 성공 결과는 보존"),("timeout","정해진 시간을 넘으면 중단")]
     for i,(h,b) in enumerate(items):
         y=425+i*82
         p.append(circle(1025,y,8,C["lime"] if i==3 else C["cyan"]));p.append(text(1055,y+7,h,20,800,"#FFFFFF"));p.append(text(1280,y+7,b,16,500,"#BFCBE5"))
@@ -487,43 +582,51 @@ def slide20():
 
 
 def slide21():
-    p = svg_base(21, "BASE MODEL", "박세현", "박세현")
-    slide_title(p, "MODEL SELECTION", "작은 로컬 모델 중 Qwen2.5-3B를 학습 베이스로 선택했습니다", "분류 21건·요약 12건·입력 6,000자 조건의 비교입니다.", size=42)
-    headers=["MODEL","정확도","MACRO-F1","JSON 형식"]
-    xcols=[100,730,1030,1330]; widths=[600,270,270,400]
+    p = svg_base(21, "실제 적용 모델", "박세현", "박세현")
+    slide_title(p, "저장된 측정 결과", "Qwen2.5-3B를 업무별로 따로 학습해 적용했습니다", "재현 자료가 없는 모델 비교표는 빼고, 제품 문서에 남은 실제 측정값만 사용했습니다.", size=42)
+    headers=["하는 일","실제 측정 결과","평가 방법","제품 적용 모델"]
+    xcols=[100,560,900,1330]
     p.append(panel(80,300,1760,570,fill=C["panel"],stroke=C["border"],rx=28,shadow=True))
     p.append(rect(100,335,1720,70,C["navy"],rx=18))
-    for x,h in zip(xcols,headers):p.append(text(x+20,380,h,17,800,"#FFFFFF",spacing=1))
+    for x,h in zip(xcols,headers):p.append(text(x+20,380,h,17,800,"#FFFFFF",spacing=.5))
     rows=[
-        ("Qwen2.5-3B",71.4,0.190,"분류·요약 100%",C["blue"]),
-        ("Gemma2-2B",61.9,0.143,"비교 대상","#8CA0C8"),
-        ("Gemma3-4B",52.4,0.145,"비교 대상","#A1B0CD"),
-        ("Gemma3-1B",23.8,0.053,"비교 대상","#BBC6D9"),
+        ("문서 종류 분류","93.2%  (±2.5%p)","실제 문서 103건 · 5등분 교차검증","Tasqra-classification",C["blue"]),
+        ("문서 요약","65.4%  (약 ±8%p)","평가 문서 26건 · 표본 확대 필요","Tasqra-summation",C["cyan"]),
     ]
-    for i,(model,acc,f1,json_text,accent) in enumerate(rows):
-        y=420+i*100
-        if i==0:p.append(rect(100,y,1720,88,"#EAF0FF",rx=14))
-        p.append(circle(130,y+44,7,accent));p.append(text(160,y+52,model,23,800 if i==0 else 600,C["text"]))
-        p.append(text(775,y+52,f"{acc:.1f}%",23,800,accent))
-        p.append(text(1080,y+52,f"{f1:.3f}",23,700,C["text"]))
-        p.append(text(1380,y+52,json_text,20,700 if i==0 else 500,C["body"]))
+    for i,(task,result,method,model,accent) in enumerate(rows):
+        y=445+i*170
+        p.append(rect(100,y,1720,138,"#EAF0FF" if i==0 else "#F4FBFD",rx=16))
+        p.append(circle(130,y+69,8,accent));p.append(text(160,y+78,task,25,800,C["text"]))
+        p.append(text(580,y+78,result,27,800,accent))
+        p.append(text(920,y+78,method,19,600,C["body"]))
+        p.append(text(1350,y+78,model,20,700,C["text"]))
+    p.append(panel(100,790,1720,74,fill="#F8FAFD",stroke=C["border"],rx=18,shadow=False))
+    p.append(text(145,837,"같은 기본 모델을 쓰지만, 분류용과 요약용 학습 결과는 서로 다른 모델로 배포합니다.",20,700,C["text"]))
     p.append(panel(100,890,1720,74,fill=C["navy"],stroke=C["navy"],rx=20,shadow=False))
-    p.append(text(145,937,"선택 이유",18,800,C["cyan"]));p.append(text(290,937,"정확도와 구조화 JSON 안정성의 균형 · Apache 2.0 · 3B 로컬 실행",20,700,"#FFFFFF"))
+    p.append(text(145,937,"근거",18,800,C["cyan"]));p.append(text(235,937,"Tasqra/docs/llm-model-setup.md에 기록된 제품 적용 결과",20,700,"#FFFFFF"))
     return finish(p)
 
 
 def slide22():
-    p = svg_base(22, "SEHYEON INSERT", "박세현", "박세현")
-    slide_title(p, "CONTENT HANDOFF", "박세현 발표자료 삽입 위치", "세현님이 전달할 최종 파인튜닝 자료로 이 슬라이드를 교체합니다.", size=46)
-    p.append(panel(120, 330, 1680, 520, fill=C["panel"], stroke=C["border"], rx=8, shadow=False, sw=1))
-    p.append(rect(120, 330, 7, 520, C["blue"]))
-    p.append(text(180, 410, "SLIDE 22", 18, 800, C["blue"], spacing=2.0))
-    p.append(text(180, 500, "박세현 자료 삽입 예정", 54, 800, C["text"]))
-    p.append(text(180, 565, "현재 내용은 자리표시자이며 최종 발표 전 교체 대상입니다.", 24, 500, C["body"]))
-    p.append(line(180, 630, 1740, 630, C["border"], 2))
-    p.append(text(180, 700, "권장 포함 항목", 18, 800, C["blue"], spacing=1.2))
-    p.append(text(420, 700, "학습 목적  /  데이터 조건  /  평가 결과  /  실제 배포 형태", 24, 700, C["navy"]))
-    p.append(text(180, 790, "※ 슬라이드 번호와 발표자 전환 흐름을 유지하기 위해 빈 자리를 남깁니다.", 18, 600, C["muted"]))
+    p = svg_base(22, "SEHYEON SLIDE", "박세현", "박세현")
+    slide_title(p, "CONTENT HANDOFF", "박세현 작성 예정", "세현님이 정리한 최종 파인튜닝 자료로 교체할 슬라이드입니다.", size=48)
+    p.append(panel(90,300,1740,600,fill=C["panel"],stroke=C["blue"],rx=30,shadow=True))
+    p.append(panel(130,340,610,520,fill=C["navy"],stroke="#31477A",rx=28,shadow=False))
+    p.append(text(175,400,"SLIDE 22",17,800,C["cyan"],spacing=1.7))
+    p.append(text(175,495,"박세현",64,800,"#FFFFFF"))
+    p.append(text(175,560,"작성 영역",42,800,C["cyan"]))
+    p.append(text(175,625,"최종 자료 수신 후 이 페이지를",20,500,"#BFCBE5"))
+    p.append(text(175,660,"동일 디자인 규칙으로 교체합니다.",20,500,"#BFCBE5"))
+    p.append(pill(175,750,260,44,"CONTENT PENDING","#243866",C["lime"],size=16))
+    p.append(text(790,380,"권장 구성",17,800,C["blue"],spacing=1.4))
+    items=[("01","학습 목적","왜 파인튜닝했는지"),("02","데이터 조건","학습·평가 표본과 방식"),("03","평가 결과","비교 가능한 핵심 수치"),("04","배포 형태","실제 적용 모델과 제약")]
+    for i,(no,head,desc) in enumerate(items):
+        x=790+(i%2)*480;y=430+(i//2)*190
+        p.append(panel(x,y,430,150,fill="#F8FAFD",stroke=C["border"],rx=22,shadow=False))
+        p.append(number_badge(x+25,y+25,no,C["blue"] if i%2==0 else C["cyan"]))
+        p.append(text(x+25,y+88,head,23,800,C["text"]))
+        p.append(text(x+25,y+123,desc,16,500,C["body"]))
+    p.append(text(960,955,"슬라이드 번호와 발표 흐름은 유지하고, 내용만 세현님 최종본으로 교체",17,700,C["muted"],anchor="middle"))
     return finish(p)
 
 
@@ -531,60 +634,99 @@ def slide23():
     p = svg_base(23, "STRUCTURED EXTRACTION", "박세현", "김보현 · 최재정 · 박세현")
     slide_title(p, "THREE SAFETY STRATEGIES", "결정·일정·액션아이템은 같은 방식으로 뽑지 않습니다", "정보 유형에 맞는 후보 생성과 검증을 거친 뒤 모두 PENDING으로 저장합니다.", size=43)
     cards=[
-        ("01","결정사항",("구간별 모델 추출", "원문 유사도·중복 제거", "DECIDED / PENDING / REVERSED"),C["blue"],"document"),
-        ("02","일정",("Python 날짜 탐지", "모델은 후보 역할만 라벨링", "기간·마감·회의·마일스톤"),C["cyan"],"structure"),
-        ("03","액션아이템",("규칙 기반 의무 후보", "모델은 후보 ID 중 선택", "계약·변경계약 범위"),C["lime"],"tasks"),
+        ("01","결정사항",("INPUT","문서 구간"),("PROCESS","모델 추출 + 원문 유사도"),("OUTPUT","DECIDED / PENDING / REVERSED"),C["blue"],"document"),
+        ("02","일정",("INPUT","Python 날짜 후보"),("PROCESS","모델은 후보 역할만 라벨링"),("OUTPUT","기간 / 마감 / 회의 / 마일스톤"),C["cyan"],"structure"),
+        ("03","액션아이템",("INPUT","규칙 기반 의무 후보"),("PROCESS","모델은 후보 ID 중 선택"),("OUTPUT","계약·변경계약 범위"),C["lime"],"tasks"),
     ]
-    xs=[100,680,1260]
-    for i,(no,h,b,accent,kind) in enumerate(cards):
-        card_title(p,xs[i],330,no,h,accent,width=500,height=420,body_lines=b,icon_kind=kind,dark=(i==2))
-    p.append(arrow(600,540,660,540,"#A8B8D7",3));p.append(arrow(1180,540,1240,540,"#A8B8D7",3))
-    p.append(panel(100,815,1660,105,fill=C["navy"],stroke="#31477A",rx=24,shadow=True))
-    p.append(text(145,878,"공통 저장 경계",18,800,C["cyan"]));p.append(text(350,878,"Analysis 이력 + 검토 테이블 PENDING → 사람 승인 후 후속 기능에 반영",22,800,"#FFFFFF"))
+    xs=[80,660,1240]
+    for i,(no,head,input_row,process_row,output_row,accent,kind) in enumerate(cards):
+        dark=i==2
+        fill=C["navy"] if dark else C["panel"]
+        p.append(panel(xs[i],305,520,545,fill=fill,stroke=accent,rx=30,shadow=True))
+        p.append(number_badge(xs[i]+30,335,no,accent,dark=dark))
+        p.append(circle(xs[i]+440,375,38,"#24345F" if dark else C["soft"],stroke=accent,sw=2))
+        p.append(icon(kind,xs[i]+440,375,34,accent,3))
+        p.append(text(xs[i]+30,430,head,31,800,"#FFFFFF" if dark else C["text"]))
+        for j,(label,value) in enumerate((input_row,process_row,output_row)):
+            y=490+j*112
+            p.append(text(xs[i]+30,y,label,13,800,accent,spacing=1.2))
+            p.append(text(xs[i]+30,y+39,value,17,600,"#FFFFFF" if dark else C["body"]))
+            if j<2:p.append(line(xs[i]+30,y+69,xs[i]+490,y+69,"#354B7E" if dark else C["border"],2))
+        p.append(pill(xs[i]+30,795,175,38,"SAVE AS PENDING","#243866" if dark else C["soft_blue"],C["lime"] if dark else accent,size=13))
+        if i<2:p.append(arrow(xs[i]+530,575,xs[i+1]-10,575,"#A8B8D7",3))
+    p.append(panel(80,890,1680,75,fill=C["navy"],stroke="#31477A",rx=20,shadow=False))
+    p.append(text(120,936,"COMMON REVIEW STORE",15,800,C["cyan"],spacing=1.2))
+    p.append(text(390,936,"Analysis 이력",19,700,"#FFFFFF"));p.append(arrow(565,927,690,927,"#6078AA",3))
+    p.append(text(735,936,"검토 테이블 PENDING",19,700,"#FFFFFF"));p.append(arrow(990,927,1115,927,"#6078AA",3))
+    p.append(text(1160,936,"사람 승인 후 후속 기능 반영",19,700,"#FFFFFF"))
     return finish(p)
 
 
 def slide24():
     p = svg_base(24, "LONG DOCUMENT FIX", "박세현", "박세현")
     slide_title(p, "INVISIBLE CHARACTER", "보이지 않는 제어문자 516개가 근거 대조를 깨뜨렸습니다", "사람 눈에는 같은 문장이지만 모델 인용과 원문 문자열 비교는 실패했습니다.", size=42)
-    # before after
-    p.append(panel(90,315,790,315,fill="#FFF3F3",stroke="#E9A2A2",rx=28,shadow=True))
-    p.append(text(135,370,"BEFORE",18,800,"#B34C4C",spacing=1.3))
-    p.append(text(135,435,"…계약에 관한 법률」  \\x01  제5조의2…",26,700,C["text"]))
-    p.append(text(135,500,"모델 인용에는 \\x01이 없음",20,600,C["body"]))
-    p.append(text(135,550,"→ quote not in source",22,800,"#B34C4C"))
-    p.append(panel(1040,315,790,315,fill="#F0FAF4",stroke="#86C99B",rx=28,shadow=True))
-    p.append(text(1085,370,"AFTER",18,800,"#298451",spacing=1.3))
-    p.append(text(1085,435,"…계약에 관한 법률」      제5조의2…",26,700,C["text"]))
-    p.append(text(1085,500,"같은 길이의 공백으로 치환",20,600,C["body"]))
-    p.append(text(1085,550,"→ 원문 span 복원",22,800,"#298451"))
-    p.append(arrow(900,472,1020,472,C["blue"],5))
-    fixes=[("01","추출 경계 정리","C0·DEL → 한 글자 공백","오프셋·char_count 유지",C["blue"]),("02","근거 대조 개선","공백·제어문자 차이 허용","틀린 인용만 제거",C["cyan"])]
-    for i,(no,h,b1,b2,accent) in enumerate(fixes):
-        x=160+i*880
-        p.append(panel(x,710,720,190,fill=C["panel"],stroke=accent,rx=26,shadow=True))
-        p.append(number_badge(x+30,740,no,accent));p.append(text(x+120,770,h,25,800,C["text"]));p.append(text(x+30,825,b1,19,600,C["body"]));p.append(text(x+30,865,b2,19,600,C["body"]))
+    # 진단 수치 헤더
+    metrics=[("516","C0·DEL 탐지"),("1:1","문자 길이 보존"),("SPAN","원문 좌표 복원")]
+    for i,(value,label) in enumerate(metrics):
+        x=90+i*430
+        p.append(panel(x,285,390,105,fill=C["panel"],stroke=[C["blue"],C["cyan"],C["lime"]][i],rx=20,shadow=True))
+        p.append(text(x+25,340,value,34,800,[C["blue"],C["cyan"],"#87A800"][i]))
+        p.append(text(x+130,340,label,17,700,C["text"]))
+    p.append(panel(1400,285,430,105,fill=C["navy"],stroke="#31477A",rx=20,shadow=True))
+    p.append(text(1430,327,"ERROR SIGNATURE",13,800,C["cyan"],spacing=1.2))
+    p.append(text(1430,365,"quote_not_in_source",22,800,"#FFFFFF"))
+    # 전후 코드 비교
+    p.append(panel(90,430,800,255,fill="#FFF3F3",stroke="#E9A2A2",rx=26,shadow=True))
+    p.append(text(130,478,"BEFORE · RAW TEXT",15,800,"#B34C4C",spacing=1.2))
+    p.append(panel(130,505,720,72,fill="#2A1D2A",stroke="#5A364F",rx=14,shadow=False))
+    p.append(text(160,550,"…계약에 관한 법률」  \\x01  제5조의2…",23,700,"#FFFFFF"))
+    p.append(text(130,625,"모델 인용에는 \\x01이 없어 문자열 대조 실패",18,700,"#B34C4C"))
+    p.append(panel(1030,430,800,255,fill="#F0FAF4",stroke="#86C99B",rx=26,shadow=True))
+    p.append(text(1070,478,"AFTER · SANITIZED TEXT",15,800,"#298451",spacing=1.2))
+    p.append(panel(1070,505,720,72,fill="#163129",stroke="#2D6B54",rx=14,shadow=False))
+    p.append(text(1100,550,"…계약에 관한 법률」      제5조의2…",23,700,"#FFFFFF"))
+    p.append(text(1070,625,"같은 길이의 공백으로 치환해 원문 span 복원",18,700,"#298451"))
+    p.append(arrow(910,555,1010,555,C["blue"],5))
+    fixes=[("01","추출 경계 정리","C0·DEL → 한 글자 공백","offset · char_count 유지",C["blue"]),("02","근거 대조 개선","공백·제어문자 차이 허용","틀린 인용만 제거",C["cyan"])]
+    for i,(no,head,b1,b2,accent) in enumerate(fixes):
+        x=90+i*870
+        p.append(panel(x,735,800,175,fill=C["panel"],stroke=accent,rx=24,shadow=True))
+        p.append(number_badge(x+30,765,no,accent));p.append(text(x+125,795,head,24,800,C["text"]))
+        p.append(text(x+30,850,b1,18,600,C["body"]));p.append(text(x+420,850,b2,18,600,C["body"]))
     p.append(text(960,962,"PR #89 · d47502e  |  탭·줄바꿈·캐리지리턴은 문단 구조를 위해 보존",17,700,C["muted"],anchor="middle"))
     return finish(p)
 
 
 def slide25():
-    p = svg_base(25, "VALIDATION STATUS", "박세현", "팀")
-    slide_title(p, "EVIDENCE, NOT CLAIMS", "확인된 근거와 아직 증명되지 않은 결과를 구분했습니다", "테스트 파일 수·계획 절차 수를 최신 전체 PASS로 바꾸어 말하지 않습니다.", size=43)
-    p.append(panel(90,310,820,580,fill="#F0FAF4",stroke="#82C999",rx=30,shadow=True))
-    p.append(text(135,370,"확인됨",28,800,"#288351"))
-    confirmed=[("97건","기능명세 xlsx ↔ md 일치"),("48개","backend pytest 파일"),("회귀시험","OCR·재조립·제어문자·근거 계약"),("395 passed","2026-08-26의 과거 저장 기준")]
-    for i,(v,d) in enumerate(confirmed):
-        y=440+i*105
-        p.append(text(140,y,v,31,800,"#288351"));p.append(text(350,y,d,20,600,C["text"]))
-    p.append(panel(1010,310,820,580,fill="#FFF6ED",stroke="#E6B476",rx=30,shadow=True))
-    p.append(text(1055,370,"아직 증명되지 않음",28,800,"#B66B1E"))
-    pending=[("최신 전체 PASS","origin/main 전체 실행 기록 없음"),("CI","GitHub Actions 실행 0건"),("79 + 70 절차","단위·통합 수치는 계획 절차"),("실문서 성공","수정 후 저장된 실문서 결과 없음")]
-    for i,(v,d) in enumerate(pending):
-        y=440+i*105
-        p.append(text(1060,y,v,25,800,"#B66B1E"));p.append(text(1320,y,d,18,600,C["text"]))
+    p = svg_base(25, "검증 상태", "박세현", "팀")
+    slide_title(p, "확인한 사실만 표시", "확인된 근거와 아직 확인하지 못한 결과를 나눴습니다", "파일 수나 계획된 절차를 테스트 통과 결과처럼 말하지 않습니다.", size=43)
+    # 상단에는 현재 저장소에서 직접 다시 확인한 값만 쓴다.
+    metrics=[("97","기능 목록 검사","엑셀·관리 문서 일치",C["blue"]),("48","서버 테스트 파일","파일 존재만 확인",C["cyan"]),("0","자동 테스트 기록","GitHub 실행 이력",C["lime"])]
+    for i,(value,head,desc,accent) in enumerate(metrics):
+        x=90+i*430
+        p.append(panel(x,300,390,120,fill=C["panel"],stroke=accent,rx=22,shadow=True))
+        p.append(text(x+25,370,value,48,800,accent if i<2 else "#87A800"))
+        p.append(text(x+130,350,head,18,800,C["text"]));p.append(text(x+130,382,desc,15,500,C["body"]))
+    p.append(panel(1380,300,450,120,fill=C["navy"],stroke="#31477A",rx=22,shadow=True))
+    p.append(text(1415,344,"삭제한 주장",13,800,C["cyan"],spacing=1.2))
+    p.append(text(1415,384,"근거 로그 없음 · 발표에서 제외",21,800,"#FFFFFF"))
+    # 근거 매트릭스
+    p.append(panel(90,465,820,420,fill="#F0FAF4",stroke="#82C999",rx=28,shadow=True))
+    p.append(text(130,520,"지금 확인됨",26,800,"#288351"));p.append(text(865,520,"확인 방법",13,800,"#5D8A6A",anchor="end",spacing=1.0))
+    confirmed=[("기능 목록 97건 일치","동기화 검사 실행"),("서버 테스트 파일 48개","저장소 파일 수 확인"),("글자 인식·본문 재조립","오류 방지 테스트 코드 존재"),("자동 테스트 실행 0건","GitHub 실행 이력 확인")]
+    for i,(v,src) in enumerate(confirmed):
+        y=565+i*72
+        p.append(panel(125,y,750,54,fill="#FAFEFB",stroke="#CDE8D5",rx=12,shadow=False))
+        p.append(circle(150,y+27,7,"#41A66A"));p.append(text(175,y+34,v,18,700,C["text"]));p.append(text(845,y+34,src,14,600,C["muted"],anchor="end"))
+    p.append(panel(1010,465,820,420,fill="#FFF6ED",stroke="#E6B476",rx=28,shadow=True))
+    p.append(text(1050,520,"아직 확인하지 못함",26,800,"#B66B1E"));p.append(text(1785,520,"이유",13,800,"#A97945",anchor="end",spacing=1.0))
+    pending=[("최신 코드 전체 테스트","저장된 실행 결과 없음"),("자동 테스트 통과","실행 기록 자체가 없음"),("계획된 149개 절차","실행 전 계획 문서임"),("수정 후 실제 문서 처리","저장된 결과 없음")]
+    for i,(v,reason) in enumerate(pending):
+        y=565+i*72
+        p.append(panel(1045,y,750,54,fill="#FFFBF7",stroke="#EFD6B9",rx=12,shadow=False))
+        p.append(circle(1070,y+27,7,"#D08A3C"));p.append(text(1095,y+34,v,18,700,C["text"]));p.append(text(1765,y+34,reason,14,600,C["muted"],anchor="end"))
     p.append(panel(90,925,1740,58,fill=C["navy"],stroke=C["navy"],rx=17,shadow=False))
-    p.append(text(960,963,"발표 원칙  ·  실행 기록이 없으면 ‘테스트 존재’까지만 말한다",20,800,"#FFFFFF",anchor="middle"))
+    p.append(text(960,963,"발표 원칙  ·  실행 결과가 없으면 ‘테스트 코드가 있다’까지만 말합니다",20,800,"#FFFFFF",anchor="middle"))
     return finish(p)
 
 
@@ -658,6 +800,509 @@ def slide29():
     return finish(p)
 
 
+def apply_content_review(slide_no: int, content: str) -> str:
+    """비주얼 배치는 유지하고, 발표 문구와 수치 근거만 검수한 최종 표현으로 바꾼다."""
+    common = {
+        "PRESENTER  ": "발표  ",
+        "OWNER  ": "담당  ",
+    }
+    reviewed = {
+        1: {
+            "FINAL PROJECT": "최종 발표",
+            "FINAL PROJECT PRESENTATION": "최종 프로젝트 발표",
+            "AI 기반 프로젝트 문서 분석·검색·업무 연결 플랫폼": "인공지능이 문서를 분석하고 근거를 찾아 업무로 연결하는 서비스",
+            "DOCUMENT  →  EVIDENCE  →  ACTION": "문서  →  근거 확인  →  업무 실행",
+            "DOCUMENT  ·  EVIDENCE  ·  ACTION": "문서  ·  근거 확인  ·  업무 실행",
+        },
+        2: {
+            "PROBLEM": "문제",
+            "WHY TASQRA": "왜 TASQRA인가",
+            "INFORMATION GAP": "정보와 실행의 단절",
+        },
+        3: {
+            "SERVICE GOAL": "서비스 목표",
+            "HUMAN IN THE LOOP": "인공지능 제안 · 사람 확인",
+            "AI가 제안하고,": "인공지능이 제안하고,",
+            "구조화한다": "항목별로 정리한다",
+        },
+        4: {
+            "TEAM": "팀 구성",
+            "ONE PRODUCT · THREE EXPERTISE": "하나의 제품 · 세 가지 전문 영역",
+            "SEARCH &amp; PRODUCT INTELLIGENCE": "검색과 정보 활용",
+            "OCR &amp; LLM INTELLIGENCE": "글자 인식과 인공지능 분석",
+            "CORE PLATFORM &amp; WORKFLOW": "기본 플랫폼과 업무 흐름",
+            "검색·RAG 품질 개선": "문서 근거 검색 품질 개선",
+            "근거 기반 QA와 금액 검토": "근거를 보여주는 질의응답과 금액 검토",
+            "OCR·텍스트 복원": "스캔 문서 글자 인식과 본문 복원",
+            "로컬 LLM 비교·태스크별 LoRA 학습": "내부 언어 모델 비교·업무별 추가 학습",
+            "구조화 추출·긴 문서 안정화": "정보 항목 추출·긴 문서 오류 개선",
+            "워크스페이스·태스크 업무 흐름": "프로젝트 공간·태스크 업무 흐름",
+        },
+        5: {
+            "USER FLOW": "사용 흐름",
+            "END-TO-END WORKFLOW": "문서부터 업무 반영까지",
+            "OCR·텍스트 정제": "문서 글자 읽기·본문 정리",
+            "AI 분석·검색 색인": "인공지능 분석·검색 준비",
+            "검색 색인을 만듭니다.": "검색할 수 있게 준비합니다.",
+            "ACTION ITEM  ·  단건 검토 흐름": "후속 조치 후보  ·  한 건씩 검토",
+            "액션아이템 추출": "후속 조치 찾기",
+            "액션 태스크 후보": "태스크 후보 저장",
+            "FINAL OUTPUTS": "최종 산출물",
+        },
+        6: {
+            "ARCHITECTURE": "서비스 구조",
+            "SYSTEM MAP": "서비스 구성",
+            "전체 시스템 아키텍처": "서비스가 움직이는 전체 구조",
+            "동기 API와 비동기 Worker가 PostgreSQL·공유 파일을 중심으로 연결됩니다.": "화면 요청은 서버가 바로 처리하고, 오래 걸리는 작업은 별도 프로그램이 처리합니다.",
+            "DOCKER COMPOSE · SHARED RUNTIME": "함께 실행되는 개발 환경",
+            "CLIENT": "사용자 화면",
+            "React / Vite": "웹 화면 (React)",
+            "Browser UI": "브라우저 화면",
+            "HTTP CLIENT": "서버 요청",
+            "Axios REST": "HTTP 통신",
+            "APPLICATION API": "요청을 받는 서버",
+            "ROUTER": "요청 연결",
+            "FastAPI endpoints": "FastAPI 요청 처리",
+            "권한·요청 검증": "권한과 입력 확인",
+            "SERVICE": "업무 처리",
+            "상태 전이·오케스트레이션": "업무 순서와 상태 변경",
+            "REPOSITORY": "데이터 저장",
+            "SQLAlchemy": "데이터베이스 연결",
+            "트랜잭션·영속화": "안전하게 묶어서 저장",
+            "SYNC REQUEST PATH": "바로 처리하는 요청",
+            "ASYNC EXECUTION": "오래 걸리는 작업",
+            "Redis Queue": "작업 대기열 (Redis)",
+            "broker · result": "작업 전달 · 결과 보관",
+            "Celery Worker": "작업 프로그램 (Celery)",
+            "late ack · retry": "실패하면 다시 실행",
+            "SHARED INFRASTRUCTURE": "함께 쓰는 저장 공간",
+            "PostgreSQL": "데이터베이스",
+            "업무 데이터": "프로젝트 정보",
+            "pgvector 1024D": "의미 검색 정보",
+            "uploads": "문서 파일",
+            "공유 로컬 파일": "함께 쓰는 파일",
+            "Local AI": "내부 인공지능",
+            "OpenAI 호환": "같은 요청 형식",
+            ">REST<": ">요청<",
+            ">enqueue<": ">작업 등록<",
+            ">read / write<": ">읽기 / 저장<",
+            "현재 개발 구성  ·  API와 Worker가 PostgreSQL · uploads · 모델 캐시를 공유  ·  S3/Kubernetes/오토스케일링 미포함": "현재 개발 환경의 구성입니다. 클라우드 저장소와 자동 확장은 아직 포함하지 않았습니다.",
+        },
+        7: {
+            "DATA MODEL": "데이터 구조",
+            "RELATIONAL CORE": "데이터 연결 관계",
+            "핵심 데이터 구조": "데이터가 서로 연결되는 방식",
+            "Project와 Document를 중심으로 검색·분석·업무 데이터가 외래키로 연결됩니다.": "한 프로젝트에 여러 문서와 태스크가 연결되고, 각 문서에는 본문 조각과 분석 결과가 연결됩니다.",
+            "1:N members": "여러 구성원",
+            "1:N documents": "여러 문서",
+            "1:N chunks / analyses": "여러 조각 · 분석",
+            "1:N tasks / reviews": "여러 태스크 · 검토",
+            "USER · MEMBER": "사용자 · 구성원",
+            "PROJECT": "프로젝트",
+            "DOCUMENT": "문서",
+            "CHUNK · ANALYSIS": "문서 조각 · 분석 결과",
+            "TASK · REVIEW": "태스크 · 검토",
+            "OWNER · EDITOR · VIEWER": "관리자 · 편집자 · 조회자",
+            "권한 · 문서 · 태스크의 루트": "권한 · 문서 · 태스크의 기준",
+            "원문 경로와 메타데이터": "원문 파일과 문서 정보",
+            "추출본문 · OCR · 분석 이력": "추출 본문 · 글자 검수 · 분석 기록",
+            "본문 구간과 1024D 벡터": "본문 구간과 의미 검색 정보",
+            "모델 · 버전 · 원문 좌표": "분석 모델 · 문서 버전 · 원문 위치",
+            "결정 · 일정 · 액션 · 금액": "결정 · 일정 · 후속 조치 · 금액",
+            ">PK<": ">기준<",
+            ">FK<": ">연결<",
+            "FILE STORAGE": "파일 저장",
+            "DB BLOB이 아니라 공유 로컬 경로": "파일은 공용 폴더에 저장",
+            "DOCUMENT TEXT": "추출한 본문",
+            "Document 1:1 ExtractedText": "문서마다 추출 본문 1개 저장",
+        },
+        8: {
+            "STATE DESIGN": "상태 관리",
+            "SEPARATE LIFECYCLES": "작업별 상태 분리",
+            "상태를 분리한 운영 설계": "작업별 진행 상태를 따로 관리합니다",
+            "문서 추출·OCR 검수·LLM 분석을 하나의 상태로 섞지 않았습니다.": "문서 읽기·글자 검수·인공지능 분석의 진행 상태를 따로 저장합니다.",
+            "DOCUMENT EXTRACTION": "문서 읽기",
+            "OCR REVIEW": "글자 인식 검수",
+            "OCR 검수": "글자 인식 검수",
+            "ANALYSIS JOB": "인공지능 분석",
+            "LLM 분석": "인공지능 분석",
+            "PENDING": "대기",
+            "EXTRACTING": "읽는 중",
+            "EXTRACTED": "읽기 완료",
+            "FAILED → 대기 재시도": "실패하면 다시 대기",
+            "IN_PROGRESS": "검수 중",
+            "COMPLETED": "완료",
+            "대상 없음 → NOT_REQUIRED": "검수할 내용이 없으면 완료",
+            "RUNNING": "분석 중",
+            "완료 / PARTIAL / FAILED": "완료 / 일부 완료 / 실패",
+            "text_version + 원문 revision 검증": "분석 전후에 원문이 같은지 확인",
+            "STATE OWNER": "상태 저장 위치",
+            "Document": "문서",
+            "OCR Review": "글자 검수",
+            "AnalysisJob": "분석 작업",
+            "한 작업의 실패가 다른 수명주기의 성공 상태를 되돌리지 않습니다.": "한 작업이 실패해도 이미 끝난 다른 작업의 상태는 유지됩니다.",
+            "NO SHARED STATUS FLAG": "상태를 하나로 묶지 않음",
+        },
+        9: {
+            "RAG": "근거 검색",
+            "근거 검색 색인과 검색": "문서를 나누고, 뜻이 비슷한 근거를 찾습니다",
+            "INDEX → RETRIEVE": "검색 준비 → 근거 찾기",
+            "RAG 색인과 검색": "문서를 검색할 수 있게 준비하고 근거를 찾는 과정",
+            "문서 구조와 원문 위치를 보존한 청크에서 근거를 찾습니다.": "문서를 읽기 좋은 단위로 나누고, 문서명·페이지·원문 위치와 함께 결과를 보여줍니다.",
+            "확정 본문": "검토가 끝난 본문",
+            "OCR 검수 결과": "글자 검수 결과",
+            "text_version": "본문 버전",
+            "구조 청킹": "문단별로 나누기",
+            "최대 480토큰": "최대 480개 단위",
+            "앞 문맥 48토큰": "앞 내용 48개 겹침",
+            "임베딩": "문장의 뜻을 숫자로 바꾸기",
+            "1024차원": "의미 검색용 숫자",
+            "pgvector": "비슷한 뜻 찾기",
+            "HNSW 코사인": "뜻이 가까운 순서",
+            "ef_search 100": "검색 범위 설정 100",
+            "페이지·문서명": "문서명 · 페이지",
+            "원문 좌표": "원문 위치",
+            "질의를 별도 임베딩 → 권한 있는 프로젝트 범위 → 같은 embedding_model의 가까운 청크 조회": "질문을 같은 방식으로 바꾼 뒤, 권한이 있는 프로젝트 안에서 뜻이 가까운 문서 조각을 찾습니다.",
+            "HNSW는 근사검색이며, 모델 변경 시 기존 청크는 재임베딩이 필요합니다.": "검색 모델을 바꾸면 기존 문서도 새 모델에 맞게 다시 준비해야 합니다.",
+            "실모델 설정 조건": "현재 코드 설정",
+        },
+        10: {
+            "HYBRID SEARCH": "두 검색 함께 사용",
+            "ONE SEARCH BOX": "검색창 하나",
+            "하이브리드 검색": "글자가 같은 결과와 뜻이 비슷한 결과를 함께 찾습니다",
+            "서로 다른 점수를 더하지 않고, 두 검색의 순위를 RRF로 결합합니다.": "각 검색에서 앞에 나온 결과에 점수를 주어 최종 순서를 정합니다.",
+            "ILIKE로 연속 문자열 포함 보장": "입력한 글자가 이어진 문장 찾기",
+            "word_similarity로 내부 순위": "글자가 더 비슷한 순서로 정렬",
+            "숫자·코드·정확 표현에 강점": "숫자·코드·정확한 표현을 잘 찾음",
+            "질의·청크 임베딩": "질문과 문장의 뜻 비교",
+            "pgvector 코사인 거리": "뜻이 가까운 순서로 정렬",
+            "표현이 달라도 문맥 탐색": "표현이 달라도 뜻이 비슷하면 찾음",
+            "RRF": "순위 합산",
+            "Σ 1 / (60 + 순위)": "앞에 나온 결과에 더 높은 점수",
+            "후보 폭": "비교 범위",
+            "두 검색에서 각각 기본 30개": "두 검색에서 상위 30개씩 비교",
+            "단일 UX": "사용 방법",
+            "사용자는 검색 방식을 고르지 않음": "사용자는 검색창 하나만 사용",
+            "전문 검색엔진·점수 정규화·가중합 아님": "별도 검색엔진이나 점수 비율 조정은 아직 없음",
+        },
+        11: {
+            "SEARCH SCALE": "검색 규모 실험",
+            "MEASURED LIMIT": "실제 실험 결과",
+            "검색 범위가 커질수록 첫 정답 순위가 무너졌습니다": "검색 대상이 많아지자 첫 번째 결과의 정답률이 떨어졌습니다",
+            "동일 모델·동일 평가셋에서 후보 청크 수만 바꾼 결과입니다.": "같은 모델과 질문 214개를 사용하고, 비교할 문서 조각 수만 바꾼 결과입니다.",
+            "후보 청크 수": "비교한 문서 조각 수",
+            "R@1": "첫 결과",
+            "R@5": "상위 5개",
+            "후보 30 · 첫 결과": "문서 조각 30개 비교",
+            "전체 1,339 · 첫 결과": "문서 조각 1,339개 비교",
+            "BGE-m3-ko · 질의 214": "모델 BGE-m3-ko · 질문 214개",
+            "문서 30 · 정답 1청크/질의": "문서 30개 · 질문마다 정답 1개",
+            "R@k = 상위 k 안에 정답 포함": "비율 = 정답이 표시 범위 안에 있는 질문 수",
+            "※ 후보 30의 90.2%는 제품 문서 수 제한 정책이 아니라 검색 후보 범위 실험값입니다.": "※ 2026-08-20 최종 학습 기록값입니다. 문서 수 제한 정책이 아니라 검색 범위 실험입니다.",
+        },
+        12: {
+            "RERANKER": "검색 결과 재정렬",
+            "CANDIDATE REORDERING": "실제 실험 결과",
+            "학습 리랭커는 후보 안에서 첫 정답을 끌어올렸습니다": "재정렬 모델을 학습해 정답을 더 앞에 배치했습니다",
+            "동일 조건의 R@1 비교이며, 후보에 없는 정답은 복구할 수 없습니다.": "이미 찾은 후보의 순서만 바꾸므로, 후보에 없는 정답은 새로 찾을 수 없습니다.",
+            "임베딩 단독": "처음 검색 결과",
+            "BGE 학습 전": "재정렬 학습 전",
+            "BGE 학습 후": "재정렬 학습 후",
+            ">R@1<": ">첫 결과 정답률<",
+            "학습 전 → 후 R@1": "학습 전 → 후 개선",
+            "적용 경로": "처리 순서",
+            "벡터·키워드 후보": "뜻·글자 검색 후보",
+            "→ RRF 융합": "→ 두 검색 순위 합치기",
+            "→ 상위 후보 전문 재정렬": "→ 본문을 다시 읽어 최종 순서 정하기",
+            "실행 조건": "사용 조건",
+            "기본 비활성 · GPU 권장 · 실패 시 원래 순서": "기본은 꺼짐 · 그래픽 장치 권장 · 오류 시 기존 순서 사용",
+            "R@5  72.43% → 71.50% → 80.84%   ·   학습 후 MRR@10 0.6235   ·   측정 지연 0.192초": "상위 5개 정답 포함률  72.43% → 71.50% → 80.84%   ·   한 번 처리 0.192초",
+        },
+        13: {
+            "GROUNDED QA": "근거가 있는 질의응답",
+            "EVIDENCE CONTRACT": "근거 사용 규칙",
+            "답변보다 먼저 근거의 경계를 설계했습니다": "답변을 만들기 전에 근거 사용 규칙부터 정했습니다",
+            "검색 결과를 토큰 예산 안에 조립하고, 모델이 반환한 근거 ID를 서버가 검증합니다.": "검색한 원문을 정리해 모델에 주고, 답변이 가리킨 근거 번호를 서버가 다시 확인합니다.",
+            "하이브리드 검색": "글자·의미 검색",
+            "최대 24개 후보": "최대 24개 문서 조각",
+            "전문 재조회": "원문 다시 읽기",
+            "짧은 snippet이 아닌": "짧은 미리보기가 아닌",
+            "청크 원문 사용": "문서 조각 원문 사용",
+            "컨텍스트 조립": "모델이 읽을 자료 구성",
+            "최대 8개 · 4,000토큰": "최대 8개 · 4,000개 단위",
+            "LLM JSON": "답변과 근거 번호",
+            "answer · answerable": "답변 · 답변 가능 여부",
+            "evidence_ids": "사용한 근거 번호",
+            "ID 존재·범위·중복": "근거 번호·권한·중복",
+            "원문 메타데이터 매핑": "문서명·페이지 연결",
+            "근거가 없으면 LLM을 호출하지 않고 고정 응답을 반환합니다.": "근거가 없으면 인공지능을 호출하지 않고 정해진 안내를 보여줍니다.",
+            "의미적 사실 검증 아님": "답변 내용 자체를 검증하는 것은 아님",
+            "서버 검증 범위는 근거 ID 계약과 권한입니다.": "서버는 근거 번호가 실제로 있고 사용 권한이 있는지만 확인합니다.",
+        },
+        14: {
+            "HUMAN REVIEW": "사람 검토",
+            "APPROVAL BOUNDARY": "업무 반영 전 확인",
+            "AI 제안과 실제 업무 사이에 사람 검토를 둡니다": "인공지능 제안은 사람이 확인한 뒤 업무에 반영합니다",
+            "자동 반영이 아니라 PENDING 제안을 승인 가능한 상태로 저장합니다.": "자동 반영하지 않고, 모든 제안을 검토 대기 상태로 저장합니다.",
+            "SUGGESTION QUEUE": "검토할 제안 목록",
+            "PENDING": "검토 대기",
+            "DECISION": "결정",
+            "SCHEDULE": "일정",
+            "AMOUNT": "금액",
+            "ACTION": "후속 조치",
+            "액션 태스크 후보": "태스크 후보",
+            ">review<": ">사람 확인<",
+            "APPROVED": "승인",
+            "EDITED": "수정 승인",
+            "REJECTED": "거절",
+            "STATUS TRANSITION + AUDIT": "상태 변경과 변경 이력 저장",
+            ">consume<": ">업무 반영<",
+            "APPROVED CONSUMERS": "승인 정보를 쓰는 기능",
+            "승인 CONSUMERS": "승인 정보를 쓰는 기능",
+            "TASK": "태스크",
+            "DASHBOARD": "대시보드",
+            "DELIVERABLE": "산출물",
+            "QA": "질의응답",
+            "근거 질의응답": "근거 질의응답",
+            "승인 / 수정 승인": "승인 또는 수정 승인",
+            "FILTER CONTRACT": "반영 기준",
+            "검토 대기 / 거절 제외": "검토 대기와 거절은 제외",
+        },
+        15: {
+            "ACTION TO TASK": "후속 조치 → 태스크",
+            "CONTROLLED AUTOMATION": "사람이 승인하는 자동화",
+            "액션아이템은 승인 전까지 태스크가 아닙니다": "후속 조치 후보는 사람이 승인해야 태스크가 됩니다",
+            "계약·변경계약 문서의 후보를 단건 검토한 뒤 실제 Task를 생성합니다.": "계약 문서에서 찾은 후보를 한 건씩 확인한 뒤 실제 태스크를 만듭니다.",
+            "규칙 후보": "의무 문장 찾기",
+            "PENDING 저장": "검토 대기로 저장",
+            "모델 선택": "인공지능이 후보 선택",
+            "후보 ID 중 선택": "찾아둔 후보 안에서 선택",
+            "일반 규정 제외": "단순 안내 문장은 제외",
+            "대기 저장": "검토 대기로 저장",
+            "task_suggestions": "태스크 후보 목록",
+            "단건 승인·거절": "한 건씩 승인·거절",
+            "승인 시 실제 Task": "승인하면 태스크 생성",
+            "origin=AI_APPROVED": "인공지능 제안에서 생성됨",
+            "UI 범위": "현재 화면에서 할 수 있는 것",
+            "현재 화면은 승인·거절을 지원합니다. 수정 승인·승인 취소·오래된 원문 방어는 다음 개선 범위입니다.": "현재는 승인과 거절만 할 수 있습니다. 수정 후 승인, 승인 취소, 원문 변경 확인은 다음 개선 항목입니다.",
+        },
+        16: {
+            "AMOUNT SNAPSHOT": "금액 확정본",
+            "SAFE RE-ANALYSIS": "재분석 중에도 기존 결과 유지",
+            "새 분석의 검토가 끝날 때까지 직전 완료 스냅샷을 계속 사용합니다.": "새 분석을 모두 검토할 때까지 기존 확정 결과를 계속 사용합니다.",
+            "ACTIVE SNAPSHOT": "현재 사용 중인 확정본",
+            "현재 소비 중": "현재 사용 중",
+            "PENDING": "대기",
+            "APPROVED / EDITED": "승인 또는 수정 승인",
+            "review_status": "검토 상태",
+            "승인 / 수정 승인": "승인 또는 수정 승인",
+            "consumers": "사용하는 기능",
+            "Dashboard · QA · Deliverable": "대시보드 · 질의응답 · 산출물",
+            "switch_policy": "전환 기준",
+            "source": "선택 기준",
+            "latest completed analysis": "가장 최근에 검토가 끝난 결과",
+            "ACTIVE POINTER 유지": "기존 확정본 계속 사용",
+            "RE-ANALYSIS JOB": "새 분석 검토",
+            "IN REVIEW": "검토 중",
+            "COMPLETE": "검토 완료",
+            "새 Analysis": "새 분석 결과",
+            "미결 행 0": "모든 항목 검토 완료",
+            "COMPLETENESS GATE": "전환 조건",
+            "검토 완료NESS GATE": "전환 조건",
+            "추출 행 수 = 검토 완료 행 수": "추출된 모든 항목의 검토가 끝남",
+            "CONSISTENT CONSUMERS": "같은 확정본을 보는 기능들",
+            "검색 응답": "질의응답",
+            "근거 QA": "근거 질의응답",
+            "XLSX · PDF": "엑셀 · PDF",
+            "same active_snapshot_id": "모두 같은 확정본 사용",
+            "원자": "동시",
+            "gate 통과 후 pointer 교체": "모든 검토가 끝난 뒤 확정본 교체",
+            "재분석 중에도 기존 승인 데이터가 화면·QA·산출물에 계속 제공되며, 완료 순간에만 소비 기준이 한 번 바뀝니다.": "검토가 끝나는 순간 대시보드·질의응답·산출물이 새 확정본으로 함께 바뀝니다.",
+        },
+        17: {
+            "DASHBOARD · OUTPUTS": "대시보드 · 산출물",
+            "FROM APPROVED DATA": "승인 정보 활용",
+            "사람 검토를 통과한 동일 데이터를 화면과 문서가 함께 소비합니다.": "사람이 승인한 같은 정보를 화면과 문서에 함께 사용합니다.",
+            "PROJECT DASHBOARD": "프로젝트 대시보드",
+            "PENDING · EXTRACTED": "대기 · 추출 완료",
+            "DELIVERABLES": "만들 수 있는 문서",
+            "XLSX · HTML · MD · PDF": "엑셀 · 웹 문서 · 마크다운 · PDF",
+        },
+        18: {
+            "OCR EVOLUTION": "문서 글자 읽기",
+            "PARK SEHYEON SECTION": "페이지에 맞는 읽기 방법 선택",
+            "텍스트층을 버리지 않는 OCR 파이프라인": "PDF에 이미 들어 있는 글자를 살려서 읽습니다",
+            "페이지 특성에 따라 TEXT_LAYER·OCR·HYBRID를 선택하고 읽기 순서를 복원합니다.": "글자가 있으면 그대로 쓰고, 스캔 이미지는 글자를 인식하며, 둘 다 있으면 읽는 순서에 맞춰 합칩니다.",
+            "TEXT_LAYER": "기존 글자 사용",
+            "기존 텍스트 보존": "PDF의 기존 글자 보존",
+            "텍스트 블록 추출": "들어 있는 글자 읽기",
+            "불필요한 OCR 생략": "이미지 글자 인식 생략",
+            ">OCR<": ">스캔 글자 인식<",
+            "스캔 페이지 보완": "스캔 페이지의 글자 읽기",
+            "큰 이미지 + 부족한 텍스트층": "이미지가 크고 기존 글자가 부족함",
+            "전체 페이지 OCR": "페이지 전체 글자 인식",
+            "HYBRID": "두 결과 합치기",
+            "두 결과를 좌표순 결합": "두 결과를 읽는 순서로 합치기",
+            "텍스트와 이미지 OCR": "기존 글자와 이미지 글자",
+            "같은 좌표계로 정렬": "페이지 위치에 맞춰 정렬",
+            "페이지 본문 + OCR 검수 박스 + content_start/end 원문 오프셋": "페이지 본문 + 사람이 고칠 수 있는 글자 영역 + 원문에서의 시작·끝 위치",
+            "TEXT_LAYER / OCR / HYBRID": "기존 글자 / 스캔 글자 / 두 결과 합치기",
+            "기존 글자 사용 / OCR / 두 결과 합치기": "기존 글자 / 스캔 글자 / 두 결과 합치기",
+        },
+        19: {
+            "OCR REVIEW": "글자 인식 검수",
+            "TEXT INTEGRITY": "화면과 검색 본문을 함께 수정",
+            "OCR 박스를 고치면 본문과 오프셋도 함께 바뀝니다": "글자 인식 결과를 고치면 검색용 본문도 함께 고칩니다",
+            "화면의 수정과 검색 원문이 어긋나지 않도록 범위·버전·revision을 한 트랜잭션에서 갱신합니다.": "수정 범위, 본문, 뒤 문장의 위치, 문서 버전을 한 번에 바꿔 서로 어긋나지 않게 합니다.",
+            "SINGLE TRANSACTION": "한 번에 모두 처리",
+            "BEGIN  →  COMMIT": "시작  →  저장 완료",
+            "뒤 오프셋 이동": "뒤 문장 위치 조정",
+            "revision 증가": "문서 버전 올리기",
+            "수정 범위 뒤쪽의 content_start / content_end를 같은 delta만큼 이동": "수정한 글자 수만큼 뒤 문장들의 시작·끝 위치를 함께 옮깁니다.",
+            "ROLLBACK GUARD": "문제가 생기면 전체 취소",
+            "stale version": "이미 바뀐 문서",
+            "전체 롤백": "전체 변경 취소",
+            "여러 범위": "여러 곳 수정",
+            "DOWNSTREAM REFRESH": "수정 뒤 다시 준비",
+            "is_confirmed": "검수 완료 상태",
+            "청킹·임베딩 enqueue": "문서 나누기·검색 준비 다시 실행",
+            "OCR UI 수정과 검색용 원문을 하나의 무결성 경계로 관리": "화면에서 고친 내용과 검색에 쓰는 원문을 항상 같게 유지합니다",
+        },
+        20: {
+            "ASYNC SAFETY": "오래 걸리는 작업",
+            "FAILURE ISOLATION": "실패해도 안전하게 다시 처리",
+            "비동기 작업의 실패 경계를 분리했습니다": "오래 걸리는 작업은 실패해도 안전하게 다시 처리합니다",
+            "OCR·청킹은 재시도하고, LLM 분석은 원문 변경과 부분 실패를 job 상태로 통제합니다.": "문서 읽기와 나누기는 다시 시도하고, 인공지능 분석은 원문 변경과 일부 실패를 따로 기록합니다.",
+            "OCR · CHUNK": "문서 읽기 · 나누기",
+            "late ack": "작업 확인 지연",
+            "작업 유실 시 requeue": "작업이 사라지면 대기열에 다시 넣음",
+            "exponential backoff": "재시도 간격 늘리기",
+            "최대 60초 · 추가 2회": "최대 60초 간격 · 2번 더 시도",
+            "후속 enqueue 격리": "다음 단계만 다시 실행",
+            "OCR 성공을 다시 돌리지 않음": "완료된 글자 인식은 반복하지 않음",
+            "OCR 완료 후 LLM 분석은 자동 연쇄되지 않습니다.": "문서 읽기가 끝나도 인공지능 분석을 자동으로 이어서 실행하지 않습니다.",
+            "LLM ANALYSIS JOB": "인공지능 분석 작업",
+            "활성 job 1개": "동시에 실행할 분석 1개",
+            "PENDING/RUNNING 중복 방지": "같은 분석이 두 번 실행되지 않게 함",
+            "원문 snapshot": "분석 시작 때의 원문 저장",
+            "text_version + SHA-256 재검증": "분석 전후 원문이 같은지 확인",
+            "순차 analyzer": "분석을 차례로 실행",
+            "GPU 요청 폭주 방지": "그래픽 장치 과부하 방지",
+            "PARTIAL 저장": "일부 성공 결과 저장",
+            "timeout": "제한 시간",
+            "앱 timeout + Celery hard limit": "정해진 시간을 넘으면 중단",
+            "PENDING  →  RUNNING  →  COMPLETED / PARTIAL / FAILED": "대기  →  실행 중  →  완료 / 일부 완료 / 실패",
+        },
+        22: {
+            "SEHYEON SLIDE": "박세현 발표 자료",
+            "CONTENT HANDOFF": "최종 자료 반영 예정",
+            "세현님이 정리한 최종 파인튜닝 자료로 교체할 슬라이드입니다.": "세현님이 정리한 최종 학습 결과로 교체할 슬라이드입니다.",
+            "SLIDE 22": "22번 슬라이드",
+            "CONTENT PENDING": "최종 자료 대기 중",
+            "학습 목적": "추가 학습을 한 이유",
+            "데이터 조건": "사용한 학습·평가 자료",
+            "평가 결과": "실제 비교 결과",
+            "배포 형태": "제품에 적용한 모델",
+            "왜 파인튜닝했는지": "왜 추가 학습했는지",
+            "학습·평가 표본과 방식": "자료 수와 평가 방법",
+            "비교 가능한 핵심 수치": "근거가 남은 실제 수치",
+            "실제 적용 모델과 제약": "적용 모델과 남은 한계",
+        },
+        23: {
+            "STRUCTURED EXTRACTION": "정보 항목 찾기",
+            "THREE SAFETY STRATEGIES": "정보마다 다른 방법 사용",
+            "결정·일정·액션아이템은 같은 방식으로 뽑지 않습니다": "정보 종류에 따라 다른 방법으로 찾아냅니다",
+            "정보 유형에 맞는 후보 생성과 검증을 거친 뒤 모두 PENDING으로 저장합니다.": "결정사항, 일정, 후속 조치를 각자 맞는 방법으로 찾은 뒤 사람이 확인할 수 있게 저장합니다.",
+            "INPUT": "입력",
+            "PROCESS": "처리",
+            "OUTPUT": "결과",
+            "모델 추출 + 원문 유사도": "인공지능이 찾고 원문과 비교",
+            "DECIDED / PENDING / REVERSED": "확정 / 검토 대기 / 취소",
+            "Python 날짜 후보": "프로그램이 찾은 날짜 후보",
+            "모델은 후보 역할만 라벨링": "인공지능이 날짜의 역할만 구분",
+            "기간 / 마감 / 회의 / 마일스톤": "기간 / 마감 / 회의 / 주요 일정",
+            "액션아이템": "후속 조치",
+            "규칙 기반 의무 후보": "규칙으로 찾은 의무 문장",
+            "모델은 후보 ID 중 선택": "인공지능은 후보 안에서만 선택",
+            "SAVE AS PENDING": "검토 대기로 저장",
+            "COMMON REVIEW STORE": "공통 검토 목록",
+            "검토 테이블 PENDING": "검토 대기 목록",
+            "Analysis 이력": "분석 기록",
+            "검토 테이블 검토 대기": "검토 대기 목록",
+        },
+        24: {
+            "LONG DOCUMENT FIX": "긴 문서 오류 해결",
+            "INVISIBLE CHARACTER": "실제 오류 원인",
+            "보이지 않는 제어문자 516개가 근거 대조를 깨뜨렸습니다": "눈에 보이지 않는 특수문자 516개 때문에 인용문 확인이 실패했습니다",
+            "사람 눈에는 같은 문장이지만 모델 인용과 원문 문자열 비교는 실패했습니다.": "사람에게는 같은 문장으로 보였지만, 프로그램은 서로 다른 문장으로 판단했습니다.",
+            "C0·DEL 탐지": "특수문자 발견",
+            "문자 길이 보존": "글자 수 유지",
+            "SPAN": "위치",
+            "원문 좌표 복원": "원문 위치 유지",
+            "ERROR SIGNATURE": "실패 원인",
+            "quote_not_in_source": "인용문을 원문에서 찾지 못함",
+            "BEFORE · RAW TEXT": "수정 전 · 원문",
+            "모델 인용에는 \\x01이 없어 문자열 대조 실패": "인공지능의 인용에는 특수문자가 없어 원문 확인 실패",
+            "AFTER · SANITIZED TEXT": "수정 후 · 정리한 원문",
+            "같은 길이의 공백으로 치환해 원문 span 복원": "같은 길이의 공백으로 바꿔 원문 위치 유지",
+            "추출 경계 정리": "문서를 읽은 직후 정리",
+            "C0·DEL → 한 글자 공백": "특수문자 → 한 글자 공백",
+            "offset · char_count 유지": "글자 수와 위치 유지",
+            "근거 대조 개선": "인용문 확인 방식 개선",
+            "공백·제어문자 차이 허용": "공백·특수문자 차이는 허용",
+            "PR #89 · d47502e  |  탭·줄바꿈·캐리지리턴은 문단 구조를 위해 보존": "수정 기록  PR #89 · d47502e  |  탭과 줄바꿈은 문단 구조를 위해 유지",
+        },
+        26: {
+            "DEMO": "제품 시연",
+            "RECORDED PRODUCT DEMO": "녹화한 제품 시연",
+            "발표 직전 녹화본을 삽입할 16:9 영역입니다.": "발표 직전에 녹화한 실제 제품 영상을 넣을 자리입니다.",
+            "OCR 검수": "문서 글자 확인",
+            "근거 QA": "근거가 있는 질의응답",
+        },
+        27: {
+            "LIMITS · NEXT": "한계 · 다음 과제",
+            "WHAT WE LEARNED": "확인한 한계",
+            "현재 한계를 다음 우선순위로 바꿨습니다": "확인한 한계를 다음 개선 순서로 정했습니다",
+            "기능 개수보다 검색 확장성·모델 품질·검토 무결성·운영 증명을 먼저 개선합니다.": "기능을 더 늘리기보다, 문서가 많아도 검색 품질을 유지하고 결과를 안전하게 검토하는 일을 먼저 합니다.",
+            "검색 확장성": "검색 대상이 많을 때",
+            "전체 1,339청크 R@1 36.9%": "문서 조각 1,339개에서 첫 결과 정답률 36.9%",
+            "후보 생성·인덱스·리랭킹 재설계": "검색 범위를 좁히고 최종 순서를 정하는 방식 개선",
+            "26건 기준 65.4% · 오차 큼": "실제 26건에서 65.4% · 약 ±8%p",
+            "평가셋 확대와 재학습": "평가 자료 확대와 다시 학습",
+            "검토 UX": "후속 조치 검토 화면",
+            "액션 후보 수정·취소·stale 방어 제한": "후속 조치 수정·취소와 원문 변경 확인이 부족",
+            "결정·일정 수준으로 상태 전이 강화": "다른 검토 기능과 같은 수준으로 보강",
+            "운영 검증": "자동 검증과 운영 확인",
+            "최신 전체 PASS·CI·모니터링 부재": "최신 전체 테스트·자동 테스트·상태 확인 도구 없음",
+            "재현 가능한 CI와 관측 지표 구축": "누구나 다시 실행할 수 있는 자동 테스트와 운영 지표 만들기",
+            "우선순위  ·  검색 R@1 90%를 문서 수 제한 없이 증명하는 것": "최우선 목표  ·  문서 수를 제한하지 않고 첫 검색 결과 정답률 90% 달성 여부 확인",
+        },
+        28: {
+            "CONCLUSION": "결론",
+            "FROM DOCUMENTS TO DECISIONS": "문서에서 판단과 실행까지",
+            "문서를 저장하는 도구에서, 판단과 실행을 잇는 플랫폼으로": "문서를 보관하는 도구를 넘어, 판단 근거를 찾고 실제 업무로 연결합니다",
+            "하이브리드 검색": "글자와 의미를 함께 찾는 검색",
+            "원문 위치가 있는 QA": "원문 위치를 보여주는 질의응답",
+            "PENDING 검토": "검토 대기 제안 확인",
+            "승인된 정보만 소비": "승인된 정보만 사용",
+            "4종 산출물": "보고서와 업무 문서",
+            "AI가 제안하고, 사람이 확정하고, 승인된 정보가 실행으로 이어집니다.": "인공지능이 제안하고, 사람이 확정하고, 승인된 정보가 실행으로 이어집니다.",
+        },
+        29: {
+            "Q&amp;A": "질의응답",
+            "문서·OCR": "문서·글자 인식",
+            "RAG·검색": "근거 검색",
+            "LLM·검토": "인공지능 분석·사람 검토",
+            "FINAL PROJECT PRESENTATION": "최종 프로젝트 발표",
+        },
+    }
+    for old, new in common.items():
+        content = content.replace(old, new)
+    for old, new in reviewed.get(slide_no, {}).items():
+        content = content.replace(old, new)
+    return content
+
+
 def all_slides():
     slides=[v2.slide1(),v2.slide2(),v2.slide3(),v2.slide4(),v2.slide5()]
     # 최신 근거에 맞춰 단일 멀티태스크 표현을 태스크별 LoRA로 교정한다.
@@ -667,7 +1312,7 @@ def all_slides():
         slide18(),slide19(),slide20(),slide21(),slide22(),slide23(),slide24(),slide25(),slide26(),slide27(),slide28(),slide29(),
     ])
     assert len(slides)==29
-    return slides
+    return [apply_content_review(idx, content) for idx, content in enumerate(slides, start=1)]
 
 
 def write_svgs():
@@ -720,7 +1365,7 @@ def package_pptx():
     layout='''<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:sldLayout xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" type="blank"><p:cSld name="Blank"><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr></p:spTree></p:cSld></p:sldLayout>'''
     (stage/'ppt/slideLayouts/slideLayout1.xml').write_text(layout,encoding='utf-8')
     (stage/'ppt/slideLayouts/_rels/slideLayout1.xml.rels').write_text('''<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="../slideMasters/slideMaster1.xml"/></Relationships>''',encoding='utf-8')
-    theme='''<?xml version="1.0" encoding="UTF-8" standalone="yes"?><a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Tasqra"><a:themeElements><a:clrScheme name="Tasqra"><a:dk1><a:srgbClr val="0E162F"/></a:dk1><a:lt1><a:srgbClr val="FFFFFF"/></a:lt1><a:dk2><a:srgbClr val="16234A"/></a:dk2><a:lt2><a:srgbClr val="F4F7FC"/></a:lt2><a:accent1><a:srgbClr val="315BD8"/></a:accent1><a:accent2><a:srgbClr val="3BC7F4"/></a:accent2><a:accent3><a:srgbClr val="2FA8CC"/></a:accent3><a:accent4><a:srgbClr val="5576E8"/></a:accent4><a:accent5><a:srgbClr val="475569"/></a:accent5><a:accent6><a:srgbClr val="DCE5F1"/></a:accent6><a:hlink><a:srgbClr val="315BD8"/></a:hlink><a:folHlink><a:srgbClr val="16234A"/></a:folHlink></a:clrScheme><a:fontScheme name="Tasqra"><a:majorFont><a:latin typeface="Noto Sans KR"/><a:ea typeface="Noto Sans KR"/><a:cs typeface="Arial"/></a:majorFont><a:minorFont><a:latin typeface="Noto Sans KR"/><a:ea typeface="Noto Sans KR"/><a:cs typeface="Arial"/></a:minorFont></a:fontScheme><a:fmtScheme name="Tasqra"><a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst><a:lnStyleLst><a:ln w="6350"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:lnStyleLst><a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst><a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:bgFillStyleLst></a:fmtScheme></a:themeElements></a:theme>'''
+    theme='''<?xml version="1.0" encoding="UTF-8" standalone="yes"?><a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Tasqra"><a:themeElements><a:clrScheme name="Tasqra"><a:dk1><a:srgbClr val="0E162F"/></a:dk1><a:lt1><a:srgbClr val="FFFFFF"/></a:lt1><a:dk2><a:srgbClr val="16234A"/></a:dk2><a:lt2><a:srgbClr val="F4F7FC"/></a:lt2><a:accent1><a:srgbClr val="315BD8"/></a:accent1><a:accent2><a:srgbClr val="3BC7F4"/></a:accent2><a:accent3><a:srgbClr val="C9E85B"/></a:accent3><a:accent4><a:srgbClr val="5576E8"/></a:accent4><a:accent5><a:srgbClr val="475569"/></a:accent5><a:accent6><a:srgbClr val="DCE5F1"/></a:accent6><a:hlink><a:srgbClr val="315BD8"/></a:hlink><a:folHlink><a:srgbClr val="16234A"/></a:folHlink></a:clrScheme><a:fontScheme name="Tasqra"><a:majorFont><a:latin typeface="Noto Sans KR"/><a:ea typeface="Noto Sans KR"/><a:cs typeface="Arial"/></a:majorFont><a:minorFont><a:latin typeface="Noto Sans KR"/><a:ea typeface="Noto Sans KR"/><a:cs typeface="Arial"/></a:minorFont></a:fontScheme><a:fmtScheme name="Tasqra"><a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst><a:lnStyleLst><a:ln w="6350"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:lnStyleLst><a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst><a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:bgFillStyleLst></a:fmtScheme></a:themeElements></a:theme>'''
     (stage/'ppt/theme/theme1.xml').write_text(theme,encoding='utf-8')
     for i,png in enumerate(pngs,start=1):
         shutil.copyfile(png,stage/f'ppt/media/image{i}.png')

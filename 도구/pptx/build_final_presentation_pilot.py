@@ -23,22 +23,20 @@ PNG_DIR = Path(os.environ.get("TASQRA_PILOT_PNG_DIR", str(OUT)))
 PPTX_PATH = OUT / "Tasqra_최종발표_5장_파일럿_v2.pptx"
 
 C = {
-    "navy": "#111B31",
-    "rail": "#09111F",
-    "blue": "#2563EB",
-    "blue2": "#4267B2",
-    "cyan": "#2FA8CC",
-    # 밝은 면에서는 lime을 쓰지 않는다. signal만 다크 면의 소형 강조에 사용한다.
-    "lime": "#2563EB",
-    "signal": "#C9E85B",
-    "canvas": "#F5F7FA",
+    "navy": "#16234A",
+    "rail": "#0E162F",
+    "blue": "#315BD8",
+    "blue2": "#5576E8",
+    "cyan": "#3BC7F4",
+    "lime": "#C9E85B",
+    "canvas": "#F4F7FC",
     "panel": "#FFFFFF",
-    "text": "#111827",
+    "text": "#0F172A",
     "body": "#475569",
     "muted": "#64748B",
-    "border": "#D5DCE7",
-    "soft": "#EEF2F7",
-    "soft_blue": "#E9EFFB",
+    "border": "#DCE5F1",
+    "soft": "#EAF0FA",
+    "soft_blue": "#E7EEFF",
 }
 
 
@@ -47,8 +45,6 @@ def esc(value: str) -> str:
 
 
 def rect(x, y, w, h, fill, rx=0, stroke="none", sw=0, opacity=1, extra=""):
-    # 프레젠테이션 전체를 UI 카드처럼 보이게 하지 않도록 모서리를 작게 제한한다.
-    rx = min(rx, 8) if rx else 0
     return (
         f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="{rx}" '
         f'fill="{fill}" stroke="{stroke}" stroke-width="{sw}" opacity="{opacity}" {extra}/>'
@@ -66,7 +62,7 @@ def line(x1, y1, x2, y2, stroke, sw=2, dash=None, opacity=1):
     dash_attr = f' stroke-dasharray="{dash}"' if dash else ""
     return (
         f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="{stroke}" '
-        f'stroke-width="{sw}" stroke-linecap="square" opacity="{opacity}"{dash_attr}/>'
+        f'stroke-width="{sw}" stroke-linecap="round" opacity="{opacity}"{dash_attr}/>'
     )
 
 
@@ -169,8 +165,8 @@ def base(light=True, page="01", label="INTRO"):
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">',
         '<defs>',
         '<style>@font-face{font-family:NotoKR;src:url("../../포트폴리오/NotoSansKR.ttf") format("truetype");} text{font-family:NotoKR,Arial,sans-serif;}</style>',
-        '<filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#09111F" flood-opacity="0.06"/></filter>',
-        '<filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="2" stdDeviation="5" flood-color="#09111F" flood-opacity="0.05"/></filter>',
+        '<filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#0E162F" flood-opacity="0.10"/></filter>',
+        '<filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="7" stdDeviation="10" flood-color="#0E162F" flood-opacity="0.08"/></filter>',
         '</defs>',
         rect(0, 0, W, H, bg),
         text(110, 70, f"{page}  /  {label}", 18, 700, C["blue"] if light else C["cyan"], spacing=2.2),
@@ -207,7 +203,7 @@ def slide1():
     connectors = [
         (1230, 360, 1305, 430, C["cyan"]),
         (1588, 360, 1515, 430, C["blue2"]),
-        (1230, 710, 1305, 640, C["signal"]),
+        (1230, 710, 1305, 640, C["lime"]),
         (1588, 710, 1515, 640, C["cyan"]),
     ]
     for x1, y1, x2, y2, accent in connectors:
@@ -216,17 +212,17 @@ def slide1():
     nodes = [
         (1175, 305, "document", "문서", C["cyan"]),
         (1645, 305, "search", "검색", C["blue2"]),
-        (1175, 765, "structure", "분석", C["signal"]),
+        (1175, 765, "structure", "분석", C["lime"]),
         (1645, 765, "tasks", "태스크", C["cyan"]),
     ]
     for x, y, kind, label, accent in nodes:
-        p.append(rect(x - 78, y - 78, 156, 156, "#17264F", rx=8, stroke=accent, sw=2, extra='filter="url(#softShadow)"'))
+        p.append(circle(x, y, 78, "#17264F", stroke=accent, sw=3, extra='filter="url(#softShadow)"'))
         p.append(icon(kind, x, y - 10, 48, accent, 3))
         p.append(text(x, y + 51, label, 21, 700, "#FFFFFF", anchor="middle"))
     # 핵심인 사람의 검토를 마지막에 올려 연결선과 완전히 분리한다.
     p += [
-        rect(1250, 390, 320, 290, C["navy"], rx=8, stroke=C["blue"], sw=3, extra='filter="url(#shadow)"'),
-        rect(1270, 410, 280, 250, "#1C2C59", rx=4, stroke="#5E7AEC", sw=1),
+        circle(1410, 535, 142, C["navy"], stroke=C["blue"], sw=5, extra='filter="url(#shadow)"'),
+        circle(1410, 535, 111, "#1C2C59", stroke="#5E7AEC", sw=2),
         icon("check", 1410, 477, 62, C["cyan"], 4),
         text(1410, 570, "사람의 검토", 29, 800, "#FFFFFF", anchor="middle"),
         text(1410, 607, "확정된 정보만 연결", 18, 500, "#AFC0E8", anchor="middle"),
@@ -257,9 +253,9 @@ def slide2():
     for x, no, kind, heading, body, accent in cards:
         y, w, h = 420, 500, 345
         p.append(rect(x, y, w, h, C["panel"], rx=28, stroke=C["border"], sw=2, extra='filter="url(#softShadow)"'))
-        p.append(rect(x, y, 5, h, accent))
+        p.append(rect(x, y, w, 12, accent, rx=6))
         p.append(pill(x + 32, y + 40, 64, 36, no, C["soft_blue"], C["blue"], size=17))
-        p.append(rect(x + 383, y + 40, 80, 80, C["soft"], rx=6, stroke=accent, sw=1))
+        p.append(circle(x + 423, y + 80, 46, C["soft"], stroke=accent, sw=2))
         p.append(icon(kind, x + 423, y + 80, 42, accent, 3))
         p.append(text(x + 34, y + 145, heading, 34, 800, C["text"]))
         p.append(multiline(x + 34, y + 205, body, 24, 500, C["body"], line_height=1.55))
@@ -280,14 +276,14 @@ def slide3():
     title_block(p, "HUMAN IN THE LOOP", ["Tasqra는 문서에서 실행까지", "한 흐름으로 연결합니다"])
     # Connectors first.
     center = (960, 600)
-    endpoints = [(400, 530), (1520, 530), (960, 900)]
+    endpoints = [(400, 530), (1520, 530), (960, 805)]
     for ex, ey in endpoints:
         p.append(line(center[0], center[1], ex, ey, "#B8C7E6", 5))
         p.append(circle((center[0]+ex)/2, (center[1]+ey)/2, 8, C["cyan"]))
     # Center system.
     p += [
-        rect(785, 435, 350, 330, C["navy"], rx=8, stroke="#D9E3FA", sw=6, extra='filter="url(#shadow)"'),
-        rect(805, 455, 310, 290, "#1D2E5C", rx=4, stroke=C["blue"], sw=2),
+        circle(960, 600, 165, C["navy"], stroke="#D9E3FA", sw=18, extra='filter="url(#shadow)"'),
+        circle(960, 600, 137, "#1D2E5C", stroke=C["blue"], sw=3),
         text(960, 550, "AI가 제안하고,", 26, 500, "#C4D0EC", anchor="middle"),
         text(960, 615, "사람이", 52, 800, "#FFFFFF", anchor="middle"),
         text(960, 672, "확정합니다", 50, 800, C["cyan"], anchor="middle"),
@@ -299,7 +295,7 @@ def slide3():
     ]
     for x, y, w, h, no, kind, heading, body, accent in cards:
         p.append(rect(x, y, w, h, C["panel"], rx=28, stroke=C["border"], sw=2, extra='filter="url(#softShadow)"'))
-        p.append(rect(x + 29, y + 34, 72, 72, C["soft"], rx=6, stroke=accent, sw=1))
+        p.append(circle(x + 65, y + 70, 36, C["soft"], stroke=accent, sw=2))
         p.append(icon(kind, x + 65, y + 70, 34, accent, 3))
         p.append(text(x + 120, y + 55, no, 17, 800, accent, spacing=1.6))
         p.append(text(x + 120, y + 102, heading, 33, 800, C["text"]))
@@ -318,9 +314,9 @@ def slide4():
     for idx, (x, name, role, kind, accent, bullets) in enumerate(cards, start=1):
         y, w, h = 410, 500, 430
         p.append(rect(x, y, w, h, C["panel"], rx=30, stroke=C["border"], sw=2, extra='filter="url(#softShadow)"'))
-        p.append(rect(x, y, 5, h, accent))
-        p.append(rect(x + 28, y + 40, 90, 90, C["soft"], rx=6, stroke=accent, sw=1))
-        p.append(icon(kind, x + 73, y + 85, 40, accent, 3))
+        p.append(rect(x, y, w, 13, accent, rx=7))
+        p.append(circle(x + 73, y + 85, 45, C["navy"] if accent == C["lime"] else C["soft"] , stroke=accent, sw=3))
+        p.append(icon(kind, x + 73, y + 85, 40, accent if accent != C["lime"] else C["lime"], 3))
         p.append(text(x + 445, y + 68, f"0{idx}", 18, 800, C["muted"], anchor="end", spacing=1.8))
         p.append(text(x + 36, y + 165, name, 40, 800, C["text"]))
         p.append(text(x + 36, y + 205, role, 15, 800, C["blue"], spacing=1.05))
@@ -364,7 +360,7 @@ def slide5():
         body_color = "#C9D4EC" if highlight else C["body"]
         border = C["blue"] if highlight else C["border"]
         p.append(rect(x - 35, y, 280, 255, panel_fill, rx=26, stroke=border, sw=3 if highlight else 2, extra='filter="url(#softShadow)"'))
-        p.append(rect(x + 53, y + 23, 104, 104, C["blue"] if highlight else C["soft"], rx=6, stroke=accent, sw=2))
+        p.append(circle(x + 105, y + 75, 52, C["blue"] if highlight else C["soft"], stroke=accent, sw=2))
         p.append(icon(kind, x + 105, y + 75, 45, "#FFFFFF" if highlight else accent, 3))
         p.append(pill(x - 13, y + 25, 55, 32, no, C["blue"] if highlight else C["soft_blue"], "#FFFFFF" if highlight else C["blue"], size=15))
         p.append(text(x + 105, y + 158, heading, 25, 800, title_color, anchor="middle"))
@@ -377,7 +373,7 @@ def slide5():
     action_labels = ["액션아이템 추출", "액션 태스크 후보", "단건 승인·거절", "태스크 생성"]
     action_xs = [185, 455, 730, 1000]
     for i, (label, ax) in enumerate(zip(action_labels, action_xs)):
-        p.append(rect(ax - 28, 872, 56, 56, C["blue"] if i == 2 else "#243768", rx=4, stroke=C["cyan"] if i == 2 else "#536898", sw=2))
+        p.append(circle(ax, 900, 34, C["blue"] if i == 2 else "#243768", stroke=C["cyan"] if i == 2 else "#536898", sw=2))
         p.append(text(ax, 908, f"{i+1}", 18, 800, "#FFFFFF", anchor="middle"))
         p.append(text(ax, 956, label, 18, 600, "#FFFFFF", anchor="middle"))
         if i < 3:
@@ -475,7 +471,7 @@ def package_pptx():
     layout = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:sldLayout xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" type="blank"><p:cSld name="Blank"><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr></p:spTree></p:cSld></p:sldLayout>'''
     (stage / "ppt/slideLayouts/slideLayout1.xml").write_text(layout, encoding="utf-8")
     (stage / "ppt/slideLayouts/_rels/slideLayout1.xml.rels").write_text('''<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster" Target="../slideMasters/slideMaster1.xml"/></Relationships>''', encoding="utf-8")
-    theme = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?><a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Tasqra"><a:themeElements><a:clrScheme name="Tasqra"><a:dk1><a:srgbClr val="0E162F"/></a:dk1><a:lt1><a:srgbClr val="FFFFFF"/></a:lt1><a:dk2><a:srgbClr val="16234A"/></a:dk2><a:lt2><a:srgbClr val="F4F7FC"/></a:lt2><a:accent1><a:srgbClr val="315BD8"/></a:accent1><a:accent2><a:srgbClr val="3BC7F4"/></a:accent2><a:accent3><a:srgbClr val="2FA8CC"/></a:accent3><a:accent4><a:srgbClr val="5576E8"/></a:accent4><a:accent5><a:srgbClr val="475569"/></a:accent5><a:accent6><a:srgbClr val="DCE5F1"/></a:accent6><a:hlink><a:srgbClr val="315BD8"/></a:hlink><a:folHlink><a:srgbClr val="16234A"/></a:folHlink></a:clrScheme><a:fontScheme name="Tasqra"><a:majorFont><a:latin typeface="Noto Sans KR"/><a:ea typeface="Noto Sans KR"/><a:cs typeface="Arial"/></a:majorFont><a:minorFont><a:latin typeface="Noto Sans KR"/><a:ea typeface="Noto Sans KR"/><a:cs typeface="Arial"/></a:minorFont></a:fontScheme><a:fmtScheme name="Tasqra"><a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst><a:lnStyleLst><a:ln w="6350"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:lnStyleLst><a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst><a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:bgFillStyleLst></a:fmtScheme></a:themeElements></a:theme>'''
+    theme = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?><a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Tasqra"><a:themeElements><a:clrScheme name="Tasqra"><a:dk1><a:srgbClr val="0E162F"/></a:dk1><a:lt1><a:srgbClr val="FFFFFF"/></a:lt1><a:dk2><a:srgbClr val="16234A"/></a:dk2><a:lt2><a:srgbClr val="F4F7FC"/></a:lt2><a:accent1><a:srgbClr val="315BD8"/></a:accent1><a:accent2><a:srgbClr val="3BC7F4"/></a:accent2><a:accent3><a:srgbClr val="C9E85B"/></a:accent3><a:accent4><a:srgbClr val="5576E8"/></a:accent4><a:accent5><a:srgbClr val="475569"/></a:accent5><a:accent6><a:srgbClr val="DCE5F1"/></a:accent6><a:hlink><a:srgbClr val="315BD8"/></a:hlink><a:folHlink><a:srgbClr val="16234A"/></a:folHlink></a:clrScheme><a:fontScheme name="Tasqra"><a:majorFont><a:latin typeface="Noto Sans KR"/><a:ea typeface="Noto Sans KR"/><a:cs typeface="Arial"/></a:majorFont><a:minorFont><a:latin typeface="Noto Sans KR"/><a:ea typeface="Noto Sans KR"/><a:cs typeface="Arial"/></a:minorFont></a:fontScheme><a:fmtScheme name="Tasqra"><a:fillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:fillStyleLst><a:lnStyleLst><a:ln w="6350"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln></a:lnStyleLst><a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst><a:bgFillStyleLst><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:bgFillStyleLst></a:fmtScheme></a:themeElements></a:theme>'''
     (stage / "ppt/theme/theme1.xml").write_text(theme, encoding="utf-8")
 
     for i, png in enumerate(pngs, start=1):
