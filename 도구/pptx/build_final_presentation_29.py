@@ -309,19 +309,67 @@ def slide9():
 
 def slide10():
     p = svg_base(10, "HYBRID SEARCH", "김보현", "김보현")
-    slide_title(p, "ONE SEARCH BOX", "하이브리드 검색", "서로 다른 점수를 더하지 않고, 두 검색의 순위를 RRF로 결합합니다.", size=44)
-    # two branches
-    card_title(p, 100, 330, "A", "키워드 검색", C["cyan"], width=570, height=390,
-               body_lines=("ILIKE로 연속 문자열 포함 보장", "word_similarity로 내부 순위", "숫자·코드·정확 표현에 강점"), icon_kind="document", dark=True, heading_size=26, body_size=18)
-    card_title(p, 1250, 330, "B", "의미 검색", C["blue2"], width=570, height=390,
-               body_lines=("질의·청크 임베딩", "pgvector 코사인 거리", "표현이 달라도 문맥 탐색"), icon_kind="search", dark=True, heading_size=26, body_size=18)
-    p.append(circle(960, 515, 130, C["lime"], stroke="#A9C932", sw=4, extra='filter="url(#shadow)"'))
-    p.append(text(960, 493, "RRF", 40, 800, C["rail"], anchor="middle"))
-    p.append(text(960, 545, "Σ 1 / (60 + 순위)", 16, 800, C["rail"], anchor="middle"))
-    p.append(arrow(690, 515, 810, 515, C["cyan"], 5)); p.append(arrow(1230, 515, 1110, 515, C["blue2"], 5))
-    small_note(p, 100, 780, 520, "후보 폭", "두 검색에서 각각 기본 30개", color=C["blue"])
-    small_note(p, 700, 780, 520, "단일 UX", "사용자는 검색 방식을 고르지 않음", color=C["cyan"])
-    small_note(p, 1300, 780, 520, "주의", "전문 검색엔진·점수 정규화·가중합 아님", color=C["lime"])
+    slide_title(
+        p,
+        "COMPLEMENTARY RETRIEVAL",
+        "서로 다른 누락 위험을 한 검색창에서 보완했습니다",
+        "단일 검색 대비 성능 실험은 아직 없으며, 아래 내용은 성능 입증이 아닌 설계 근거입니다.",
+        size=42,
+    )
+
+    # 두 검색은 강점보다 '각자 무엇을 놓치는가'를 먼저 보여 준다.
+    search_cards = [
+        (
+            80,
+            "A",
+            "키워드 검색",
+            "정확한 글자에 강함",
+            ("계약번호 · 금액 · 날짜", "연속 문자열은 반드시 포함"),
+            "놓침  ·  ‘휴가 규정’으로 ‘연차 사용 기준’ 찾기",
+            C["cyan"],
+            "document",
+        ),
+        (
+            1160,
+            "B",
+            "의미 검색",
+            "표현이 달라도 뜻을 찾음",
+            ("질문·문서 조각 임베딩", "pgvector 코사인 순위"),
+            "놓침  ·  번호·금액처럼 글자 자체가 정답인 표현",
+            C["blue2"],
+            "search",
+        ),
+    ]
+    for x, no, heading, strength, body, miss, accent, kind in search_cards:
+        p.append(panel(x, 320, 680, 350, fill=C["navy"], stroke=accent, rx=28, shadow=True))
+        p.append(number_badge(x + 30, 350, no, accent, dark=True))
+        p.append(circle(x + 605, 392, 38, "#24345F", stroke=accent, sw=2))
+        p.append(icon(kind, x + 605, 392, 34, accent, 3))
+        p.append(text(x + 30, 450, heading, 30, 800, "#FFFFFF"))
+        p.append(text(x + 30, 495, strength, 17, 800, accent, spacing=.3))
+        p.append(multiline(x + 30, 540, body, 18, 600, "#C8D4EC", line_height=1.5))
+        p.append(panel(x + 30, 600, 620, 48, fill="#1D315F", stroke="#3A5289", rx=14, shadow=False))
+        p.append(text(x + 50, 631, miss, 15, 700, "#FFFFFF"))
+
+    # 점수의 단위가 다르므로 가운데에서는 순위만 사용한다.
+    p.append(circle(960, 495, 130, C["lime"], stroke="#A9C932", sw=4, extra='filter="url(#shadow)"'))
+    p.append(text(960, 477, "RRF", 38, 800, C["rail"], anchor="middle"))
+    p.append(text(960, 520, "순위만 합산", 18, 800, C["rail"], anchor="middle"))
+    p.append(text(960, 551, "각 상위 30개", 14, 700, C["rail"], anchor="middle"))
+    p.append(arrow(770, 495, 815, 495, C["cyan"], 4))
+    p.append(arrow(1150, 495, 1105, 495, C["blue2"], 4))
+
+    reasons = [
+        (80, "왜 점수를 더하지 않았나", ("글자 유사도와 벡터 거리는", "단위·분포가 달라 직접 비교 불가"), C["blue"]),
+        (650, "왜 RRF인가", ("정규화·가중치 가정 없이", "각 검색에서 앞선 순위만 사용"), C["cyan"]),
+        (1220, "어디까지 말할 수 있나", ("서로 다른 누락 위험을 보완한 설계", "단일 검색 대비 성능 수치는 아직 없음"), C["lime"]),
+    ]
+    for x, heading, body, accent in reasons:
+        p.append(panel(x, 735, 520, 180, fill=C["panel"], stroke=C["border"], rx=22, shadow=False))
+        p.append(rect(x, 735, 7, 180, accent, rx=4))
+        p.append(text(x + 28, 780, heading, 20, 800, C["text"]))
+        p.append(multiline(x + 28, 825, body, 16, 600, C["body"], line_height=1.55))
+    p.append(text(960, 970, "결론  ·  성능을 입증한 장이 아니라, 두 검색을 함께 둔 이유를 설명하는 장입니다.", 18, 800, C["blue"], anchor="middle"))
     return finish(p)
 
 
@@ -566,22 +614,61 @@ def slide17():
 
 def slide18():
     p = svg_base(18, "OCR EVOLUTION", "박세현", "최재정")
-    slide_title(p, "PARK SEHYEON SECTION", "PDF에 이미 있는 글자를 살려서 읽습니다", "페이지에 글자가 있는지와 스캔 이미지인지에 따라 세 가지 방법 중 하나를 선택합니다.", size=44)
-    modes=[
-        ("01","PDF의 기존 글자",("들어 있는 글자를 그대로 읽고", "불필요한 이미지 인식은 생략"),C["blue"],"document"),
-        ("02","스캔 이미지의 글자",("기존 글자가 부족한 페이지는", "페이지 전체를 인식"),C["cyan"],"search"),
-        ("03","두 결과 합치기",("기존 글자와 인식한 글자를", "페이지 위치 순서로 정렬"),C["lime"],"structure"),
+    slide_title(
+        p,
+        "MINI PROJECT → TASQRA",
+        "OCR 엔진은 비교로 고르고, 필요한 영역에만 적용했습니다",
+        "미니프로젝트의 3종 측정 기준선을 본프로젝트의 텍스트층·OCR·하이브리드 분기로 확장했습니다.",
+        size=40,
+    )
+
+    # 미니프로젝트에서 실제로 남긴 엔진 비교 기준선.
+    p.append(panel(80, 305, 700, 300, fill=C["panel"], stroke=C["border"], rx=26, shadow=True))
+    p.append(text(120, 350, "미니프로젝트  ·  OCR 엔진 3종 비교", 18, 800, C["blue"], spacing=.5))
+    engines = [
+        ("PaddleOCR", "98.1%", "15.5초", C["blue"], True),
+        ("EasyOCR", "81.8%", "15.5초", C["cyan"], False),
+        ("Tesseract", "64.4%", "0.9초", C["muted"], False),
     ]
-    xs=[100,675,1250]
-    for i,(mode,head,body,accent,kind) in enumerate(modes):
-        card_title(p,xs[i],335,mode,head,accent,width=500,height=300,body_lines=body,icon_kind=kind,dark=(i==2),heading_size=28,body_size=21)
-    p.append(arrow(610,485,655,485,"#A9BADA",3));p.append(arrow(1185,485,1230,485,"#A9BADA",3))
-    p.append(panel(100,700,1650,220,fill=C["navy"],stroke="#31477A",rx=28,shadow=True))
-    p.append(text(145,755,"최종 결과",18,800,C["cyan"],spacing=1.2))
-    p.append(text(145,815,"읽는 순서가 복원된 페이지 본문",30,800,"#FFFFFF"))
-    p.append(text(145,865,"사람이 고칠 수 있는 글자 영역과 원문 시작·끝 위치를 함께 저장합니다.",21,600,"#C7D3EC"))
-    p.append(pill(1325,765,365,46,"기존 글자 / 스캔 글자 / 합치기","#243866",C["lime"],size=17))
-    p.append(text(1507,855,"페이지마다 가장 맞는 방법 선택",19,800,"#FFFFFF",anchor="middle"))
+    for i, (name, accuracy, latency, accent, selected) in enumerate(engines):
+        y = 380 + i * 62
+        p.append(panel(y= y, x=120, w=620, h=50, fill=C["navy"] if selected else "#F7F9FD", stroke=accent, rx=14, shadow=False))
+        if selected:
+            p.append(pill(135, y + 10, 58, 30, "선택", "#243866", C["lime"], size=11))
+        p.append(text(215 if selected else 145, y + 32, name, 17, 800, "#FFFFFF" if selected else C["text"]))
+        p.append(text(520, y + 32, accuracy, 19, 800, accent if not selected else C["cyan"], anchor="end"))
+        p.append(text(710, y + 32, latency, 16, 700, "#C8D4EC" if selected else C["body"], anchor="end"))
+    p.append(text(120, 585, "정답 텍스트 대비 CER 기반 정확도  ·  미니프로젝트 저장 기준선", 14, 600, C["muted"]))
+
+    # 숫자에서 선택 이유와 한계를 분리한다.
+    p.append(panel(820, 305, 1020, 300, fill=C["navy"], stroke="#31477A", rx=26, shadow=True))
+    p.append(pill(860, 340, 160, 38, "선택 결론", "#243866", C["lime"], size=15))
+    p.append(text(860, 435, "PaddleOCR", 38, 800, "#FFFFFF"))
+    p.append(text(860, 485, "세 엔진 중 정답 정확도가 가장 높아 기본 OCR로 사용", 21, 700, "#FFFFFF"))
+    choice_notes = [
+        (860, "정확도 우선", "속도가 가장 빠르지는 않음", C["cyan"]),
+        (1320, "처리 범위 축소", "모든 페이지를 무조건 OCR하지 않음", C["lime"]),
+    ]
+    for x, heading, body, accent in choice_notes:
+        p.append(panel(x, 520, 430, 62, fill="#1D315F", stroke="#3A5289", rx=14, shadow=False))
+        p.append(text(x + 18, 547, heading, 14, 800, accent))
+        p.append(text(x + 18, 572, body, 14, 600, "#C8D4EC"))
+
+    # 본프로젝트에서 실제 페이지를 읽는 분기와 좌표 복원 흐름.
+    steps = [
+        (80, "01", "기존 글자 보존", ("PDF 텍스트층을 먼저 읽고", "같은 이미지 OCR은 생략"), C["blue"]),
+        (515, "02", "이미지 영역 OCR", ("텍스트층이 없는 이미지 블록만", "PaddleOCR로 보완"), C["cyan"]),
+        (950, "03", "빈 페이지 전체 OCR", ("글자가 전혀 없으면 2배 렌더링", "작은 글자 인식 보완"), C["blue2"]),
+        (1385, "04", "좌표·순서 복원", ("PDF 좌표로 되돌린 뒤", "단·표를 보존해 읽기 순서 계산"), C["lime"]),
+    ]
+    for i, (x, no, heading, body, accent) in enumerate(steps):
+        p.append(panel(x, 665, 375, 235, fill=C["panel"], stroke=accent, rx=24, shadow=True))
+        p.append(number_badge(x + 25, 690, no, accent))
+        p.append(text(x + 25, 760, heading, 23, 800, C["text"]))
+        p.append(multiline(x + 25, 805, body, 16, 600, C["body"], line_height=1.55))
+        if i < 3:
+            p.append(arrow(x + 382, 780, steps[i + 1][0] - 10, 780, "#9FB1D1", 3))
+    p.append(text(960, 960, "미니프로젝트의 엔진 비교  →  필요한 영역만 OCR  →  수정 가능한 좌표·읽기 순서 보존", 18, 800, C["blue"], anchor="middle"))
     return finish(p)
 
 
@@ -589,17 +676,21 @@ def slide19():
     p = svg_base(19, "OCR REVIEW", "박세현", "최재정")
     slide_title(p, "TEXT INTEGRITY", "글자 인식 결과를 고치면 검색용 본문도 함께 고칩니다", "수정 범위, 본문, 뒤 문장의 위치, 문서 버전을 한 번에 바꿔 서로 어긋나지 않게 합니다.", size=43)
     p.append(panel(80,300,1760,335,fill="#F8FAFD",stroke=C["border"],rx=28,shadow=False))
-    p.append(text(120,350,"한 번에 모두 처리",16,800,C["blue"],spacing=1.3))
+    p.append(pill(115,325,145,36,"미니프로젝트",C["soft_blue"],C["blue"],size=13))
+    p.append(text(280,350,"엔진 비교 · 좌표 정렬",16,800,C["body"]))
+    p.append(arrow(520,343,600,343,"#9EB0CE",3))
+    p.append(pill(625,325,145,36,"본프로젝트",C["navy"],C["cyan"],size=13))
+    p.append(text(790,350,"박스 편집 · 선택 재OCR · 검색 본문 동기화",16,800,C["text"]))
     p.append(pill(1510,325,275,38,"시작  →  저장 완료",C["soft_blue"],C["navy"],size=15))
     stages=[
-        ("01","박스 수정",C["blue"]),("02","범위 검증",C["cyan"]),("03","본문 구간 교체",C["lime"]),
+        ("01","박스 수정·재OCR",C["blue"]),("02","범위 검증",C["cyan"]),("03","본문 구간 교체",C["lime"]),
         ("04","뒤 문장 위치 조정",C["blue2"]),("05","문서 버전 올리기",C["cyan"]),("06","검수 재확정",C["lime"]),
     ]
     xs=[105,395,685,975,1265,1555]
     for i,(no,head,accent) in enumerate(stages):
         p.append(panel(xs[i],405,255,130,fill=C["panel"],stroke=accent,rx=24,shadow=True,sw=3))
         p.append(pill(xs[i]+20,425,58,32,no,C["soft_blue"],accent,size=14))
-        p.append(text(xs[i]+127,500,head,17 if i in {3,4} else 19,800,C["text"],anchor="middle"))
+        p.append(text(xs[i]+127,500,head,16 if i in {0,3,4} else 19,800,C["text"],anchor="middle"))
         if i<5:p.append(arrow(xs[i]+262,470,xs[i+1]-8,470,"#9EB0CE",3))
     p.append(text(120,590,"수정한 글자 수만큼 뒤 문장들의 시작·끝 위치도 함께 옮깁니다.",18,700,C["body"]))
     p.append(panel(80,680,835,225,fill=C["navy"],stroke="#31477A",rx=28,shadow=True))
