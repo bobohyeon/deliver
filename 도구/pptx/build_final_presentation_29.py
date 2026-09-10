@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import shutil
 import struct
 import sys
@@ -161,56 +162,59 @@ def slide3():
 
 def slide6():
     p = svg_base(6, "ARCHITECTURE", "김보현", "최재정 · 공통")
-    slide_title(p, "SYSTEM MAP", "전체 시스템 아키텍처", "동기 API와 비동기 Worker가 PostgreSQL·공유 파일을 중심으로 연결됩니다.", size=44)
-    p.append(panel(70,290,1780,650,fill="#EEF3FB",stroke="#C8D5EA",rx=30,shadow=False))
-    p.append(text(105,335,"DOCKER COMPOSE · SHARED RUNTIME",16,800,C["blue"],spacing=1.7))
-    # Client
-    p.append(panel(105,375,300,475,fill=C["navy"],stroke="#31477A",rx=26,shadow=True))
-    p.append(text(140,425,"CLIENT",16,800,C["cyan"],spacing=1.5))
-    p.append(circle(255,520,62,"#203568",stroke=C["cyan"],sw=2))
-    p.append(icon("users",255,520,52,C["cyan"],3))
-    p.append(text(140,625,"React / Vite",30,800,"#FFFFFF"))
-    p.append(text(140,670,"Browser UI",18,600,"#BFCBE5"))
-    p.append(panel(140,720,230,72,fill="#1E315F",stroke="#3A5289",rx=16,shadow=False))
-    p.append(text(165,750,"HTTP CLIENT",13,800,C["cyan"],spacing=1.1))
-    p.append(text(165,777,"Axios REST",18,700,"#FFFFFF"))
-    # API application stack
-    p.append(panel(485,350,520,535,fill=C["panel"],stroke=C["blue"],rx=28,shadow=True))
-    p.append(text(525,402,"APPLICATION API",16,800,C["blue"],spacing=1.5))
-    api_layers=[("ROUTER","FastAPI endpoints","권한·요청 검증"),("SERVICE","업무 규칙","상태 전이·오케스트레이션"),("REPOSITORY","SQLAlchemy","트랜잭션·영속화")]
-    for i,(tag,head,body) in enumerate(api_layers):
-        y=445+i*118
-        p.append(panel(525,y,440,92,fill="#F7F9FD",stroke=C["border"],rx=18,shadow=False))
-        p.append(pill(548,y+20,100,30,tag,C["soft_blue"],C["blue"],size=13))
-        p.append(text(675,y+42,head,20,800,C["text"]))
-        p.append(text(675,y+70,body,15,500,C["body"]))
-    p.append(panel(525,815,440,42,fill=C["navy"],stroke=C["navy"],rx=14,shadow=False))
-    p.append(text(745,842,"SYNC REQUEST PATH",14,800,"#FFFFFF",anchor="middle",spacing=1.2))
-    # Async path
-    p.append(panel(1085,350,725,245,fill=C["navy"],stroke="#31477A",rx=28,shadow=True))
-    p.append(text(1125,402,"ASYNC EXECUTION",16,800,C["cyan"],spacing=1.5))
-    p.append(panel(1125,440,245,105,fill="#1E315F",stroke="#3A5289",rx=18,shadow=False))
-    p.append(text(1150,477,"작업 대기열",20,800,"#FFFFFF"));p.append(multiline(1150,508,("Redis", "작업 전달 · 결과 보관"),13,500,"#BFCBE5",line_height=1.45))
-    p.append(arrow(1390,492,1485,492,"#5874B4",4))
-    p.append(panel(1505,440,265,105,fill="#1E315F",stroke=C["lime"],rx=18,shadow=False))
-    p.append(text(1530,477,"작업 프로그램",20,800,"#FFFFFF"));p.append(multiline(1530,508,("Celery", "실패하면 다시 실행"),13,500,"#BFCBE5",line_height=1.45))
-    # Shared infrastructure
-    p.append(panel(1085,630,725,255,fill=C["panel"],stroke=C["border"],rx=28,shadow=True))
-    p.append(text(1125,678,"SHARED INFRASTRUCTURE",16,800,C["blue"],spacing=1.5))
-    infra=[("PostgreSQL",("업무 데이터","pgvector 1024D"),C["blue"]),("uploads",("공유 로컬 파일","./backend/uploads"),C["cyan"]),("Local AI",("Ollama","OpenAI 호환"),C["lime"])]
-    for i,(head,body,accent) in enumerate(infra):
-        x=1125+i*220
-        p.append(panel(x,715,195,125,fill="#F7F9FD",stroke=accent,rx=18,shadow=False))
-        p.append(text(x+20,755,head,20,800,C["text"]))
-        p.append(multiline(x+20,790,body,14,500,C["body"],line_height=1.45))
-    # Network links, drawn last only in the gutters.
-    p.append(arrow(415,610,470,610,C["blue"],4))
-    p.append(text(442,588,"REST",12,800,C["blue"],anchor="middle"))
-    p.append(arrow(1018,470,1068,470,C["cyan"],4))
-    p.append(text(1043,448,"enqueue",12,800,C["cyan"],anchor="middle"))
-    p.append(arrow(1018,735,1068,735,C["blue"],4))
-    p.append(text(1043,713,"read / write",12,800,C["blue"],anchor="middle"))
-    p.append(text(105,905,"현재 개발 환경의 구성입니다. 화면·서버·작업 프로그램이 같은 데이터와 문서 파일을 사용합니다.",17,600,C["muted"]))
+    slide_title(
+        p,
+        "TWO REQUEST PATHS",
+        "요청 성격에 따라 두 경로로 나눴습니다",
+        "즉시 응답은 API가 처리하고, 오래 걸리는 OCR·청킹·AI 작업은 Redis·Celery로 분리합니다.",
+        size=43,
+    )
+
+    # 위쪽: 사용자가 결과를 기다리는 동기 요청 흐름.
+    p.append(panel(70, 300, 1780, 245, fill="#F7F9FD", stroke=C["border"], rx=28, shadow=False))
+    p.append(pill(105, 325, 150, 38, "동기 요청", C["soft_blue"], C["blue"], size=15))
+    sync_nodes = [
+        (105, 390, 360, "React · Vite", "Axios로 HTTP 요청", C["blue"]),
+        (600, 390, 360, "FastAPI", "요청 검증 · 업무 처리", C["cyan"]),
+        (1095, 390, 360, "SQLAlchemy", "트랜잭션 · 데이터 접근", C["blue2"]),
+        (1585, 390, 225, "PostgreSQL", "pgvector 1024D", C["lime"]),
+    ]
+    for x, y, w, heading, body, accent in sync_nodes:
+        p.append(panel(x, y, w, 115, fill=C["panel"], stroke=accent, rx=20, shadow=True))
+        p.append(text(x + 24, y + 43, heading, 23 if w > 250 else 20, 800, C["text"]))
+        p.append(text(x + 24, y + 80, body, 15, 600, C["body"]))
+    for x1, x2 in ((475, 585), (970, 1080), (1465, 1570)):
+        p.append(arrow(x1, 447, x2, 447, "#8EA4CC", 4))
+
+    # 아래쪽: 요청과 분리해 재시도할 수 있는 비동기 작업 흐름.
+    p.append(panel(70, 575, 1780, 205, fill=C["navy"], stroke="#31477A", rx=28, shadow=True))
+    p.append(pill(105, 600, 170, 38, "비동기 작업", "#243866", C["cyan"], size=15))
+    async_nodes = [
+        (105, 660, 285, "FastAPI", "작업 등록"),
+        (475, 660, 285, "Redis", "대기열 · 작업 유지"),
+        (845, 660, 330, "Celery Worker", "OCR · 청킹 · 분석"),
+        (1260, 650, 550, "공유 자원", "PostgreSQL · backend/uploads · Ollama 호환 · local-model"),
+    ]
+    for x, y, w, heading, body in async_nodes:
+        p.append(panel(x, y, w, 88 if heading != "공유 자원" else 108, fill="#1D315F", stroke="#3A5289" if heading != "공유 자원" else C["lime"], rx=18, shadow=False))
+        p.append(text(x + 22, y + 36, heading, 20, 800, "#FFFFFF"))
+        p.append(text(x + 22, y + 66, body, 14 if heading == "공유 자원" else 15, 600, "#C8D4EC"))
+    for x1, x2 in ((400, 460), (770, 830), (1185, 1245)):
+        p.append(arrow(x1, 704, x2, 704, "#6F89BF", 3))
+
+    # 선택 이유: 경쟁 기술과의 근거 없는 우열 대신 실제 요구와 설계 결정을 연결한다.
+    reasons = [
+        (80, "응답 분리", "긴 OCR·청킹은 화면 요청과 분리", C["blue"]),
+        (525, "작업 보존", "Worker 종료에도 Redis 큐에 유지", C["cyan"]),
+        (970, "같은 기준 재조회", "재기동 뒤에도 같은 DB·파일 사용", C["blue2"]),
+        (1415, "모델 교체 가능", "LLM 호환 요청 · 임베딩 직접 로드", C["lime"]),
+    ]
+    for x, heading, body, accent in reasons:
+        p.append(panel(x, 815, 405, 125, fill=C["panel"], stroke=C["border"], rx=20, shadow=False))
+        p.append(rect(x, 815, 7, 125, accent, rx=4))
+        p.append(text(x + 25, 855, heading, 19, 800, C["text"]))
+        p.append(text(x + 25, 895, body, 15, 600, C["body"]))
+    p.append(text(80, 975, "요구 흐름  →  기술 배치  →  실패해도 이어서 처리할 수 있는 구조", 17, 800, C["blue"]))
     return finish(p)
 
 
@@ -378,6 +382,16 @@ def slide12():
     return finish(p)
 
 
+def manual_slide21_reranker():
+    """기존 12번 재정렬 모델 장을 새 발표 경계의 21번·박세현 발표용으로 만든다."""
+    content = slide12()
+    assert content.count("12  /  RERANKER") == 1
+    assert content.count("PRESENTER  김보현") == 1
+    return content.replace("12  /  RERANKER", "21  /  RERANKER").replace(
+        "PRESENTER  김보현", "PRESENTER  박세현"
+    )
+
+
 def slide13():
     p = svg_base(13, "GROUNDED QA", "김보현", "김보현")
     slide_title(p, "EVIDENCE CONTRACT", "답변보다 먼저 근거의 경계를 설계했습니다", "검색 결과를 토큰 예산 안에 조립하고, 모델이 반환한 근거 ID를 서버가 검증합니다.", size=42)
@@ -504,6 +518,7 @@ def slide17():
     # 실제 제품 대시보드 상단을 축약한 UI 미리보기
     p.append(panel(70,310,900,610,fill="#F7F9FD",stroke=C["border"],rx=28,shadow=True))
     p.append(text(105,350,"PROJECT OVERVIEW",13,800,C["blue"],spacing=1.4))
+    p.append(pill(705,328,225,34,"화면 구성 예시",C["soft_blue"],C["blue"],size=13))
     p.append(text(105,390,"대시보드",28,800,C["text"]))
     p.append(text(105,420,"지금 확인할 문서와 우선 처리할 액션 태스크를 확인하세요.",14,500,C["body"]))
     kpis=[("전체 문서","24",C["blue"]),("처리 중","2",C["cyan"]),("추출 완료","20","#298451"),("처리 실패","2","#B34C4C"),("열린 태스크","7",C["blue2"])]
@@ -653,24 +668,34 @@ def manual_slide20_embedding_selection():
         p.append(rect(bar_x, y - 14, bar_w * hits / 41, 24, C["blue"] if selected else "#AAB8CF", rx=12))
         p.append(text(1195, y + 5, f"{hits}/64  {hits / 64 * 100:.1f}%", 16, 800, C["blue"] if selected else C["body"], anchor="end"))
 
-    # 오른쪽: 선택 모델의 수치와 선택 강도, 남겨 둔 대안을 한눈에 읽게 한다.
+    # 오른쪽: 후보 구성 이유와 선택 근거를 분리해, 유명 모델을 임의로 모은 비교가 아님을 보여 준다.
     p.append(panel(1280, 310, 560, 625, fill=C["navy"], stroke="#31477A", rx=28, shadow=True))
     p.append(pill(1325, 345, 142, 38, "최종 선택", "#243866", C["lime"], size=15))
-    p.append(text(1325, 440, "BGE-m3-ko", 36, 800, "#FFFFFF"))
-    p.append(text(1325, 530, "64.1%", 72, 800, C["cyan"]))
-    p.append(text(1328, 570, "41/64 · 안겹침 질문 Success@5", 18, 700, "#C7D3EC"))
+    p.append(text(1325, 430, "BGE-m3-ko", 34, 800, "#FFFFFF"))
+    p.append(text(1325, 505, "64.1%", 64, 800, C["cyan"]))
+    p.append(text(1328, 542, "41/64 · 안겹침 질문 Success@5", 17, 700, "#C7D3EC"))
+    p.append(text(1328, 575, "1024D · Apache-2.0", 15, 700, C["lime"]))
 
-    highlights = [
-        (625, "전체 질문에서도 1위", "102/133 · 76.7%"),
-        (715, "DB 벡터 차원", "1024D"),
-        (805, "판정 주의", "KURE와 4문항 차이 · p=0.22"),
-    ]
-    for y, heading, value in highlights:
-        p.append(panel(1325, y, 470, 72, fill="#1D315F", stroke="#3A5289", rx=16, shadow=False))
-        p.append(text(1350, y + 28, heading, 13, 800, C["cyan"], spacing=.5))
-        p.append(text(1350, y + 57, value, 18 if y < 805 else 16, 800, "#FFFFFF"))
+    p.append(panel(1325, 605, 470, 130, fill="#1D315F", stroke="#3A5289", rx=16, shadow=False))
+    p.append(text(1350, 636, "후보를 고른 기준", 14, 800, C["cyan"], spacing=.5))
+    p.append(multiline(
+        1350,
+        672,
+        ("한국어 튜닝 ↔ 최신 다국어", "384·768·1024D ↔ 인코더·디코더", "로컬 실행 · 허용적 라이선스 확인"),
+        15,
+        700,
+        "#FFFFFF",
+        line_height=1.45,
+    ))
 
-    p.append(text(960, 975, "Success@5  ·  상위 5개 안에 정답이 하나라도 있으면 성공  |  내부 최종 5차 측정", 16, 700, C["muted"], anchor="middle"))
+    p.append(panel(1325, 755, 470, 62, fill="#1D315F", stroke="#3A5289", rx=16, shadow=False))
+    p.append(text(1350, 780, "전체 질문에서도 1위", 12, 800, C["cyan"], spacing=.5))
+    p.append(text(1570, 801, "102/133 · 76.7% · p=0.039", 16, 800, "#FFFFFF", anchor="middle"))
+    p.append(panel(1325, 837, 470, 62, fill="#1D315F", stroke="#3A5289", rx=16, shadow=False))
+    p.append(text(1350, 862, "과장하지 않은 결론", 12, 800, C["cyan"], spacing=.5))
+    p.append(text(1570, 883, "KURE와 안겹침 질문 4문항 차이 · p=0.22", 15, 800, "#FFFFFF", anchor="middle"))
+
+    p.append(text(960, 975, "Success@5  ·  상위 5개 안에 정답이 하나라도 있으면 성공  |  공개 Recall@5와 다른 내부 지표", 16, 700, C["muted"], anchor="middle"))
     return finish(p)
 
 
@@ -1427,6 +1452,90 @@ def add_pilot_title_accent(slide_no: int, content: str) -> str:
     return content.replace("</svg>", accent + "</svg>")
 
 
+def reframe_slide(content: str, display_no: int, presenter: str) -> str:
+    """콘텐츠의 기존 검수 키와 무관하게 새 표시 번호·발표자를 적용한다."""
+    content, header_count = re.subn(r">\d{2}  /  ", f">{display_no:02d}  /  ", content, count=1)
+    assert header_count == 1, f"slide {display_no}: header number not found"
+    if "PRESENTER  " in content:
+        content, presenter_count = re.subn(
+            r">PRESENTER  [^<]+</text>",
+            f">PRESENTER  {presenter}</text>",
+            content,
+            count=1,
+        )
+        assert presenter_count == 1, f"slide {display_no}: presenter not found"
+    elif ">발표  " in content:
+        content, presenter_count = re.subn(
+            r">발표  [^<]+</text>",
+            f">발표  {presenter}</text>",
+            content,
+            count=1,
+        )
+        assert presenter_count == 1, f"slide {display_no}: reviewed presenter not found"
+    return content
+
+
+def first21_slides():
+    """22번 이후 파일을 건드리지 않고 새 발표 순서 1~21만 조립한다."""
+    # (새 번호, 기존 콘텐츠 검수 키, 생성 함수, 발표자)
+    items = [
+        (1, 1, v2.slide1, "김보현"),
+        (2, 2, v2.slide2, "김보현"),
+        (3, 3, slide3, "김보현"),
+        (4, 5, v2.slide5, "김보현"),
+        (5, None, slide6, "김보현"),
+        (6, 4, v2.slide4, "김보현"),
+        (7, 7, slide7, "김보현"),
+        (8, 8, slide8, "김보현"),
+        (9, 20, slide20, "김보현"),
+        (10, 18, slide18, "김보현"),
+        (11, 19, slide19, "김보현"),
+        (12, 9, slide9, "김보현"),
+        (13, 10, slide10, "김보현"),
+        (14, 11, slide11, "김보현"),
+        (15, 13, slide13, "김보현"),
+        (16, 14, slide14, "김보현"),
+        (17, 15, slide15, "김보현"),
+        (18, 16, slide16, "김보현"),
+        (19, 17, slide17, "김보현"),
+        (20, None, manual_slide20_embedding_selection, "김보현"),
+        (21, 12, slide12, "박세현"),
+    ]
+    slides = []
+    for display_no, review_key, builder, presenter in items:
+        content = builder()
+        if review_key is not None:
+            content = apply_content_review(review_key, content)
+            content = add_pilot_title_accent(review_key, content)
+        if display_no == 6:
+            marker = "기능 슬라이드마다 실제 담당자 표기"
+            assert content.count(marker) == 1
+            content = content.replace(marker, "김보현 1~20  →  박세현 21번부터")
+        slides.append(reframe_slide(content, display_no, presenter))
+    assert len(slides) == 21
+    return slides
+
+
+def write_first21_svgs():
+    """slide-01~21과 전용 미리보기만 갱신한다. slide-22 이후는 읽거나 쓰지 않는다."""
+    OUT.mkdir(parents=True, exist_ok=True)
+    slides = first21_slides()
+    for idx, content in enumerate(slides, start=1):
+        path = OUT / f"slide-{idx:02d}.svg"
+        path.write_text(content, encoding="utf-8")
+        ET.parse(path)
+    parts = [
+        '<!doctype html><html><head><meta charset="utf-8"><style>',
+        'body{margin:0;background:#dce4f1;font-family:Arial,sans-serif}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;padding:18px}.item{background:white;padding:6px;box-shadow:0 5px 18px #0e162f22}.item img{width:100%;display:block}.item b{display:block;padding:6px;color:#16234a}',
+        '</style></head><body><div class="grid">',
+    ]
+    for idx in range(1, 22):
+        parts.append(f'<div class="item"><b>{idx:02d}</b><img src="slide-{idx:02d}.svg"></div>')
+    parts.append('</div></body></html>')
+    (OUT / "preview-01-21.html").write_text("".join(parts), encoding="utf-8")
+    print(f"SVG slides written: {OUT} (1-21 only)")
+
+
 def all_slides():
     # review_key는 25번 삭제 전의 문구 검수 키다. 마지막 4장의 기존 검수 규칙을 보존한다.
     items = [
@@ -1463,11 +1572,17 @@ def write_svgs():
     print(f"SVG slides written: {OUT} (28)")
 
 
-def write_manual_slide20_svg():
-    """수동 교체용 PNG 렌더링에 쓸 20번 대체 SVG를 만든다."""
-    target = OUT / ".slide-20-embedding-selection.svg"
+def write_manual_slide_svg(slide_no: int):
+    """순서 확정 전 사용자가 직접 교체할 17·20·21번 SVG를 만든다."""
+    builders = {
+        17: (17, slide17),
+        20: (20, manual_slide20_embedding_selection),
+        21: (12, manual_slide21_reranker),
+    }
+    review_key, builder = builders[slide_no]
+    target = OUT / f".manual-slide-{slide_no:02d}.svg"
     target.parent.mkdir(parents=True, exist_ok=True)
-    content = apply_content_review(20, manual_slide20_embedding_selection())
+    content = apply_content_review(review_key, builder())
     target.write_text(content, encoding="utf-8")
     ET.parse(target)
     print(f"Manual slide SVG written: {target}")
@@ -1524,10 +1639,13 @@ def package_pptx():
 
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('mode',choices=['svg','pptx','all','manual20'],nargs='?',default='svg');args=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('mode',choices=['svg','first21','pptx','all','manual','manual17','manual20','manual21'],nargs='?',default='svg');args=parser.parse_args()
     if args.mode in {'svg','all'}:write_svgs()
+    if args.mode == 'first21':write_first21_svgs()
     if args.mode in {'pptx','all'}:package_pptx()
-    if args.mode == 'manual20':write_manual_slide20_svg()
+    if args.mode == 'manual':
+        for slide_no in (17, 20, 21):write_manual_slide_svg(slide_no)
+    if args.mode.startswith('manual') and args.mode != 'manual':write_manual_slide_svg(int(args.mode[-2:]))
 
 
 if __name__=='__main__':main()
