@@ -186,27 +186,27 @@ def slide6():
     p.append(arrow(380, 575, 380, 610, C["blue"], 5))
     p.append(arrow(1080, 575, 1080, 610, C["cyan"], 5))
 
-    p.append(panel(110, 620, 540, 315, fill=C["panel"], stroke=C["blue"], rx=24, shadow=True))
-    p.append(pill(140, 645, 185, 38, "바로 끝나는 요청", C["soft_blue"], C["blue"], size=15))
-    p.append(panel(165, 705, 430, 66, fill="#F8FAFD", stroke=C["blue2"], rx=16, shadow=False))
-    p.append(text(190, 746, "SQLAlchemy  ·  트랜잭션과 데이터 접근", 18, 800, C["text"]))
-    p.append(arrow(380, 777, 380, 805, "#8EA4CC", 4))
-    p.append(panel(165, 815, 430, 66, fill="#F8FAFD", stroke=C["lime"], rx=16, shadow=False))
-    p.append(text(190, 856, "PostgreSQL  ·  업무 데이터와 pgvector", 18, 800, C["text"]))
+    p.append(panel(140, 620, 480, 310, fill=C["panel"], stroke=C["blue"], rx=24, shadow=True))
+    p.append(pill(170, 645, 185, 38, "바로 끝나는 요청", C["soft_blue"], C["blue"], size=15))
+    p.append(panel(175, 700, 410, 62, fill="#F8FAFD", stroke=C["blue2"], rx=16, shadow=False))
+    p.append(text(200, 739, "SQLAlchemy  ·  트랜잭션과 데이터 접근", 17, 800, C["text"]))
+    p.append(arrow(380, 768, 380, 797, "#8EA4CC", 4))
+    p.append(panel(175, 805, 410, 62, fill="#F8FAFD", stroke=C["lime"], rx=16, shadow=False))
+    p.append(text(200, 844, "PostgreSQL  ·  업무 데이터와 pgvector", 17, 800, C["text"]))
 
-    p.append(panel(810, 620, 540, 315, fill=C["navy"], stroke=C["cyan"], rx=24, shadow=True))
-    p.append(pill(840, 645, 190, 38, "오래 걸리는 작업", "#243866", C["cyan"], size=15))
+    p.append(panel(840, 620, 480, 310, fill=C["navy"], stroke=C["cyan"], rx=24, shadow=True))
+    p.append(pill(870, 645, 190, 38, "오래 걸리는 작업", "#243866", C["cyan"], size=15))
     async_nodes = [
-        (700, "Redis 대기열", "작업 등록 · 중단되어도 유지"),
-        (770, "Celery Worker", "OCR · 문서 나누기 · AI 분석"),
-        (840, "공유 자원", "PostgreSQL · 문서 파일 · AI 모델"),
+        (692, "Redis 대기열", "작업 등록 · 중단되어도 유지"),
+        (782, "Celery Worker", "OCR · 문서 나누기 · AI 분석"),
+        (872, "공유 자원", "PostgreSQL · 문서 파일 · AI 모델"),
     ]
     for y, heading, body in async_nodes:
-        p.append(panel(850, y, 460, 58, fill="#1D315F", stroke="#3A5289" if heading != "공유 자원" else C["lime"], rx=14, shadow=False))
-        p.append(text(875, y + 25, heading, 17, 800, "#FFFFFF"))
-        p.append(text(1285, y + 25, body, 14, 600, "#C8D4EC", anchor="end"))
-        if y < 840:
-            p.append(arrow(1080, y + 61, 1080, y + 67, "#6F89BF", 3))
+        p.append(panel(875, y, 410, 48, fill="#1D315F", stroke="#3A5289" if heading != "공유 자원" else C["lime"], rx=13, shadow=False))
+        p.append(text(895, y + 30, heading, 16, 800, "#FFFFFF"))
+        p.append(text(1265, y + 30, body, 13, 600, "#C8D4EC", anchor="end"))
+        if y < 872:
+            p.append(arrow(1080, y + 55, 1080, y + 83, "#6F89BF", 4))
 
     # 선택 이유는 오른쪽 보조 열로 축소해 흐름보다 먼저 보이지 않게 한다.
     p.append(panel(1430, 300, 410, 650, fill=C["panel"], stroke=C["border"], rx=28, shadow=True))
@@ -346,9 +346,10 @@ def slide10():
     )
 
     # 두 검색은 강점보다 '각자 무엇을 놓치는가'를 먼저 보여 준다.
+    card_w = 590
     search_cards = [
         (
-            80,
+            100,
             "A",
             "키워드 검색",
             "정확한 글자에 강함",
@@ -358,7 +359,7 @@ def slide10():
             "document",
         ),
         (
-            1160,
+            1230,
             "B",
             "의미 검색",
             "표현이 달라도 뜻을 찾음",
@@ -369,24 +370,25 @@ def slide10():
         ),
     ]
     for x, no, heading, strength, body, miss, accent, kind in search_cards:
-        p.append(panel(x, 320, 680, 350, fill=C["navy"], stroke=accent, rx=28, shadow=True))
+        center_x = x + card_w / 2
+        p.append(panel(x, 330, card_w, 325, fill=C["navy"], stroke=accent, rx=28, shadow=True))
         p.append(number_badge(x + 30, 350, no, accent, dark=True))
-        p.append(circle(x + 605, 392, 38, "#24345F", stroke=accent, sw=2))
-        p.append(icon(kind, x + 605, 392, 34, accent, 3))
-        p.append(text(x + 340, 450, heading, 35, 800, "#FFFFFF", anchor="middle"))
-        p.append(text(x + 340, 500, strength, 18, 800, accent, anchor="middle", spacing=.3))
+        p.append(circle(x + card_w - 75, 392, 38, "#24345F", stroke=accent, sw=2))
+        p.append(icon(kind, x + card_w - 75, 392, 34, accent, 3))
+        p.append(text(center_x, 445, heading, 35, 800, "#FFFFFF", anchor="middle"))
+        p.append(text(center_x, 490, strength, 18, 800, accent, anchor="middle", spacing=.3))
         for line_no, value in enumerate(body):
-            p.append(text(x + 340, 548 + line_no * 31, value, 18, 600, "#C8D4EC", anchor="middle"))
-        p.append(panel(x + 30, 600, 620, 48, fill="#1D315F", stroke="#3A5289", rx=14, shadow=False))
-        p.append(text(x + 340, 631, miss, 15, 700, "#FFFFFF", anchor="middle"))
+            p.append(text(center_x, 535 + line_no * 31, value, 18, 600, "#C8D4EC", anchor="middle"))
+        p.append(panel(x + 30, 590, card_w - 60, 48, fill="#1D315F", stroke="#3A5289", rx=14, shadow=False))
+        p.append(text(center_x, 621, miss, 15, 700, "#FFFFFF", anchor="middle"))
 
     # 점수의 단위가 다르므로 가운데에서는 순위만 사용한다.
     p.append(circle(960, 495, 130, C["lime"], stroke="#A9C932", sw=4, extra='filter="url(#shadow)"'))
     p.append(text(960, 477, "RRF", 38, 800, C["rail"], anchor="middle"))
     p.append(text(960, 520, "순위만 합산", 18, 800, C["rail"], anchor="middle"))
     p.append(text(960, 551, "각 상위 30개", 14, 700, C["rail"], anchor="middle"))
-    p.append(arrow(770, 495, 815, 495, C["cyan"], 4))
-    p.append(arrow(1150, 495, 1105, 495, C["blue2"], 4))
+    p.append(arrow(700, 495, 815, 495, C["cyan"], 4))
+    p.append(arrow(1220, 495, 1105, 495, C["blue2"], 4))
 
     reasons = [
         (80, "점수를 그대로 더하지 않음", ("글자 유사도와 벡터 거리는", "단위·분포가 달라 직접 비교 불가"), C["blue"]),
@@ -580,10 +582,10 @@ def slide16():
         p.append(text(1400,y+38,head,23,800,"#FFFFFF"))
         p.append(text(1765,y+38,desc,18,700,"#D6DFF0",anchor="end"))
         p.append(text(1400,y+69,"모두 같은 확정본 사용",15,700,C["cyan"]))
-    p.append(circle(1630,800,62,C["lime"],stroke="#A8C62A",sw=3))
-    p.append(text(1630,791,"동시",21,800,C["rail"],anchor="middle"));p.append(text(1630,822,"전환",21,800,C["rail"],anchor="middle"))
-    p.append(arrow(1278,800,1553,800,C["lime"],8))
-    p.append(text(1395,755,"모든 검토가 끝나면 확정본 교체",22,800,"#B9D33F",anchor="middle"))
+    p.append(circle(1585,790,62,C["lime"],stroke="#A8C62A",sw=3))
+    p.append(text(1585,781,"동시",21,800,C["rail"],anchor="middle"));p.append(text(1585,812,"전환",21,800,C["rail"],anchor="middle"))
+    p.append(arrow(1278,790,1508,790,C["lime"],8))
+    p.append(text(1392,750,"모든 검토가 끝나면 확정본 교체",22,800,"#B9D33F",anchor="middle"))
     p.append(text(80,930,"재분석 중에도 기존 승인 데이터가 화면·QA·산출물에 계속 제공되며, 완료 순간에만 소비 기준이 한 번 바뀝니다.",18,700,C["muted"]))
     return finish(p)
 
