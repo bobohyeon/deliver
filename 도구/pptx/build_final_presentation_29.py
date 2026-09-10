@@ -607,6 +607,73 @@ def slide19():
     return finish(p)
 
 
+def manual_slide20_embedding_selection():
+    """최종 순서 확정 전, 사용자가 20번에 수동 삽입할 임베딩 모델 선택 결과 장을 만든다."""
+    p = svg_base(20, "임베딩 모델 선택", "김보현", "김보현 · 박세현")
+    slide_title(
+        p,
+        "9개 모델 동일 조건 비교",
+        "BGE-m3-ko를 기본 임베딩 모델로 선택했습니다",
+        "글자가 겹치지 않는 질문에서 상위 5개 안에 정답이 들어오는지 비교했습니다.",
+        size=43,
+    )
+
+    # 왼쪽: 최종 5차의 9개 후보를 모두 보여 줘 일부 모델만 골라 비교했다는 오해를 막는다.
+    p.append(panel(80, 310, 1160, 625, fill=C["panel"], stroke=C["border"], rx=28, shadow=True))
+    conditions = [
+        (120, 210, "후보 모델 9개"),
+        (345, 300, "문서 10건 · 청크 649개"),
+        (660, 300, "질문 133개 · 안겹침 64개"),
+    ]
+    for x, width, value in conditions:
+        p.append(pill(x, 338, width, 38, value, C["soft_blue"], C["navy"], size=15))
+    p.append(text(120, 415, "안겹침 질문 64개 · 상위 5개 정답 포함 결과", 18, 800, C["blue"], spacing=.5))
+
+    models = [
+        ("BGE-m3-ko", 41, 1024),
+        ("KURE-v1", 37, 1024),
+        ("arctic-l-v2.0", 37, 1024),
+        ("bge-m3", 35, 1024),
+        ("Qwen3-0.6B", 27, 1024),
+        ("nomic-v2-moe", 27, 768),
+        ("e5-base", 22, 768),
+        ("e5-small-ko-v2", 19, 384),
+        ("e5-large", 18, 1024),
+    ]
+    bar_x, bar_w = 425, 570
+    for i, (model, hits, dimension) in enumerate(models):
+        y = 448 + i * 49
+        selected = i == 0
+        if selected:
+            p.append(rect(105, y - 25, 1110, 43, C["soft_blue"], rx=12, stroke="#B8C9F5", sw=1))
+            p.append(pill(118, y - 19, 58, 30, "선택", C["blue"], "#FFFFFF", size=12))
+        p.append(text(190 if selected else 120, y + 4, model, 17, 800 if selected else 700, C["text"]))
+        p.append(text(395, y + 4, f"{dimension}D", 13, 700, C["muted"], anchor="end"))
+        p.append(rect(bar_x, y - 14, bar_w, 24, "#E4EAF4", rx=12))
+        p.append(rect(bar_x, y - 14, bar_w * hits / 41, 24, C["blue"] if selected else "#AAB8CF", rx=12))
+        p.append(text(1195, y + 5, f"{hits}/64  {hits / 64 * 100:.1f}%", 16, 800, C["blue"] if selected else C["body"], anchor="end"))
+
+    # 오른쪽: 선택 모델의 수치와 선택 강도, 남겨 둔 대안을 한눈에 읽게 한다.
+    p.append(panel(1280, 310, 560, 625, fill=C["navy"], stroke="#31477A", rx=28, shadow=True))
+    p.append(pill(1325, 345, 142, 38, "최종 선택", "#243866", C["lime"], size=15))
+    p.append(text(1325, 440, "BGE-m3-ko", 36, 800, "#FFFFFF"))
+    p.append(text(1325, 530, "64.1%", 72, 800, C["cyan"]))
+    p.append(text(1328, 570, "41/64 · 안겹침 질문 Success@5", 18, 700, "#C7D3EC"))
+
+    highlights = [
+        (625, "전체 질문에서도 1위", "102/133 · 76.7%"),
+        (715, "DB 벡터 차원", "1024D"),
+        (805, "판정 주의", "KURE와 4문항 차이 · p=0.22"),
+    ]
+    for y, heading, value in highlights:
+        p.append(panel(1325, y, 470, 72, fill="#1D315F", stroke="#3A5289", rx=16, shadow=False))
+        p.append(text(1350, y + 28, heading, 13, 800, C["cyan"], spacing=.5))
+        p.append(text(1350, y + 57, value, 18 if y < 805 else 16, 800, "#FFFFFF"))
+
+    p.append(text(960, 975, "Success@5  ·  상위 5개 안에 정답이 하나라도 있으면 성공  |  내부 최종 5차 측정", 16, 700, C["muted"], anchor="middle"))
+    return finish(p)
+
+
 def slide20():
     p = svg_base(20, "ASYNC SAFETY", "박세현", "박세현 · 최재정")
     slide_title(p, "FAILURE ISOLATION", "비동기 작업의 실패 경계를 분리했습니다", "OCR·청킹은 재시도하고, LLM 분석은 원문 변경과 부분 실패를 job 상태로 통제합니다.", size=46)
@@ -1396,6 +1463,16 @@ def write_svgs():
     print(f"SVG slides written: {OUT} (28)")
 
 
+def write_manual_slide20_svg():
+    """수동 교체용 PNG 렌더링에 쓸 20번 대체 SVG를 만든다."""
+    target = OUT / ".slide-20-embedding-selection.svg"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    content = apply_content_review(20, manual_slide20_embedding_selection())
+    target.write_text(content, encoding="utf-8")
+    ET.parse(target)
+    print(f"Manual slide SVG written: {target}")
+
+
 def package_pptx():
     count=28
     pngs=[PNG_DIR/f"slide-{i:02d}.png" for i in range(1,count+1)]
@@ -1447,9 +1524,10 @@ def package_pptx():
 
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('mode',choices=['svg','pptx','all'],nargs='?',default='svg');args=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('mode',choices=['svg','pptx','all','manual20'],nargs='?',default='svg');args=parser.parse_args()
     if args.mode in {'svg','all'}:write_svgs()
     if args.mode in {'pptx','all'}:package_pptx()
+    if args.mode == 'manual20':write_manual_slide20_svg()
 
 
 if __name__=='__main__':main()
