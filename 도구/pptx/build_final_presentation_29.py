@@ -186,7 +186,7 @@ def slide6():
     p.append(arrow(380, 575, 380, 610, C["blue"], 5))
     p.append(arrow(1080, 575, 1080, 610, C["cyan"], 5))
 
-    p.append(panel(110, 620, 540, 290, fill=C["panel"], stroke=C["blue"], rx=24, shadow=True))
+    p.append(panel(110, 620, 540, 315, fill=C["panel"], stroke=C["blue"], rx=24, shadow=True))
     p.append(pill(140, 645, 185, 38, "바로 끝나는 요청", C["soft_blue"], C["blue"], size=15))
     p.append(panel(165, 705, 430, 66, fill="#F8FAFD", stroke=C["blue2"], rx=16, shadow=False))
     p.append(text(190, 746, "SQLAlchemy  ·  트랜잭션과 데이터 접근", 18, 800, C["text"]))
@@ -194,19 +194,19 @@ def slide6():
     p.append(panel(165, 815, 430, 66, fill="#F8FAFD", stroke=C["lime"], rx=16, shadow=False))
     p.append(text(190, 856, "PostgreSQL  ·  업무 데이터와 pgvector", 18, 800, C["text"]))
 
-    p.append(panel(810, 620, 540, 290, fill=C["navy"], stroke=C["cyan"], rx=24, shadow=True))
+    p.append(panel(810, 620, 540, 315, fill=C["navy"], stroke=C["cyan"], rx=24, shadow=True))
     p.append(pill(840, 645, 190, 38, "오래 걸리는 작업", "#243866", C["cyan"], size=15))
     async_nodes = [
         (700, "Redis 대기열", "작업 등록 · 중단되어도 유지"),
-        (778, "Celery Worker", "OCR · 문서 나누기 · AI 분석"),
-        (856, "공유 자원", "PostgreSQL · 문서 파일 · AI 모델"),
+        (770, "Celery Worker", "OCR · 문서 나누기 · AI 분석"),
+        (840, "공유 자원", "PostgreSQL · 문서 파일 · AI 모델"),
     ]
     for y, heading, body in async_nodes:
         p.append(panel(850, y, 460, 58, fill="#1D315F", stroke="#3A5289" if heading != "공유 자원" else C["lime"], rx=14, shadow=False))
         p.append(text(875, y + 25, heading, 17, 800, "#FFFFFF"))
         p.append(text(1285, y + 25, body, 14, 600, "#C8D4EC", anchor="end"))
-        if y < 856:
-            p.append(arrow(1080, y + 61, 1080, y + 73, "#6F89BF", 3))
+        if y < 840:
+            p.append(arrow(1080, y + 61, 1080, y + 67, "#6F89BF", 3))
 
     # 선택 이유는 오른쪽 보조 열로 축소해 흐름보다 먼저 보이지 않게 한다.
     p.append(panel(1430, 300, 410, 650, fill=C["panel"], stroke=C["border"], rx=28, shadow=True))
@@ -373,11 +373,12 @@ def slide10():
         p.append(number_badge(x + 30, 350, no, accent, dark=True))
         p.append(circle(x + 605, 392, 38, "#24345F", stroke=accent, sw=2))
         p.append(icon(kind, x + 605, 392, 34, accent, 3))
-        p.append(text(x + 30, 450, heading, 30, 800, "#FFFFFF"))
-        p.append(text(x + 30, 495, strength, 17, 800, accent, spacing=.3))
-        p.append(multiline(x + 30, 540, body, 18, 600, "#C8D4EC", line_height=1.5))
+        p.append(text(x + 340, 450, heading, 35, 800, "#FFFFFF", anchor="middle"))
+        p.append(text(x + 340, 500, strength, 18, 800, accent, anchor="middle", spacing=.3))
+        for line_no, value in enumerate(body):
+            p.append(text(x + 340, 548 + line_no * 31, value, 18, 600, "#C8D4EC", anchor="middle"))
         p.append(panel(x + 30, 600, 620, 48, fill="#1D315F", stroke="#3A5289", rx=14, shadow=False))
-        p.append(text(x + 50, 631, miss, 15, 700, "#FFFFFF"))
+        p.append(text(x + 340, 631, miss, 15, 700, "#FFFFFF", anchor="middle"))
 
     # 점수의 단위가 다르므로 가운데에서는 순위만 사용한다.
     p.append(circle(960, 495, 130, C["lime"], stroke="#A9C932", sw=4, extra='filter="url(#shadow)"'))
@@ -579,11 +580,10 @@ def slide16():
         p.append(text(1400,y+38,head,23,800,"#FFFFFF"))
         p.append(text(1765,y+38,desc,18,700,"#D6DFF0",anchor="end"))
         p.append(text(1400,y+69,"모두 같은 확정본 사용",15,700,C["cyan"]))
-    p.append(panel(1275,744,550,54,fill=C["lime"],stroke="#A8C62A",rx=17,shadow=False))
-    p.append(text(1550,779,"모든 검토가 끝나면 확정본 교체",22,800,C["rail"],anchor="middle"))
-    p.append(arrow(1278,858,1625,858,C["lime"],9))
-    p.append(circle(1690,858,55,C["lime"],stroke="#A8C62A",sw=4))
-    p.append(text(1690,850,"동시",20,800,C["rail"],anchor="middle"));p.append(text(1690,880,"전환",20,800,C["rail"],anchor="middle"))
+    p.append(circle(1630,800,62,C["lime"],stroke="#A8C62A",sw=3))
+    p.append(text(1630,791,"동시",21,800,C["rail"],anchor="middle"));p.append(text(1630,822,"전환",21,800,C["rail"],anchor="middle"))
+    p.append(arrow(1278,800,1553,800,C["lime"],8))
+    p.append(text(1395,755,"모든 검토가 끝나면 확정본 교체",22,800,"#B9D33F",anchor="middle"))
     p.append(text(80,930,"재분석 중에도 기존 승인 데이터가 화면·QA·산출물에 계속 제공되며, 완료 순간에만 소비 기준이 한 번 바뀝니다.",18,700,C["muted"]))
     return finish(p)
 
