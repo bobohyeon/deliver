@@ -1574,8 +1574,8 @@ def first21_slides():
         (2, 2, v2.slide2, "김보현"),
         (3, 3, slide3, "김보현"),
         (4, 5, v2.slide5, "김보현"),
-        (5, None, slide6, "김보현"),
-        (6, 4, v2.slide4, "김보현"),
+        (5, 4, v2.slide4, "김보현"),
+        (6, None, slide6, "김보현"),
         (7, 7, slide7, "김보현"),
         (8, 8, slide8, "김보현"),
         (9, 20, slide20, "김보현"),
@@ -1598,7 +1598,7 @@ def first21_slides():
         if review_key is not None:
             content = apply_content_review(review_key, content)
             content = add_pilot_title_accent(review_key, content)
-        if display_no == 6:
+        if display_no == 5:
             marker = "기능 슬라이드마다 실제 담당자 표기"
             assert content.count(marker) == 1
             content = content.replace(marker, "김보현 1~20  →  박세현 21번부터")
