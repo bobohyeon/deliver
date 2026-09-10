@@ -164,91 +164,109 @@ def slide6():
     p = svg_base(6, "ARCHITECTURE", "김보현", "최재정 · 공통")
     slide_title(
         p,
-        "TWO REQUEST PATHS",
-        "요청 성격에 따라 두 경로로 나눴습니다",
-        "즉시 응답은 API가 처리하고, 오래 걸리는 OCR·청킹·AI 작업은 Redis·Celery로 분리합니다.",
+        "REQUEST FLOW",
+        "하나의 요청이 FastAPI에서 두 실행 경로로 나뉩니다",
+        "바로 끝나는 요청은 데이터베이스로, 오래 걸리는 작업은 대기열과 Worker로 보냅니다.",
         size=43,
     )
 
-    # 위쪽: 사용자가 결과를 기다리는 동기 요청 흐름.
-    p.append(panel(70, 300, 1780, 245, fill="#F7F9FD", stroke=C["border"], rx=28, shadow=False))
-    p.append(pill(105, 325, 150, 38, "동기 요청", C["soft_blue"], C["blue"], size=15))
-    sync_nodes = [
-        (105, 390, 360, "React · Vite", "Axios로 HTTP 요청", C["blue"]),
-        (600, 390, 360, "FastAPI", "요청 검증 · 업무 처리", C["cyan"]),
-        (1095, 390, 360, "SQLAlchemy", "트랜잭션 · 데이터 접근", C["blue2"]),
-        (1585, 390, 225, "PostgreSQL", "pgvector 1024D", C["lime"]),
-    ]
-    for x, y, w, heading, body, accent in sync_nodes:
-        p.append(panel(x, y, w, 115, fill=C["panel"], stroke=accent, rx=20, shadow=True))
-        p.append(text(x + 24, y + 43, heading, 23 if w > 250 else 20, 800, C["text"]))
-        p.append(text(x + 24, y + 80, body, 15, 600, C["body"]))
-    for x1, x2 in ((475, 585), (970, 1080), (1465, 1570)):
-        p.append(arrow(x1, 447, x2, 447, "#8EA4CC", 4))
+    # 왼쪽 큰 영역은 위에서 아래로 읽는 요청 흐름에만 사용한다.
+    p.append(panel(70, 300, 1320, 650, fill="#F7F9FD", stroke=C["border"], rx=28, shadow=False))
+    p.append(panel(420, 325, 620, 76, fill=C["panel"], stroke=C["blue"], rx=18, shadow=True))
+    p.append(text(450, 357, "사용자 화면", 15, 800, C["blue"], spacing=1.0))
+    p.append(text(1005, 370, "React · Vite  /  Axios 요청", 21, 800, C["text"], anchor="end"))
+    p.append(arrow(730, 410, 730, 445, "#8EA4CC", 5))
+    p.append(panel(420, 455, 620, 76, fill=C["navy"], stroke=C["cyan"], rx=18, shadow=True))
+    p.append(text(450, 487, "요청 진입점", 15, 800, C["cyan"], spacing=1.0))
+    p.append(text(1005, 500, "FastAPI  ·  검증과 업무 처리", 21, 800, "#FFFFFF", anchor="end"))
 
-    # 아래쪽: 요청과 분리해 재시도할 수 있는 비동기 작업 흐름.
-    p.append(panel(70, 575, 1780, 205, fill=C["navy"], stroke="#31477A", rx=28, shadow=True))
-    p.append(pill(105, 600, 170, 38, "비동기 작업", "#243866", C["cyan"], size=15))
+    # FastAPI에서 동기·비동기 경로로 갈라지는 분기선을 크게 보여 준다.
+    p.append(line(730, 531, 730, 575, "#6E87B8", 5))
+    p.append(line(380, 575, 1080, 575, "#6E87B8", 5))
+    p.append(arrow(380, 575, 380, 610, C["blue"], 5))
+    p.append(arrow(1080, 575, 1080, 610, C["cyan"], 5))
+
+    p.append(panel(110, 620, 540, 290, fill=C["panel"], stroke=C["blue"], rx=24, shadow=True))
+    p.append(pill(140, 645, 185, 38, "바로 끝나는 요청", C["soft_blue"], C["blue"], size=15))
+    p.append(panel(165, 705, 430, 66, fill="#F8FAFD", stroke=C["blue2"], rx=16, shadow=False))
+    p.append(text(190, 746, "SQLAlchemy  ·  트랜잭션과 데이터 접근", 18, 800, C["text"]))
+    p.append(arrow(380, 777, 380, 805, "#8EA4CC", 4))
+    p.append(panel(165, 815, 430, 66, fill="#F8FAFD", stroke=C["lime"], rx=16, shadow=False))
+    p.append(text(190, 856, "PostgreSQL  ·  업무 데이터와 pgvector", 18, 800, C["text"]))
+
+    p.append(panel(810, 620, 540, 290, fill=C["navy"], stroke=C["cyan"], rx=24, shadow=True))
+    p.append(pill(840, 645, 190, 38, "오래 걸리는 작업", "#243866", C["cyan"], size=15))
     async_nodes = [
-        (105, 660, 285, "FastAPI", "작업 등록"),
-        (475, 660, 285, "Redis", "대기열 · 작업 유지"),
-        (845, 660, 330, "Celery Worker", "OCR · 청킹 · 분석"),
-        (1260, 650, 550, "공유 자원", "PostgreSQL · backend/uploads · Ollama 호환 · local-model"),
+        (700, "Redis 대기열", "작업 등록 · 중단되어도 유지"),
+        (778, "Celery Worker", "OCR · 문서 나누기 · AI 분석"),
+        (856, "공유 자원", "PostgreSQL · 문서 파일 · AI 모델"),
     ]
-    for x, y, w, heading, body in async_nodes:
-        p.append(panel(x, y, w, 88 if heading != "공유 자원" else 108, fill="#1D315F", stroke="#3A5289" if heading != "공유 자원" else C["lime"], rx=18, shadow=False))
-        p.append(text(x + 22, y + 36, heading, 20, 800, "#FFFFFF"))
-        p.append(text(x + 22, y + 66, body, 14 if heading == "공유 자원" else 15, 600, "#C8D4EC"))
-    for x1, x2 in ((400, 460), (770, 830), (1185, 1245)):
-        p.append(arrow(x1, 704, x2, 704, "#6F89BF", 3))
+    for y, heading, body in async_nodes:
+        p.append(panel(850, y, 460, 58, fill="#1D315F", stroke="#3A5289" if heading != "공유 자원" else C["lime"], rx=14, shadow=False))
+        p.append(text(875, y + 25, heading, 17, 800, "#FFFFFF"))
+        p.append(text(1285, y + 25, body, 14, 600, "#C8D4EC", anchor="end"))
+        if y < 856:
+            p.append(arrow(1080, y + 61, 1080, y + 73, "#6F89BF", 3))
 
-    # 선택 이유: 경쟁 기술과의 근거 없는 우열 대신 실제 요구와 설계 결정을 연결한다.
+    # 선택 이유는 오른쪽 보조 열로 축소해 흐름보다 먼저 보이지 않게 한다.
+    p.append(panel(1430, 300, 410, 650, fill=C["panel"], stroke=C["border"], rx=28, shadow=True))
+    p.append(text(1470, 355, "이렇게 나눈 이유", 23, 800, C["text"]))
     reasons = [
-        (80, "응답 분리", "긴 OCR·청킹은 화면 요청과 분리", C["blue"]),
-        (525, "작업 보존", "Worker 종료에도 Redis 큐에 유지", C["cyan"]),
-        (970, "같은 기준 재조회", "재기동 뒤에도 같은 DB·파일 사용", C["blue2"]),
-        (1415, "모델 교체 가능", "LLM 호환 요청 · 임베딩 직접 로드", C["lime"]),
+        (415, "01", "화면 응답 분리", "긴 작업이 요청을 막지 않음", C["blue"]),
+        (535, "02", "작업 보존", "Worker 중단에도 Redis에 유지", C["cyan"]),
+        (655, "03", "같은 기준 재조회", "같은 DB와 문서 파일 사용", C["blue2"]),
+        (775, "04", "모델 교체 가능", "호환 요청과 로컬 모델 경로", C["lime"]),
     ]
-    for x, heading, body, accent in reasons:
-        p.append(panel(x, 815, 405, 125, fill=C["panel"], stroke=C["border"], rx=20, shadow=False))
-        p.append(rect(x, 815, 7, 125, accent, rx=4))
-        p.append(text(x + 25, 855, heading, 19, 800, C["text"]))
-        p.append(text(x + 25, 895, body, 15, 600, C["body"]))
-    p.append(text(80, 975, "요구 흐름  →  기술 배치  →  실패해도 이어서 처리할 수 있는 구조", 17, 800, C["blue"]))
+    for y, no, heading, body, accent in reasons:
+        p.append(circle(1475, y, 22, accent))
+        p.append(text(1475, y + 6, no, 12, 800, "#FFFFFF" if accent != C["lime"] else C["rail"], anchor="middle"))
+        p.append(text(1515, y - 4, heading, 18, 800, C["text"]))
+        p.append(text(1515, y + 25, body, 14, 600, C["body"]))
+    p.append(text(1635, 908, "요청  →  분기  →  실행  →  저장", 16, 800, C["blue"], anchor="middle"))
     return finish(p)
 
 
 def slide7():
     p = svg_base(7, "DATA MODEL", "김보현", "최재정")
-    slide_title(p, "RELATIONAL CORE", "핵심 데이터 구조", "Project와 Document를 중심으로 검색·분석·업무 데이터가 외래키로 연결됩니다.")
-    # ERD처럼 관계를 수평·직각으로 분리해 선이 교차하지 않게 한다.
-    entities=[
-        (100,315,390,155,"USER · MEMBER",("소유자와 구성원","OWNER · EDITOR · VIEWER"),C["cyan"]),
-        (100,555,390,205,"PROJECT",("프로젝트 업무 범위","권한 · 문서 · 태스크의 루트"),C["blue"]),
-        (665,555,440,205,"DOCUMENT",("원문 경로와 메타데이터","추출본문 · OCR · 분석 이력"),C["blue2"]),
-        (1340,315,440,175,"CHUNK · ANALYSIS",("본문 구간과 1024D 벡터","모델 · 버전 · 원문 좌표"),C["cyan"]),
-        (1340,650,440,175,"TASK · REVIEW",("태스크와 검토 제안","결정 · 일정 · 액션 · 금액"),C["lime"]),
+    slide_title(p, "RELATIONAL CORE", "데이터가 서로 연결되는 방식", "프로젝트를 기준으로 구성원·문서·태스크가 갈라지고, 문서에서 검색·분석 데이터가 이어집니다.")
+
+    # 왼쪽의 프로젝트에서 오른쪽 자식 데이터로 흐르는 관계를 한 방향으로 정렬한다.
+    project = (100, 475, 430, 220)
+    children = [
+        (760, 315, 430, 150, "USER · MEMBER", ("소유자와 구성원", "권한 역할"), C["cyan"]),
+        (760, 510, 430, 170, "DOCUMENT", ("원문 경로와 메타데이터", "추출본문 · OCR · 분석 이력"), C["blue2"]),
+        (760, 725, 430, 150, "TASK · REVIEW", ("태스크와 검토 제안", "결정 · 일정 · 액션 · 금액"), C["lime"]),
+        (1390, 510, 430, 170, "CHUNK · ANALYSIS", ("본문 구간과 1024D 벡터", "모델 · 버전 · 원문 좌표"), C["cyan"]),
     ]
-    # 관계선과 cardinality를 먼저 그린다.
-    p.append(polyline([(295,470),(295,555)],"#9FB2D5",4))
-    p.append(polyline([(490,657),(665,657)],"#6E8AC5",5))
-    p.append(polyline([(1105,625),(1220,625),(1220,402),(1340,402)],"#9FB2D5",4))
-    p.append(polyline([(295,760),(295,810),(1340,810),(1340,800)],"#9FB2D5",4))
-    label_tag(p,315,492,"1:N members",width=155)
-    label_tag(p,515,615,"1:N documents",width=170)
-    label_tag(p,1150,520,"1:N chunks / analyses",width=220)
-    label_tag(p,700,775,"1:N tasks / reviews",width=200)
-    for x,y,w,h,heading,body,accent in entities:
-        dark=heading=="PROJECT"
-        p.append(panel(x,y,w,h,fill=C["navy"] if dark else C["panel"],stroke=accent,rx=26,shadow=True))
-        p.append(text(x+30,y+52,heading,21,800,C["cyan"] if dark else accent,spacing=1.0))
-        p.append(multiline(x+30,y+98,body,18,600,"#FFFFFF" if dark else C["body"],line_height=1.45))
-        p.append(text(x+w-28,y+35,"PK" if heading in {"PROJECT","DOCUMENT"} else "FK",13,800,"#8EA3CF" if dark else C["muted"],anchor="end",spacing=1.2))
-    p.append(panel(100,860,1680,90,fill=C["panel"],stroke=C["border"],rx=20,shadow=False))
-    p.append(text(135,910,"FILE STORAGE",15,800,C["blue"],spacing=1.3))
-    p.append(text(310,910,"DB BLOB이 아니라 공유 로컬 경로",20,700,C["text"]))
-    p.append(text(890,910,"DOCUMENT TEXT",15,800,C["cyan"],spacing=1.3))
-    p.append(text(1080,910,"Document 1:1 ExtractedText",20,700,C["text"]))
+
+    # 카드보다 선을 먼저 그려 화살표가 카드 위를 가로지르지 않게 한다.
+    p.append(line(530, 585, 650, 585, "#6E8AC5", 5))
+    p.append(line(650, 390, 650, 800, "#9FB2D5", 4))
+    for target_y, label in ((390, "구성원"), (595, "문서"), (800, "태스크·검토")):
+        p.append(arrow(650, target_y, 742, target_y, "#6E8AC5", 5))
+        label_tag(p, 555, target_y - 17, label, width=105)
+    p.append(arrow(1198, 595, 1372, 595, C["cyan"], 5))
+    label_tag(p, 1225, 548, "조각·분석", width=125)
+
+    x, y, w, h = project
+    p.append(panel(x, y, w, h, fill=C["navy"], stroke=C["blue"], rx=28, shadow=True))
+    p.append(text(x + 35, y + 58, "PROJECT", 24, 800, C["cyan"], spacing=1.0))
+    p.append(text(x + 35, y + 115, "프로젝트 업무 범위", 25, 800, "#FFFFFF"))
+    p.append(multiline(x + 35, y + 158, ("권한 · 문서 · 태스크를", "하나의 기준으로 연결"), 17, 600, "#C8D4EC", line_height=1.35))
+    p.append(text(x + w - 28, y + 40, "기준", 13, 800, "#8EA3CF", anchor="end", spacing=1.2))
+
+    for x, y, w, h, heading, body, accent in children:
+        p.append(panel(x, y, w, h, fill=C["panel"], stroke=accent, rx=24, shadow=True))
+        p.append(text(x + 28, y + 45, heading, 19, 800, accent, spacing=.8))
+        p.append(multiline(x + 28, y + 88, body, 17, 600, C["body"], line_height=1.35))
+        p.append(text(x + w - 25, y + 32, "연결", 12, 800, C["muted"], anchor="end", spacing=1.0))
+
+    p.append(panel(100, 910, 1720, 68, fill=C["panel"], stroke=C["border"], rx=18, shadow=False))
+    p.append(text(135, 952, "원문 파일", 15, 800, C["blue"], spacing=1.0))
+    p.append(text(255, 952, "공유 문서 경로에 저장", 18, 700, C["text"]))
+    p.append(text(815, 952, "추출 본문", 15, 800, C["cyan"], spacing=1.0))
+    p.append(text(940, 952, "문서와 1:1로 연결", 18, 700, C["text"]))
+    p.append(text(1400, 952, "화살표 = 연결 방향", 15, 700, C["muted"]))
     return finish(p)
 
 
@@ -268,10 +286,20 @@ def slide8():
         p.append(text(120,y+128,note,15,600,C["muted"]))
         widths=[245,245,360]
         xs=[500,825,1150]
+        active_fill = {
+            C["blue"]: "#E8EEFF",
+            C["cyan"]: "#E6F8FC",
+            C["lime"]: "#F0F6D8",
+        }[accent]
+        active_text = {
+            C["blue"]: C["blue"],
+            C["cyan"]: "#1689A8",
+            C["lime"]: "#607816",
+        }[accent]
         for i,(state,x,w) in enumerate(zip(states,xs,widths)):
             active=i==1
-            p.append(panel(x,y+38,w,78,fill=C["navy"] if active else "#F8FAFD",stroke=accent,rx=18,shadow=False))
-            p.append(text(x+w/2,y+86,state,18 if i<2 else 16,800,"#FFFFFF" if active else accent,anchor="middle"))
+            p.append(panel(x,y+38,w,78,fill=active_fill if active else "#F8FAFD",stroke=accent,rx=18,shadow=False))
+            p.append(text(x+w/2,y+86,state,18 if i<2 else 16,800,active_text if active else accent,anchor="middle"))
             if i<2:p.append(arrow(x+w+18,y+77,xs[i+1]-18,y+77,"#9DAFCE",3))
         p.append(panel(1550,y+34,245,86,fill="#F3F6FB",stroke=C["border"],rx=16,shadow=False))
         p.append(text(1575,y+66,"STATE OWNER",12,800,C["muted"],spacing=1.1))
@@ -313,7 +341,7 @@ def slide10():
         p,
         "COMPLEMENTARY RETRIEVAL",
         "서로 다른 누락 위험을 한 검색창에서 보완했습니다",
-        "단일 검색 대비 성능 실험은 아직 없으며, 아래 내용은 성능 입증이 아닌 설계 근거입니다.",
+        "키워드는 정확한 글자를, 의미 검색은 표현이 다른 문장을 찾고 두 결과의 순위를 합칩니다.",
         size=42,
     )
 
@@ -360,16 +388,15 @@ def slide10():
     p.append(arrow(1150, 495, 1105, 495, C["blue2"], 4))
 
     reasons = [
-        (80, "왜 점수를 더하지 않았나", ("글자 유사도와 벡터 거리는", "단위·분포가 달라 직접 비교 불가"), C["blue"]),
-        (650, "왜 RRF인가", ("정규화·가중치 가정 없이", "각 검색에서 앞선 순위만 사용"), C["cyan"]),
-        (1220, "어디까지 말할 수 있나", ("서로 다른 누락 위험을 보완한 설계", "단일 검색 대비 성능 수치는 아직 없음"), C["lime"]),
+        (80, "점수를 그대로 더하지 않음", ("글자 유사도와 벡터 거리는", "단위·분포가 달라 직접 비교 불가"), C["blue"]),
+        (650, "각 검색 안에서 순위 계산", ("키워드·의미 검색에서", "각각 상위 30개 후보를 선택"), C["cyan"]),
+        (1220, "하나의 결과 목록으로", ("RRF가 두 순위를 합쳐", "사용자에게 최종 순위로 제공"), C["lime"]),
     ]
     for x, heading, body, accent in reasons:
-        p.append(panel(x, 735, 520, 180, fill=C["panel"], stroke=C["border"], rx=22, shadow=False))
-        p.append(rect(x, 735, 7, 180, accent, rx=4))
-        p.append(text(x + 28, 780, heading, 20, 800, C["text"]))
-        p.append(multiline(x + 28, 825, body, 16, 600, C["body"], line_height=1.55))
-    p.append(text(960, 970, "결론  ·  성능을 입증한 장이 아니라, 두 검색을 함께 둔 이유를 설명하는 장입니다.", 18, 800, C["blue"], anchor="middle"))
+        p.append(panel(x, 735, 520, 205, fill=C["panel"], stroke=C["border"], rx=22, shadow=False))
+        p.append(rect(x, 735, 7, 205, accent, rx=4))
+        p.append(text(x + 28, 785, heading, 20, 800, C["text"]))
+        p.append(multiline(x + 28, 835, body, 17, 600, C["body"], line_height=1.55))
     return finish(p)
 
 
@@ -456,11 +483,11 @@ def slide13():
         card_title(p,xs[i],330,no,head,accent,width=300,height=310,body_lines=body,icon_kind=kind,heading_size=23,body_size=17)
         if i<4:p.append(arrow(xs[i]+305,485,xs[i+1]-5,485,"#A9BAD9",3))
     p.append(panel(90,700,1740,210,fill=C["navy"],stroke="#31477A",rx=28,shadow=True))
-    p.append(text(135,760,"반환",18,800,C["cyan"],spacing=1.2))
-    p.append(text(135,817,"답변 + 문서명 + 페이지 + 조각 번호 + 원문 좌표",26,800,"#FFFFFF"))
-    p.append(text(135,865,"근거가 없으면 LLM을 호출하지 않고 고정 응답을 반환합니다.",18,500,"#BFCBE5"))
-    label_tag(p,1380,755,"의미적 사실 검증 아님",fill="#243864",color=C["lime"],width=360)
-    p.append(text(1380,825,"서버는 근거 번호와 사용 권한만 확인합니다.",18,600,"#FFFFFF"))
+    p.append(text(135,760,"사용자에게 보여주는 결과",18,800,C["cyan"],spacing=1.0))
+    p.append(text(135,817,"답변과 함께 문서명 · 페이지 · 원문 위치를 보여줍니다",26,800,"#FFFFFF"))
+    p.append(text(135,865,"근거를 찾지 못하면 인공지능을 호출하지 않고 정해진 안내만 보여줍니다.",18,500,"#BFCBE5"))
+    label_tag(p,1380,755,"서버가 확인하는 범위",fill="#243864",color=C["lime"],width=360)
+    p.append(text(1380,825,"근거 번호와 문서 접근 권한을 확인합니다.",18,600,"#FFFFFF"))
     return finish(p)
 
 
@@ -509,8 +536,8 @@ def slide15():
         card_title(p,xs[i],350,no,head,accent,width=360,height=330,body_lines=body,icon_kind=kind,dark=(i==3),heading_size=25,body_size=18)
         if i<3:p.append(arrow(xs[i]+370,515,xs[i+1]-10,515,"#A9BADA",4))
     p.append(panel(100,760,1680,150,fill=C["navy"],stroke="#31477A",rx=28,shadow=True))
-    p.append(text(145,815,"현재 화면",18,800,C["cyan"],spacing=1.2))
-    p.append(text(145,865,"승인·거절만 지원합니다. 수정 후 승인, 승인 취소, 원문 변경 확인은 다음 개선 항목입니다.",23,700,"#FFFFFF"))
+    p.append(text(145,815,"태스크 후보의 동작",18,800,C["cyan"],spacing=1.0))
+    p.append(text(145,865,"후보를 한 건씩 확인하고, 승인하면 실제 태스크를 만들며 거절하면 후보 목록에서 제외합니다.",23,700,"#FFFFFF"))
     return finish(p)
 
 
@@ -552,10 +579,11 @@ def slide16():
         p.append(text(1400,y+38,head,23,800,"#FFFFFF"))
         p.append(text(1765,y+38,desc,18,700,"#D6DFF0",anchor="end"))
         p.append(text(1400,y+69,"모두 같은 확정본 사용",15,700,C["cyan"]))
-    p.append(circle(1585,790,62,C["lime"],stroke="#A8C62A",sw=3))
-    p.append(text(1585,781,"동시",21,800,C["rail"],anchor="middle"));p.append(text(1585,812,"전환",21,800,C["rail"],anchor="middle"))
-    p.append(arrow(1278,790,1508,790,C["lime"],4))
-    p.append(text(1392,750,"모든 검토가 끝나면 확정본 교체",17,800,"#B9D33F",anchor="middle"))
+    p.append(panel(1275,744,550,54,fill=C["lime"],stroke="#A8C62A",rx=17,shadow=False))
+    p.append(text(1550,779,"모든 검토가 끝나면 확정본 교체",22,800,C["rail"],anchor="middle"))
+    p.append(arrow(1278,858,1625,858,C["lime"],9))
+    p.append(circle(1690,858,55,C["lime"],stroke="#A8C62A",sw=4))
+    p.append(text(1690,850,"동시",20,800,C["rail"],anchor="middle"));p.append(text(1690,880,"전환",20,800,C["rail"],anchor="middle"))
     p.append(text(80,930,"재분석 중에도 기존 승인 데이터가 화면·QA·산출물에 계속 제공되며, 완료 순간에만 소비 기준이 한 번 바뀝니다.",18,700,C["muted"]))
     return finish(p)
 
