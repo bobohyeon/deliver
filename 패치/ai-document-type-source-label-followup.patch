@@ -1,0 +1,60 @@
+diff --git a/backend/app/api/routes/document_router.py b/backend/app/api/routes/document_router.py
+index 370dd21..3f840f8 100644
+--- a/backend/app/api/routes/document_router.py
++++ b/backend/app/api/routes/document_router.py
+@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api/projects/{project_id}", tags=["documents"])
+ @router.get("/documents", response_model=PageResponse[DocumentListItem])
+ def list_documents(q: str | None = None, document_type: str | None = None, document_state: str | None = Query(None, pattern="^(PROCESSING|REVIEW_REQUIRED|COMPLETED|FAILED)$"), category: str | None = None, page: int = Query(1, ge=1), size: int = Query(20, ge=1, le=100), access: ProjectAccess = Depends(get_project_access), service: DocumentService = Depends(get_document_service)):
+     rows, total, total_pages = service.search_documents(project_id=access.project.id, q=q, document_type=document_type, document_state=document_state, category=category, page=page, size=size)
+-    items = [DocumentListItem(id=row.document.id, filename=row.document.filename, file_type=row.document.file_type, document_type=row.document.document_type, status=row.document.status, processing_error=row.document.processing_error, review_status=row.document.review_status, page_count=row.document.extracted_text.page_count if row.document.extracted_text else None, char_count=row.document.extracted_text.char_count if row.document.extracted_text else None, text_char_count=row.document.native_text_char_count, ocr_char_count=row.document.active_ocr_char_count, extract_method=row.document.extracted_text.extract_method if row.document.extracted_text else None, category=row.category, summary_preview=row.summary_preview, created_at=row.document.created_at) for row in rows]
++    items = [DocumentListItem(id=row.document.id, filename=row.document.filename, file_type=row.document.file_type, document_type=row.document.document_type, document_type_source=row.document.document_type_source, status=row.document.status, processing_error=row.document.processing_error, review_status=row.document.review_status, page_count=row.document.extracted_text.page_count if row.document.extracted_text else None, char_count=row.document.extracted_text.char_count if row.document.extracted_text else None, text_char_count=row.document.native_text_char_count, ocr_char_count=row.document.active_ocr_char_count, extract_method=row.document.extracted_text.extract_method if row.document.extracted_text else None, category=row.category, summary_preview=row.summary_preview, created_at=row.document.created_at) for row in rows]
+     return PageResponse(items=items, page=page, size=size, total=total, total_pages=total_pages)
+ 
+ @router.get("/documents/{document_id}", response_model=DocumentDetailResponse)
+diff --git a/backend/app/schemas/document.py b/backend/app/schemas/document.py
+index 2ee7e5e..eee7fd0 100644
+--- a/backend/app/schemas/document.py
++++ b/backend/app/schemas/document.py
+@@ -91,6 +91,7 @@ class DocumentListItem(BaseModel):
+     filename: str
+     file_type: str
+     document_type: str | None
++    document_type_source: str | None = None
+     status: str
+     processing_error: str | None = None
+     review_status: str
+diff --git a/frontend/src/features/documents/DocumentsView.css b/frontend/src/features/documents/DocumentsView.css
+index cfd2e28..3c8dd5f 100644
+--- a/frontend/src/features/documents/DocumentsView.css
++++ b/frontend/src/features/documents/DocumentsView.css
+@@ -73,7 +73,7 @@
+ 
+ /* 문서 상태·다음 행동을 우선 배치하는 목록 보완 */
+ .panel-head > div > p { margin: 4px 0 0; color: #758197; font-size: 13px; }
+-.document-list .document-row { position: relative; display: grid; grid-template-columns: minmax(0, 2fr) 220px 170px 240px; gap: 14px; align-items: center; padding: 14px 16px; }
++.document-list .document-row { position: relative; display: grid; grid-template-columns: minmax(0, 2fr) 220px 190px 220px; gap: 14px; align-items: center; padding: 14px 16px; }
+ .document-main-action { display: flex; min-width: 0; align-items: center; gap: 11px; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+ .document-main-action:hover strong, .document-main-action:focus-visible strong { color: #5148c8; text-decoration: underline; text-underline-offset: 3px; }
+ .document-primary-copy { min-width: 0; }
+@@ -90,6 +90,8 @@
+ .status-success { border-color: #bfe1cf; background: #ecfaf2; color: #237248; }
+ .status-danger { border-color: #f0bdc4; background: #fff0f2; color: #aa3445; }
+ .document-secondary-meta { display: grid; gap: 7px; justify-items: start; color: #758197; font-size: 12px; }
++.document-type-meta { display: flex; min-width: 0; align-items: center; gap: 6px; }
++.document-type-source { flex: 0 0 auto; color: #6f7c90; font-size: 10px; font-weight: 700; white-space: nowrap; }
+ .document-secondary-meta time { white-space: nowrap; }
+ .document-actions { display: flex; justify-content: flex-end; gap: 8px; }
+ .document-open { min-width: 112px; min-height: 38px; white-space: nowrap; }
+diff --git a/frontend/src/features/documents/DocumentsView.jsx b/frontend/src/features/documents/DocumentsView.jsx
+index d27ac28..849cd10 100644
+--- a/frontend/src/features/documents/DocumentsView.jsx
++++ b/frontend/src/features/documents/DocumentsView.jsx
+@@ -92,7 +92,7 @@ function DocumentList({ documents, canEdit, onOpen, onPrimaryAction, onRetry, re
+         <StatusBadge label={documentStatus.label} description={documentStatus.description} tone={documentStatus.tone}/>
+         <StatusBadge label={reviewStatus.label} description={reviewStatus.description} tone={reviewStatus.tone}/>
+       </div>
+-      <div className='document-secondary-meta'><span className='type-pill'>{getDocumentTypeFilterLabel(document.document_type)}</span><time dateTime={document.created_at}>{new Date(document.created_at).toLocaleDateString()}</time></div>
++      <div className='document-secondary-meta'><div className='document-type-meta'><span className='type-pill'>{getDocumentTypeFilterLabel(document.document_type)}</span>{document.document_type_source === 'AI' && <small className='document-type-source'>AI 분류</small>}</div><time dateTime={document.created_at}>{new Date(document.created_at).toLocaleDateString()}</time></div>
+       <div className='document-actions'>
+         {document.status === 'FAILED' && canEdit ? <button className='document-open' disabled={retryingDocumentId === document.id} onClick={() => onRetry(document)}>{retryingDocumentId === document.id ? '재처리 요청 중' : '다시 처리'}</button> : document.review_status === 'COMPLETED' ? <><button className='document-open' onClick={() => onPrimaryAction(document)}>재검수하기</button><button className='document-open' onClick={() => onOpen(document.id)}>상세보기</button></> : <button className='document-open' onClick={() => onPrimaryAction(document)}>{getDocumentPrimaryAction(document)}</button>}
+       </div>

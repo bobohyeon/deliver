@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>Tasqra — 산출물 화면 시안 v1 (네이비)</title>
+<!--
+  이 파일의 책임: 산출물 화면(DLV 영역 9건)의 목업이다. 확인용이고 구현이 아니다.
+
+  기존 UI시안_Tasqra_v1.html 과 다른 점 — 색
+    · 보라 계열을 뺐다(#5148c8 · #f1edff · #ece7fb). 재정님 의견: "보라빛 나는
+      이미지보다 완전 네이비가 낫다"
+    · **네이비를 강조에만 쓰고 배경은 밝게 뒀다.** 재정님 의견: "지금 목업은
+      색상이 너무 어두워 보인다". 네이비를 넓은 면에 깔면 더 어두워지므로
+      머리·버튼·강조에만 쓴다
+    · 회색·테두리는 팀 레포 프론트가 쓰는 값을 그대로 가져왔다
+      (#dce3ee · #758197 · #111827). 시안과 구현의 색이 갈리지 않게
+
+  담긴 기능 (전부 김보현 담당 · 전부 미구현)
+    DLV-001-1 산출물 조건 선택      P1   유형·기간·형식(XLSX·HTML·MD)
+    DLV-001-2 생성 대상 미리보기    P1   LLM 호출 전 건수 확인
+    DLV-002-1 주간 보고서 생성      P1
+    DLV-002-2 프로젝트 현황 한 장   P2
+    DLV-002-3 인수인계 문서         P3   후순위
+    DLV-003-1 결정사항 대장         P1
+    DLV-003-2 다음 회의 안건        P1   DLV-003-1 의 부산물
+    DLV-003-3 생성 이력·다운로드    P1
+    DLV-003-4 갱신 필요 판정        P1   source_counts_json 스냅샷 비교
+
+  ⚠ 사용자 색상 변경 기능은 넣지 않았다 — 완전 후순위로 보류된 의견이다.
+-->
+<style>
+  :root{
+    /* 네이비 — 강조에만 쓴다 */
+    --navy:#17335c; --navy-2:#1f4478; --navy-soft:#e8eef7; --navy-line:#c9d7ea;
+    /* 중립 — 팀 레포 프론트와 같은 값 */
+    --ink:#111827; --muted:#758197; --line:#dce3ee; --bg:#f7f9fc; --card:#fff;
+    /* 상태 — 색 하나에 뜻 하나만 붙인다 */
+    --warn-bg:#fff6e5; --warn-ink:#8a5a00; --warn-line:#f0d9a8;
+    --ok-bg:#e9f6ee; --ok-ink:#1c6b3c;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:14px/1.6 -apple-system,"Segoe UI","Malgun Gothic",sans-serif}
+  .wrap{display:grid;grid-template-columns:212px 1fr;min-height:100vh}
+
+  /* 사이드바 — 팀 공유 메시지에서 "산출물 메뉴 하나만 추가" 로 합의한 자리 */
+  .side{background:var(--navy);color:#dbe6f5;padding:20px 0}
+  .brand{font-weight:800;font-size:17px;color:#fff;padding:0 20px 18px}
+  .side a{display:block;padding:10px 20px;color:#b9cae2;text-decoration:none;font-size:13.5px}
+  .side a.on{background:rgba(255,255,255,.13);color:#fff;font-weight:700;
+    box-shadow:inset 3px 0 0 #7ea6de}
+  .side .grp{padding:16px 20px 6px;font-size:11px;color:#87a0c4;letter-spacing:.04em}
+
+  main{padding:26px 30px 60px;max-width:1080px}
+  .eyebrow{font-size:11px;letter-spacing:.08em;color:var(--muted);font-weight:700}
+  h1{font-size:22px;margin:4px 0 6px}
+  .lead{color:var(--muted);margin:0 0 20px}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;
+    padding:18px 20px;margin-bottom:16px}
+  .card h2{font-size:15px;margin:0 0 4px;display:flex;align-items:center;gap:8px}
+  .card p.sub{color:var(--muted);font-size:12.5px;margin:0 0 14px}
+  .fid{font:11px/1 ui-monospace,monospace;color:var(--navy-2);background:var(--navy-soft);
+    border:1px solid var(--navy-line);border-radius:99px;padding:4px 8px;font-weight:700}
+
+  .row{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+  .chip{border:1px solid var(--line);background:#fff;border-radius:99px;
+    padding:8px 14px;font-size:13px;cursor:pointer}
+  .chip.on{background:var(--navy);border-color:var(--navy);color:#fff;font-weight:700}
+  .chip[aria-disabled="true"]{color:#a9b3c4;background:#f4f6fa;cursor:not-allowed}
+  label.lbl{display:block;font-size:12px;font-weight:700;color:var(--muted);margin:0 0 6px}
+  input[type=date],select{border:1px solid var(--line);border-radius:8px;padding:8px 10px;
+    font:inherit;background:#fff;min-height:38px}
+
+  /* 미리보기 — 건수를 먼저 보여 빈 산출물과 헛 LLM 호출을 막는다 */
+  .prev{display:grid;grid-template-columns:repeat(auto-fit,minmax(126px,1fr));gap:10px}
+  .prev div{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:#fcfdff}
+  .prev b{display:block;font-size:21px;color:var(--navy);line-height:1.25}
+  .prev span{font-size:12px;color:var(--muted)}
+  .prev div.zero b{color:#b6bfcd}
+
+  .btn{border:0;border-radius:9px;padding:11px 18px;font:inherit;font-weight:700;cursor:pointer}
+  .btn.pri{background:var(--navy);color:#fff}
+  .btn.pri:disabled{background:#c3cddc;cursor:not-allowed}
+  .btn.gh{background:#fff;border:1px solid var(--line);color:var(--ink)}
+  .hint{font-size:12px;color:var(--muted);margin-left:10px}
+
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:11.5px;color:var(--muted);letter-spacing:.03em}
+  .tag{display:inline-block;font-size:11px;font-weight:700;border-radius:6px;padding:3px 7px}
+  .tag.ok{background:var(--ok-bg);color:var(--ok-ink)}
+  .tag.stale{background:var(--warn-bg);color:var(--warn-ink);border:1px solid var(--warn-line)}
+  .note{background:var(--warn-bg);border:1px solid var(--warn-line);color:var(--warn-ink);
+    border-radius:10px;padding:12px 14px;font-size:13px;margin-bottom:16px}
+  .legend{border-top:1px dashed var(--line);margin-top:22px;padding-top:14px;
+    font-size:12px;color:var(--muted)}
+  .legend b{color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="side">
+    <div class="brand">Tasqra</div>
+    <a href="#">대시보드</a>
+    <a href="#">문서</a>
+    <a href="#">검색</a>
+    <a href="#">태스크</a>
+    <a href="#">금액</a>
+    <div class="grp">산출</div>
+    <a href="#" class="on">산출물</a>
+  </nav>
+
+  <main>
+    <div class="eyebrow">DELIVERABLES</div>
+    <h1>산출물</h1>
+    <p class="lead">프로젝트에 쌓인 문서·태스크·결정·금액을 모아 보고서로 만듭니다.
+      만들기 전에 <b>대상 건수를 먼저 보여줍니다.</b></p>
+
+    <!-- DLV-001-1 -->
+    <section class="card">
+      <h2>무엇을 만들까요 <span class="fid">DLV-001-1</span></h2>
+      <p class="sub">유형과 기간, 파일 형식을 고릅니다.</p>
+
+      <label class="lbl">유형</label>
+      <div class="row">
+        <button class="chip on">주간 보고서</button>
+        <button class="chip">프로젝트 현황 한 장</button>
+        <button class="chip">결정사항 대장</button>
+        <button class="chip">다음 회의 안건</button>
+        <button class="chip" aria-disabled="true" title="후순위 — DLV-002-3">인수인계 문서</button>
+      </div>
+
+      <label class="lbl">기간</label>
+      <div class="row">
+        <button class="chip on">이번 주</button>
+        <button class="chip">지난 주</button>
+        <button class="chip">이번 달</button>
+        <input type="date" value="2026-08-14" aria-label="시작일">
+        <input type="date" value="2026-08-20" aria-label="종료일">
+      </div>
+
+      <label class="lbl">형식</label>
+      <div class="row">
+        <button class="chip">XLSX</button>
+        <button class="chip">HTML</button>
+        <button class="chip">MD</button>
+        <span class="hint">형식을 고르지 않으면 만들기 버튼이 잠깁니다.</span>
+      </div>
+    </section>
+
+    <!-- DLV-001-2 -->
+    <section class="card">
+      <h2>이만큼이 담깁니다 <span class="fid">DLV-001-2</span></h2>
+      <p class="sub">AI 를 부르기 전에 건수를 보여줍니다. 빈 보고서와 헛 호출을 막습니다.</p>
+      <div class="prev">
+        <div><b>12</b><span>문서</span></div>
+        <div><b>8</b><span>완료 태스크</span></div>
+        <div><b>5</b><span>결정사항</span></div>
+        <div><b>3</b><span>다가오는 기한</span></div>
+        <div><b>2</b><span>금액 변동</span></div>
+        <div class="zero"><b>0</b><span>승인 대기</span></div>
+      </div>
+      <div class="row" style="margin:16px 0 0;align-items:center">
+        <button class="btn pri" disabled>만들기</button>
+        <span class="hint">형식을 먼저 고르세요.</span>
+      </div>
+    </section>
+
+    <!-- DLV-003-4 -->
+    <div class="note">
+      <b>갱신이 필요합니다.</b> 8월 18일에 만든 주간 보고서 이후 문서 <b>3건</b>과
+      결정 <b>1건</b>이 늘었습니다. 다시 만들면 최신 내용이 담깁니다.
+      <span class="fid" style="margin-left:6px">DLV-003-4</span>
+    </div>
+
+    <!-- DLV-003-3 -->
+    <section class="card">
+      <h2>만든 것 <span class="fid">DLV-003-3</span></h2>
+      <p class="sub">이력에 남고 다시 내려받을 수 있습니다.</p>
+      <table>
+        <thead>
+          <tr><th>유형</th><th>기간</th><th>형식</th><th>만든 때</th><th>상태</th><th></th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>주간 보고서</td><td>08-11 ~ 08-17</td><td>XLSX</td><td>08-18 18:04</td>
+            <td><span class="tag stale">갱신 필요</span></td>
+            <td><button class="btn gh">내려받기</button></td>
+          </tr>
+          <tr>
+            <td>결정사항 대장</td><td>전체</td><td>HTML</td><td>08-15 11:20</td>
+            <td><span class="tag ok">최신</span></td>
+            <td><button class="btn gh">내려받기</button></td>
+          </tr>
+          <tr>
+            <td>다음 회의 안건</td><td>미결 5건</td><td>MD</td><td>08-15 11:21</td>
+            <td><span class="tag ok">최신</span></td>
+            <td><button class="btn gh">내려받기</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <div class="legend">
+      <p><b>이 시안에서 확인할 것</b></p>
+      <p>① 네이비를 <b>머리·버튼·강조에만</b> 썼습니다. 넓은 면에 깔면 더 어두워 보여서
+         배경은 흰색과 <code>#f7f9fc</code> 로 뒀습니다.</p>
+      <p>② 보라 계열을 모두 뺐습니다. 회색·테두리는 실제 프론트가 쓰는 값
+         (<code>#dce3ee</code>·<code>#758197</code>·<code>#111827</code>)을 그대로 가져와
+         시안과 구현의 색이 갈리지 않게 했습니다.</p>
+      <p>③ <b>만들기 버튼이 잠긴 상태</b>가 기본입니다 — 형식을 고르지 않으면 못 만듭니다
+         (<code>DLV-001-1</code> 완료 판정).</p>
+      <p>④ 건수 <b>0</b> 은 흐리게 두었습니다. 대상이 없으면 생성을 막는 근거가 됩니다
+         (<code>DLV-001-2</code> 완료 판정).</p>
+      <p>⑤ 사용자 색상 변경은 <b>넣지 않았습니다</b> — 완전 후순위로 보류된 의견입니다.</p>
+    </div>
+  </main>
+</div>
+</body>
+</html>

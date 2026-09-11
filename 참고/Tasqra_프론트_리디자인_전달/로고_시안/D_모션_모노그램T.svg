@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">시안 D 모션 모노그램 T</title>
+  <defs>
+    <linearGradient id="d-mark" x1="11" y1="50" x2="54" y2="12" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#173cff"/>
+      <stop offset=".55" stop-color="#087ff4"/>
+      <stop offset="1" stop-color="#08d7e5"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#d-mark)" d="M12 15h43l-7 10H36L27 52c-2 6-8 6-11 2-2-2-2-5 0-8l8-21H6z"/>
+  <path fill="url(#d-mark)" d="m29 45 14-16h14L35 53c-4 4-9 4-12 0z"/>
+  <path d="M8 44c12 9 34 8 48-5" fill="none" stroke="url(#d-mark)" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="55" cy="36" r="3" fill="#08c7e7"/>
+</svg>

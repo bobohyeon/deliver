@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">DOC2 접힌 문서 T</title>
+  <defs>
+    <linearGradient id="doc2" x1="10" y1="56" x2="55" y2="8" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#173cff"/>
+      <stop offset=".58" stop-color="#087ff4"/>
+      <stop offset="1" stop-color="#08d7e5"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#doc2)" d="M13 7h29l10 10v36a5 5 0 0 1-5 5H13a5 5 0 0 1-5-5V12a5 5 0 0 1 5-5Z"/>
+  <path fill="#8cebf2" d="M42 7v10h10z"/>
+  <path fill="#fff" d="M18 21h29l-5 8h-8l-7 22h-9l7-22H13z"/>
+</svg>

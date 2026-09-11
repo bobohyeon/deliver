@@ -1,0 +1,189 @@
+diff --git a/backend/app/models/deliverable.py b/backend/app/models/deliverable.py
+index fa286df..a01a559 100644
+--- a/backend/app/models/deliverable.py
++++ b/backend/app/models/deliverable.py
+@@ -1,9 +1,8 @@
+ # =============================================================================
+ # 이 파일의 책임: 만들어 낸 산출물 파일 한 건을 엔티티로 정의한다.
+ #   "8월 11~17일 주간 보고서 XLSX" 한 건이 이 테이블의 한 행이다.
+-#   리비전 0007 이 만든 deliverables 에 대응한다.
+-#
+-#   **테이블은 이미 있다. 이 파일은 매핑만 더한다.** 마이그레이션이 필요 없다.
++#   리비전 0007 이 만든 deliverables 에 대응하며, 리비전 0021 이 출력 형식에
++#   PDF 를 추가한다. 테이블 구조는 그대로이고 CHECK 값만 확장된다.
+ #
+ #   위 세 모델(amount·decision·schedule)과 성격이 다르다 — 이건 **AI 제안이
+ #   아니다.** 우리가 만든 결과물이므로 승인 컬럼(decision·reason 등)이 없다.
+@@ -57,9 +56,9 @@ from app.db.base import Base
+ 
+ __all__ = ["Deliverable"]
+ 
+-# 리비전 0007 의 DELIVERABLE_KIND · DELIVERABLE_FORMAT 과 같은 값이다.
++# 유형은 리비전 0007, 출력 형식은 최신 리비전 0021 의 CHECK 와 같은 값이다.
+ _KIND = ("WEEKLY_REPORT", "DECISION_LOG", "MEETING_AGENDA", "PROJECT_STATUS")
+-_FORMAT = ("XLSX", "HTML", "MD")
++_FORMAT = ("XLSX", "HTML", "MD", "PDF")
+ 
+ # 기간이 필수인 유형. DB CHECK 와 같은 판단을 코드에서도 쓸 수 있게 둔다.
+ PERIOD_REQUIRED_KINDS = ("WEEKLY_REPORT",)
+diff --git a/backend/migrations/versions/20260824_0021_deliverable_pdf_format.py b/backend/migrations/versions/20260824_0021_deliverable_pdf_format.py
+new file mode 100644
+index 0000000..e8a748f
+--- /dev/null
++++ b/backend/migrations/versions/20260824_0021_deliverable_pdf_format.py
+@@ -0,0 +1,61 @@
++"""산출물 출력 형식에 PDF 추가
++
++이 파일의 책임: deliverables.format CHECK에 PDF를 추가한다. 테이블이나 컬럼은
++  바꾸지 않고 허용값만 XLSX·HTML·MD·PDF 네 종류로 확장한다.
++다른 파일과의 관계: 액션 태스크 활동 기록 리비전 0020 뒤에 적용되며, ORM의
++  app/models/deliverable.py와 같은 형식 목록을 유지한다. 최초 테이블을 만든
++  0007은 과거 이력이므로 수정하지 않는다.
++Spring 비교: Flyway V21__deliverable_pdf_format.sql처럼 기존 CHECK 제약을 같은
++  이름으로 교체하는 데이터베이스 스키마 변경이다.
++
++Revision ID: 20260824_0021
++Revises: 20260824_0020
++"""
++
++import sqlalchemy as sa
++from alembic import op
++
++revision = "20260824_0021"
++down_revision = "20260824_0020"
++branch_labels = None
++depends_on = None
++
++DELIVERABLE_FORMAT = ("XLSX", "HTML", "MD", "PDF")
++PREVIOUS_DELIVERABLE_FORMAT = ("XLSX", "HTML", "MD")
++
++
++def _format_check(values: tuple[str, ...]) -> str:
++    joined = ", ".join(f"'{value}'" for value in values)
++    return f"format IN ({joined})"
++
++
++def _replace_format_check(values: tuple[str, ...]) -> None:
++    op.drop_constraint(
++        "ck_deliverable_format",
++        "deliverables",
++        type_="check",
++    )
++    op.create_check_constraint(
++        "ck_deliverable_format",
++        "deliverables",
++        _format_check(values),
++    )
++
++
++def upgrade() -> None:
++    _replace_format_check(DELIVERABLE_FORMAT)
++
++
++def downgrade() -> None:
++    # 확인과 제약 교체 사이에 PDF 행이 추가되지 않도록 쓰기를 잠근다.
++    op.execute("LOCK TABLE deliverables IN SHARE ROW EXCLUSIVE MODE")
++    bind = op.get_bind()
++    pdf_exists = bind.execute(
++        sa.text("SELECT 1 FROM deliverables WHERE format = 'PDF' LIMIT 1")
++    ).scalar_one_or_none()
++    if pdf_exists is not None:
++        raise RuntimeError(
++            "PDF 산출물이 있어 0020으로 내릴 수 없습니다. "
++            "PDF 행을 보존하거나 변환한 뒤 다시 시도하세요."
++        )
++    _replace_format_check(PREVIOUS_DELIVERABLE_FORMAT)
+diff --git a/backend/tests/test_suggestion_models.py b/backend/tests/test_suggestion_models.py
+index 3b69cde..dfbf8ce 100644
+--- a/backend/tests/test_suggestion_models.py
++++ b/backend/tests/test_suggestion_models.py
+@@ -1,10 +1,10 @@
+ # =============================================================================
+-# 이 파일의 책임: 리비전 0007 테이블 셋의 ORM 매핑이 마이그레이션과 어긋나지
+-#   않는지 DB 없이 검증한다 — decisions · schedule_items · deliverables.
++# 이 파일의 책임: 리비전 0007이 만든 테이블과 리비전 0021이 확장한 산출물
++#   형식을 ORM 매핑과 대조한다 — decisions · schedule_items · deliverables.
+ #
+-#   **테이블은 이미 있고 모델만 새로 넣었다.** 그래서 가장 큰 위험은 "컬럼 이름이
+-#   하나 틀렸다" 나 "CHECK 문구가 달라 Alembic 이 매번 제약을 다시 만든다" 다.
+-#   둘 다 에러 없이 조용히 어긋나는 종류다.
++#   테이블 구조는 0007에 있고 산출물 형식의 최신 CHECK는 0021에 있다. 그래서
++#   가장 큰 위험은 "컬럼 이름이 하나 틀렸다" 또는 "최신 CHECK 값이 모델과
++#   달라 Alembic이 매번 제약을 다시 만든다"는 것이다.
+ #
+ #   검사하는 것
+ #     ① 마이그레이션의 컬럼 이름·개수와 모델이 같은가
+@@ -14,9 +14,11 @@
+ #
+ # 다른 파일과의 관계
+ #   app/models/decision.py · schedule.py · deliverable.py
+-#   migrations/versions/20260811_0007_analysis_artifacts.py  ← 유일한 근거
++#   migrations/versions/20260811_0007_analysis_artifacts.py  ← 테이블 생성 근거
++#   migrations/versions/20260824_0021_deliverable_pdf_format.py
++#     ← 산출물 출력 형식의 최신 근거
+ #
+-#   **마이그레이션 파일을 읽어서 비교한다.** 기대값을 손으로 적으면 두 곳을
++#   **마이그레이션 파일을 읽어서 비교한다.** 기대값을 손으로 적으면 여러 곳을
+ #   고쳐야 하고, 한쪽만 고치면 테스트가 거짓으로 통과한다.
+ #
+ # Spring 비교: @Entity 와 Flyway 스크립트가 어긋나지 않는지 보는 검사다.
+@@ -37,6 +39,12 @@ MIGRATION = (
+     / "versions"
+     / "20260811_0007_analysis_artifacts.py"
+ )
++FORMAT_MIGRATION = (
++    Path(__file__).resolve().parents[1]
++    / "migrations"
++    / "versions"
++    / "20260824_0021_deliverable_pdf_format.py"
++)
+ 
+ # 리비전 0007 의 suggestion_columns() · timestamps() 가 더하는 컬럼.
+ # 마이그레이션이 함수로 펼치므로 정규식으로는 안 잡힌다.
+@@ -145,15 +153,22 @@ def test_partial_index_on_open_decisions():
+ # --- ③ 값 목록이 마이그레이션과 같다 ----------------------------------------
+ 
+ 
+-def migration_tuple(name: str) -> tuple[str, ...]:
+-    """마이그레이션 상단의 값 목록 상수를 읽는다."""
+-    tree = ast.parse(MIGRATION.read_text(encoding="utf-8"))
++def migration_assignment(name: str, source: Path = MIGRATION):
++    """지정한 마이그레이션 상단의 상수 값을 읽는다."""
++    tree = ast.parse(source.read_text(encoding="utf-8"))
+     for node in tree.body:
+         if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", "") == name:
+-            return tuple(ast.literal_eval(node.value))
++            return ast.literal_eval(node.value)
+     raise AssertionError(f"{name} 을 못 찾았다")
+ 
+ 
++def migration_tuple(name: str, source: Path = MIGRATION) -> tuple[str, ...]:
++    """지정한 마이그레이션 상단의 값 목록 상수를 읽는다."""
++    value = migration_assignment(name, source)
++    assert isinstance(value, tuple), f"{name} 이 tuple 이 아니다"
++    return tuple(value)
++
++
+ def check_values(model, constraint: str) -> set[str]:
+     """CHECK 문구에서 'A', 'B' 형태의 값을 뽑는다."""
+     target = next(c for c in model.__table__.constraints if c.name == constraint)
+@@ -184,10 +199,18 @@ def test_deliverable_kind_and_format_values():
+         migration_tuple("DELIVERABLE_KIND")
+     )
+     assert check_values(Deliverable, "ck_deliverable_format") == set(
+-        migration_tuple("DELIVERABLE_FORMAT")
++        migration_tuple("DELIVERABLE_FORMAT", FORMAT_MIGRATION)
+     )
+ 
+ 
++def test_deliverable_format_migration_follows_tasks_and_preserves_old_values():
++    """0021은 액션 태스크 활동 기록 0020 뒤에 오고, 기존 3종을 보존한다."""
++    assert migration_assignment("down_revision", FORMAT_MIGRATION) == "20260824_0020"
++    assert migration_tuple(
++        "PREVIOUS_DELIVERABLE_FORMAT", FORMAT_MIGRATION
++    ) == migration_tuple("DELIVERABLE_FORMAT")
++
++
+ # --- ④ 헬퍼의 판단 ----------------------------------------------------------
+ 
+ 

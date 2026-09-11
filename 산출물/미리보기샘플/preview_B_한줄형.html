@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>프로젝트 현황</title>
+<style>
+* { box-sizing: border-box; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { margin:0; background:#fff; color:#1b1b1b; font-size:14px; line-height:1.65;
+  font-family: -apple-system,"Segoe UI","Malgun Gothic","Apple SD Gothic Neo","NanumGothic","Nanum Gothic",sans-serif; }
+main { max-width:920px; margin:0 auto; padding:26px 44px 4px; }
+table { width:100%; border-collapse:collapse; font-size:13px; }
+tbody td { padding:9px 11px; border-bottom:1px solid #eeeeee; vertical-align:top; }
+tbody tr:nth-child(even) td { background:#fafafa; }
+.num { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+thead th { padding:9px 11px; background:#f4f4f4; color:#5a5a5a; font-size:11px; font-weight:700;
+  letter-spacing:0.04em; text-align:left; white-space:nowrap; }
+footer { max-width:920px; margin:0 auto; padding:22px 44px 42px; }
+footer p { margin:0; color:#8a8a8a; font-size:11px; }
+@media print { @page{margin:14mm;} body{font-size:10.5pt;}
+  .cover,main,footer{max-width:none;padding-left:24px;padding-right:24px;}
+  .block{page-break-inside:avoid;} thead{display:table-header-group;} tr{page-break-inside:avoid;} }
+
+.cover { max-width:920px; margin:0 auto; padding:38px 44px 20px; border-bottom:3px solid #0f6b6b; }
+.cover h1 { margin:0; font-size:27px; font-weight:700; line-height:1.3; letter-spacing:-0.01em; }
+.cover .meta { display:flex; flex-wrap:wrap; margin:15px 0 0; padding:0; list-style:none; color:#6a6a6a; font-size:12px; }
+.cover .meta li:not(:last-child)::after { content:"·"; margin:0 10px; color:#c4c4c4; }
+.block { margin:32px 0 0; }
+.block-head { display:flex; align-items:center; gap:10px; margin:0 0 12px; }
+.block-num { flex:none; min-width:22px; padding:3px 6px; background:#0f6b6b; color:#fff; font-size:11px;
+  font-weight:700; letter-spacing:0.06em; text-align:center; border-radius:2px; }
+.block-head h2 { margin:0; font-size:16px; font-weight:700; letter-spacing:0.01em; }
+p.note { margin:0; padding:14px 16px; background:#f5f5f5; color:#4a4a4a; font-size:13px; border-radius:3px; }
+</style>
+</head>
+<body>
+<header class="cover">
+<h1>프로젝트 현황</h1>
+<ul class="meta">
+<li>Tasqra 조달 관리</li>
+<li>기준 2026-08-27 14:30</li>
+<li>작성 자동 생성</li>
+</ul>
+</header>
+<main>
+<section class="block">
+<div class="block-head">
+<span class="block-num">01</span>
+<h2>개요</h2>
+</div>
+<p class="note">이번 주 결정 3건이 확정되었고 미결 안건 1건이 다음 회의로 넘어갑니다. 금액 항목 총 4건이 반영되었습니다.</p>
+</section>
+<section class="block">
+<div class="block-head">
+<span class="block-num">02</span>
+<h2>결정사항</h2>
+</div>
+<table>
+<thead><tr>
+<th>안건</th>
+<th>상태</th>
+<th>결정일</th>
+</tr></thead>
+<tbody>
+<tr>
+<td>납품 일정 2주 단축</td>
+<td>확정</td>
+<td>2026-08-24</td>
+</tr>
+<tr>
+<td>예비 부품 발주 범위</td>
+<td>미결</td>
+<td>—</td>
+</tr>
+<tr>
+<td>검수 기준 상향</td>
+<td>확정</td>
+<td>2026-08-26</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section class="block">
+<div class="block-head">
+<span class="block-num">03</span>
+<h2>금액 항목</h2>
+</div>
+<table>
+<thead><tr>
+<th>품목</th>
+<th class="num">수량</th>
+<th class="num">단가</th>
+<th class="num">금액</th>
+</tr></thead>
+<tbody>
+<tr>
+<td>제어 모듈</td>
+<td class="num">12</td>
+<td class="num">1,250,000</td>
+<td class="num">15,000,000</td>
+</tr>
+<tr>
+<td>센서 어셈블리</td>
+<td class="num">40</td>
+<td class="num">320,000</td>
+<td class="num">12,800,000</td>
+</tr>
+<tr>
+<td>설치 용역</td>
+<td class="num">1</td>
+<td class="num">3,500,000</td>
+<td class="num">3,500,000</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section class="block">
+<div class="block-head">
+<span class="block-num">04</span>
+<h2>다음 회의 안건</h2>
+</div>
+<p class="note">예비 부품 발주 범위 — 승인 대기 1건이 있어 다음 회의에서 다룹니다.</p>
+</section>
+</main>
+<footer>
+<p>프로젝트 현황 · Tasqra 조달 관리 · 기준 2026-08-27 14:30 · 작성 자동 생성</p>
+</footer>
+</body>
+</html>

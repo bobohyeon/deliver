@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">DOC1 겹친 문서 T</title>
+  <defs>
+    <linearGradient id="doc1" x1="8" y1="51" x2="55" y2="12" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#173cff"/>
+      <stop offset=".55" stop-color="#087ff4"/>
+      <stop offset="1" stop-color="#08d7e5"/>
+    </linearGradient>
+  </defs>
+  <rect x="7" y="12" width="38" height="9" rx="4.5" fill="#173cff" opacity=".34"/>
+  <rect x="11" y="18" width="42" height="9" rx="4.5" fill="#087ff4" opacity=".58"/>
+  <path fill="url(#doc1)" d="M15 24h42l-6 9H38l-8 25H19l8-25H9z"/>
+</svg>

@@ -1,0 +1,433 @@
+diff --git a/backend/app/models/document.py b/backend/app/models/document.py
+index 38569f2..886a963 100644
+--- a/backend/app/models/document.py
++++ b/backend/app/models/document.py
+@@ -1,4 +1,6 @@
+-from sqlalchemy import BigInteger, Boolean, CheckConstraint, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, func
++from decimal import Decimal
++
++from sqlalchemy import BigInteger, Boolean, CheckConstraint, DateTime, Float, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint, func
+ from sqlalchemy.dialects.postgresql import JSONB
+ from sqlalchemy.orm import Mapped, mapped_column, relationship
+ 
+@@ -35,6 +37,17 @@ class Document(Base):
+     ocr_revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+     category_cache: Mapped[str | None] = mapped_column(String(30))
+     summary_preview: Mapped[str | None] = mapped_column(String(300))
++    # 문서 아래쪽 「합계」 칸에 적힌 값. 우리가 항목을 더한 합계와 대조하는 기준이다
++    # (AMT-002-1). 리비전 0022.
++    #
++    # NULL 이 정상이다 — 합계가 적혀 있지 않은 문서가 있다(공고문·계약서 본문).
++    # 0 을 넣으면 "합계가 0원" 과 "안 적혀 있다" 를 구별할 수 없고 대조가 항상
++    # 불일치로 나온다. amount_calculator.TotalCheck 가 None 을 「대조 불가」로
++    # 따로 다루는 것과 같은 이유다.
++    #
++    # 형이 amount_items.amount 와 같다(Numeric(18,2)). 다르면 계산기에 넘길 때
++    # 변환 규칙이 둘이 되어 반올림이 어긋난다.
++    stated_total_amount: Mapped[Decimal | None] = mapped_column(Numeric(18, 2))
+     created_at: Mapped[object] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+     updated_at: Mapped[object] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+ 
+diff --git a/backend/app/repositories/amount_repository.py b/backend/app/repositories/amount_repository.py
+index 858d82a..109080b 100644
+--- a/backend/app/repositories/amount_repository.py
++++ b/backend/app/repositories/amount_repository.py
+@@ -18,6 +18,7 @@
+ 
+ from __future__ import annotations
+ 
++from decimal import Decimal
+ from typing import Sequence
+ 
+ from sqlalchemy import Select, and_, func, select
+@@ -167,6 +168,28 @@ class AmountRepository:
+             for row in self._db.execute(stmt).all()
+         ]
+ 
++    def stated_totals(self, project_id: int) -> dict[int, Decimal]:
++        """문서에 적힌 합계를 {문서 id: 합계} 로 준다 (리비전 0022).
++
++        **적혀 있는 문서만 담는다.** NULL 을 0 으로 바꿔 담지 않는다 — 그러면
++        "합계가 0원인 문서" 와 구별되지 않고, 대조가 늘 불일치로 나온다. 없는
++        문서는 키 자체가 없어서 호출부가 `.get()` 으로 «대조 불가» 를 판단한다.
++
++        `list_project_items` 의 튜플을 넓히지 않고 **별도 조회로 둔 이유**: 금액
++        항목 목록(`AMT-003-3`)에는 문서 합계가 필요 없다. 튜플에 끼우면 그 화면도
++        쓰지 않는 값을 들고 다니게 되고, 튜플 자리 수가 늘어 부르는 곳마다 고쳐야
++        한다.
++
++        Spring 비교: 같은 트랜잭션 안의 두 번째 조회다. JPA 라면
++        `Map<Long, BigDecimal>` 로 받는 프로젝션 쿼리에 해당한다.
++        """
++        stmt: Select = (
++            select(Document.id, Document.stated_total_amount)
++            .where(Document.project_id == project_id)
++            .where(Document.stated_total_amount.isnot(None))
++        )
++        return {int(row[0]): row[1] for row in self._db.execute(stmt).all()}
++
+     def list_project_items(
+         self, project_id: int
+     ) -> list[tuple[AmountItem, int, str]]:
+diff --git a/backend/app/schemas/amount_summary.py b/backend/app/schemas/amount_summary.py
+index 11d08ab..12d187d 100644
+--- a/backend/app/schemas/amount_summary.py
++++ b/backend/app/schemas/amount_summary.py
+@@ -50,6 +50,30 @@ class LineMismatch(BaseModel):
+     difference: int
+ 
+ 
++class DocumentTotalCheck(BaseModel):
++    """문서에 적힌 합계와 우리가 더한 합계를 대조한 결과 (AMT-002-1).
++
++    **맞은 문서도 담는다.** 불일치만 주면 "대조했고 맞았다" 와 "대조를 안 했다" 가
++    구별되지 않는다. 앞은 정확도의 증명이고 뒤는 정보가 없는 상태다.
++
++    합계가 적혀 있지 않은 문서는 여기 들어오지 않고 `documents_without_stated_total`
++    에 세어진다 — 그것은 오류가 아니라 정상 상황이다.
++    """
++
++    document_id: int
++    filename: str
++    # 문서 아래쪽 「합계」 칸에 적힌 값 (documents.stated_total_amount, 리비전 0022).
++    stated_total: int
++    # 우리가 항목을 더한 값. **부가세는 빠져 있다** — 부가세를 포함해 비교하면
++    # 공급가액 합계가 적힌 문서에서 늘 불일치가 난다.
++    item_total: int
++    # item_total - stated_total. **양수면 문서에 적힌 합계가 작다.**
++    # verify_line 의 difference 와 같은 방향이다(계산값 − 문서값). 두 곳이 반대면
++    # 화면이 어느 쪽인지 외워야 한다.
++    difference: int
++    matches: bool
++
++
+ class AmountSummaryResponse(BaseModel):
+     currency: str
+     # 부가세를 **제외한** 항목 합계. 부가세를 함께 더하면 이중 계산이 된다.
+@@ -76,3 +100,11 @@ class AmountSummaryResponse(BaseModel):
+     # 반영하지 않는다(AMT-001-2 완료 판정). 화면이 "승인된 항목만" 이라고 적을 수
+     # 있도록 서버가 알려준다.
+     included_decisions: list[str]
++
++    # --- 문서에 적힌 합계와의 대조 (리비전 0022 로 가능해졌다) ----------------
++    # 문서마다 한 줄. 맞은 것도 담는다 — DocumentTotalCheck 주석 참고.
++    total_checks: list[DocumentTotalCheck] = Field(default_factory=list)
++    # 합계가 적혀 있지 않아 대조하지 못한 문서 수. **오류가 아니다** — 공고문처럼
++    # 합계가 없는 문서가 정상적으로 있다. 0 으로 취급하지 않는 이유는
++    # models/document.py 의 stated_total_amount 주석에 있다.
++    documents_without_stated_total: int = 0
+diff --git a/backend/app/services/amount_summary_service.py b/backend/app/services/amount_summary_service.py
+index 7c5bfd6..7bcf8ac 100644
+--- a/backend/app/services/amount_summary_service.py
++++ b/backend/app/services/amount_summary_service.py
+@@ -41,11 +41,13 @@ from app.repositories.amount_repository import APPROVED_DECISIONS, AmountReposit
+ from app.schemas.amount_summary import (
+     AmountSummaryResponse,
+     CategoryTotal,
++    DocumentTotalCheck,
+     LineMismatch,
+ )
+ from app.schemas.amount_item import AmountItemListResponse, AmountItemRow
+ from app.services.amount_calculator import (
+     aggregate_project,
++    check_total,
+     verify_line,
+     verify_lines,
+ )
+@@ -81,9 +83,15 @@ class _Document:
+ 
+     currency: str
+     items: list[_Line] = field(default_factory=list)
+-    # DB 에 문서 합계가 없다. 그래서 항상 None 이고 check_total 의 대조가 성립하지
+-    # 않는다 — 아래 preview 주석 참고.
++    # 문서에 적힌 합계. **리비전 0022 로 담을 곳이 생겼다** —
++    # documents.stated_total_amount 다. 그전에는 항상 None 이어서
++    # check_total 의 대조가 성립하지 않았다.
++    #
++    # 여전히 None 일 수 있고 그것이 정상이다. 합계가 적혀 있지 않은 문서가 있다.
+     stated_total: int | None = None
++    # --- 계산기는 쓰지 않는다. 대조 결과를 되짚어 보여주기 위한 것이다 ----------
++    document_id: int = 0
++    filename: str = ""
+ 
+ 
+ def _to_int(value: Decimal) -> int:
+@@ -156,7 +164,12 @@ class AmountSummaryService:
+                     )
+                 )
+ 
+-        aggregate = aggregate_project(self._group_by_document(lines, currency))
++        # 문서에 적힌 합계와 대조한다 (리비전 0022 로 담을 곳이 생겼다).
++        documents = self._group_by_document(
++            lines, currency, self._amounts.stated_totals(project_id)
++        )
++        aggregate = aggregate_project(documents)
++        total_checks, uncomparable = self._check_document_totals(documents)
+ 
+         return AmountSummaryResponse(
+             currency=str(aggregate["currency"]),
+@@ -170,8 +183,48 @@ class AmountSummaryService:
+             unverifiable_line_count=unverifiable,
+             line_mismatches=mismatches,
+             included_decisions=list(APPROVED_DECISIONS),
++            total_checks=total_checks,
++            documents_without_stated_total=uncomparable,
+         )
+ 
++    @staticmethod
++    def _check_document_totals(
++        documents: Sequence[_Document],
++    ) -> tuple[list[DocumentTotalCheck], int]:
++        """문서마다 «적힌 합계 vs 우리가 더한 합계» 를 대조한다 (AMT-002-1).
++
++        **이 프로젝트에서 정확도를 숫자로 증명할 수 있는 유일한 자리다.** 요약이나
++        결정사항은 AI 가 맞게 뽑았는지 확인할 방법이 없지만, 금액은 다시 더해서
++        문서에 적힌 값과 맞춰볼 수 있다. `check_total` 의 주석이 그렇게 적고 있다.
++
++        **맞은 문서도 목록에 담는다.** 불일치만 주면 "대조를 했는데 맞았다" 와
++        "대조를 안 했다" 를 구별할 수 없다. 앞은 증명이고 뒤는 정보가 없는
++        상태인데, 사용자에게는 그 차이가 크다.
++
++        합계가 적혀 있지 않은 문서는 **건수만 센다.** 목록에 넣으면 값이 빈 줄이
++        생겨 오류처럼 보인다 — 합계가 없는 문서는 정상이다(공고문·계약서 본문).
++        `TotalCheck.comparable` 이 그 구별을 위해 있는 프로퍼티다.
++        """
++        checks: list[DocumentTotalCheck] = []
++        uncomparable = 0
++        for document in documents:
++            result = check_total(document)
++            if not result.comparable:
++                uncomparable += 1
++                continue
++            checks.append(
++                DocumentTotalCheck(
++                    document_id=document.document_id,
++                    filename=document.filename,
++                    # comparable 이면 둘 다 값이 있다.
++                    stated_total=result.stated_total or 0,
++                    item_total=result.item_total,
++                    difference=result.difference or 0,
++                    matches=result.matches,
++                )
++            )
++        return checks, uncomparable
++
+     def list_items(self, project_id: int, limit: int) -> AmountItemListResponse:
+         """금액 항목을 한 줄씩 돌려준다 (AMT-003-3 계산식·산출 근거 표시).
+ 
+@@ -290,17 +343,31 @@ class AmountSummaryService:
+         return currencies.pop() if currencies else "KRW"
+ 
+     @staticmethod
+-    def _group_by_document(lines: Sequence[_Line], currency: str) -> list[_Document]:
++    def _group_by_document(
++        lines: Sequence[_Line],
++        currency: str,
++        stated_totals: dict[int, Decimal] | None = None,
++    ) -> list[_Document]:
+         """문서별로 묶는다. 문서 수가 집계 결과의 document_count 가 된다.
+ 
+         리포지토리가 `Document.id` 순으로 정렬해서 주므로 여기서 다시 정렬하지
+         않아도 순서가 고정된다.
++
++        `stated_totals` 에 있는 문서만 `stated_total` 이 채워진다. 없으면 None 이고
++        `check_total` 이 「대조 불가」로 다룬다 — 그것이 정상 상황이다.
+         """
++        totals = stated_totals or {}
+         grouped: dict[int, _Document] = {}
+         for line in lines:
+             document = grouped.get(line.document_id)
+             if document is None:
+-                document = _Document(currency=currency)
++                stated = totals.get(line.document_id)
++                document = _Document(
++                    currency=currency,
++                    stated_total=None if stated is None else _to_int(stated),
++                    document_id=line.document_id,
++                    filename=line.filename,
++                )
+                 grouped[line.document_id] = document
+             document.items.append(line)
+         return list(grouped.values())
+diff --git a/backend/migrations/versions/20260825_0022_document_stated_total.py b/backend/migrations/versions/20260825_0022_document_stated_total.py
+new file mode 100644
+index 0000000..f24f4aa
+--- /dev/null
++++ b/backend/migrations/versions/20260825_0022_document_stated_total.py
+@@ -0,0 +1,65 @@
++"""문서에 적힌 금액 합계 컬럼 추가
++
++이 파일의 책임: documents 에 stated_total_amount 를 더한다. 문서 아래쪽 「합계」
++  칸에 적혀 있는 값이고, 우리가 항목을 더한 합계와 대조하는 기준이 된다
++  (AMT-002-1 금액 계산·합계 검증).
++다른 파일과의 관계: 산출물 PDF 형식 리비전 0021 뒤에 적용된다. ORM 은
++  app/models/document.py 의 Document.stated_total_amount 이고, 이 값을 쓰는 것은
++  services/amount_calculator.py 의 check_total() 이다.
++Spring 비교: Flyway V22__document_stated_total.sql 에 해당한다. nullable 컬럼
++  추가라 기존 행을 건드리지 않으므로 잠금 시간이 사실상 없다.
++
++왜 이 컬럼이 필요한가 — 이미 있는 로직이 죽어 있었다
++  check_total() 은 단위테스트 4개로 검증돼 있는데 **제품 코드에서 아무도 부르지
++  못했다.** amount_items 는 항목만 담고 문서의 합계는 어디에도 저장하지 않아서
++  대조할 상대가 없었기 때문이다. 그 함수 주석이 이렇게 적고 있다 —
++  "이 프로젝트에서 정확도를 수치로 증명할 수 있는 유일한 기능이다."
++  요약이나 결정사항은 AI 가 맞게 뽑았는지 확인할 방법이 없지만 금액은 재계산해
++  대조된다. 컬럼 하나로 그 기능이 살아난다.
++
++왜 documents 에 두는가
++  문서 하나에 합계는 하나다. amount_items 에 두면 항목마다 같은 값이 복제되고,
++  한 항목만 고쳐지면 어느 것이 맞는지 알 수 없게 된다.
++  analyses.result_json 에서 읽는 방법도 있었지만 JSONB 를 파싱해야 하고 인덱스를
++  걸 수 없어서 "값은 있는데 꺼내기 어렵다" 로 남는다.
++
++왜 nullable 인가
++  합계가 적혀 있지 않은 문서가 정상적으로 있다(공고문·계약서 본문). 0 을 넣으면
++  "합계가 0원인 문서" 와 "합계가 안 적힌 문서" 를 구별할 수 없고, 대조가 항상
++  불일치로 나온다. TotalCheck 가 stated_total=None 을 「대조 불가」로 따로 다루는
++  것도 같은 이유다 — 대조 불가는 정상이고 불일치는 확인이 필요한 문제다.
++
++왜 Numeric(18,2) 인가
++  amount_items.amount 와 같은 형이다. 형이 다르면 계산기에 넘길 때 변환 규칙이
++  둘이 되고, 반올림이 어긋나 검산이 1원씩 틀린다.
++
++Revision ID: 20260825_0022
++Revises: 20260824_0021
++"""
++
++import sqlalchemy as sa
++from alembic import op
++
++revision = "20260825_0022"
++down_revision = "20260824_0021"
++branch_labels = None
++depends_on = None
++
++
++def upgrade() -> None:
++    op.add_column(
++        "documents",
++        sa.Column("stated_total_amount", sa.Numeric(18, 2), nullable=True),
++    )
++    # 음수 합계는 문서에 적힐 수 없다. 0 은 허용한다 — 실제로 0원짜리 내역서가
++    # 있을 수 있고, 그것과 "안 적혀 있다"(NULL) 는 이 컬럼에서 구별된다.
++    op.create_check_constraint(
++        "ck_document_stated_total",
++        "documents",
++        "stated_total_amount IS NULL OR stated_total_amount >= 0",
++    )
++
++
++def downgrade() -> None:
++    op.drop_constraint("ck_document_stated_total", "documents", type_="check")
++    op.drop_column("documents", "stated_total_amount")
+diff --git a/frontend/src/features/amount/AmountSummaryView.css b/frontend/src/features/amount/AmountSummaryView.css
+index 6befb97..15bf166 100644
+--- a/frontend/src/features/amount/AmountSummaryView.css
++++ b/frontend/src/features/amount/AmountSummaryView.css
+@@ -102,3 +102,9 @@
+ /* 원문 근거. 한 줄로 줄이고 title 로 전체를 보여준다(마우스 올리면 뜬다).
+    cursor: help 로 "올리면 뭔가 나온다" 를 미리 알린다 — 안 그러면 아무도 안 올린다. */
+ .amount-quote { max-width: 260px; overflow: hidden; color: var(--c-text-muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; cursor: help; }
++
++
++/* 문서 합계 대조. 이 화면에서 가장 강한 정보라 원가구분별 표보다 위에 둔다. */
++.amount-total-check { margin-bottom: 18px; }
++/* 문서명 칸은 표 안에서 줄이지 않는다 — 대조 결과를 어느 문서 것인지 알아야 한다. */
++.amount-total-check .amount-item-source { max-width: 320px; font-size: 13px; font-weight: 700; color: var(--c-text-strong); }
+diff --git a/frontend/src/features/amount/AmountSummaryView.jsx b/frontend/src/features/amount/AmountSummaryView.jsx
+index 6afb92f..91dd09d 100644
+--- a/frontend/src/features/amount/AmountSummaryView.jsx
++++ b/frontend/src/features/amount/AmountSummaryView.jsx
+@@ -158,6 +158,8 @@ export default function AmountSummaryView({ projectId }) {
+         </>}
+     </section>
+ 
++    <TotalCheckPanel summary={summary} loading={summaryQuery.isPending}/>
++
+     <section className='panel amount-category' aria-label='원가구분별 금액'>
+       <div className='amount-category-heading'>
+         <h2>원가구분별</h2>
+@@ -190,6 +192,83 @@ function describeDecisions(decisions) {
+   return (decisions ?? []).map(value => DECISION_LABELS[value] ?? value).join(' · ')
+ }
+ 
++// 문서에 적힌 합계와 우리가 더한 합계를 나란히 보여준다 (AMT-002-1).
++//
++// 이 화면에서 가장 강한 정보다. 요약이나 결정사항은 AI 가 맞게 뽑았는지 확인할
++// 방법이 없지만, 금액은 문서에 적힌 값과 맞춰볼 수 있다.
++//
++// **맞은 문서도 보여준다.** 불일치만 띄우면 "대조했고 맞았다" 와 "대조를 안 했다"
++// 가 화면에서 같아 보인다. 앞은 증명이고 뒤는 정보가 없는 상태다.
++//
++// 대조하지 못한 문서는 **건수와 이유만** 적는다. 표에 빈 줄로 넣으면 합계가 없는
++// 정상 문서가 오류처럼 보인다.
++function TotalCheckPanel({ summary, loading }) {
++  const checks = summary?.total_checks ?? []
++  const missing = summary?.documents_without_stated_total ?? 0
++  // 대조할 것도 없고 대조 못 한 문서도 없으면 이 절 자체를 띄우지 않는다 —
++  // 금액 항목이 아직 없는 프로젝트에서 빈 칸만 늘어난다.
++  if (!loading && checks.length === 0 && missing === 0) return null
++
++  return <section className='panel amount-total-check' aria-label='문서 합계 대조'>
++    <div className='amount-category-heading'>
++      <h2>문서 합계 대조</h2>
++      <span>문서에 적힌 합계와 항목을 더한 값을 맞춰봅니다.</span>
++    </div>
++
++    {loading
++      ? <p className='amount-scope-empty'>대조하는 중입니다.</p>
++      : <>
++        {checks.length > 0 && <div className='amount-table-scroll'>
++          <table className='amount-items-table'>
++            <thead>
++              <tr>
++                <th scope='col'>문서</th>
++                <th scope='col' className='amount-cell-number'>문서에 적힌 합계</th>
++                <th scope='col' className='amount-cell-number'>항목을 더한 합계</th>
++                <th scope='col'>대조</th>
++              </tr>
++            </thead>
++            <tbody>
++              {checks.map(row => <tr key={row.document_id} className={row.matches ? undefined : 'is-mismatch'}>
++                <th scope='row'>
++                  <span className='amount-item-source' title={row.filename}>{row.filename}</span>
++                </th>
++                <td className='amount-cell-number'>{formatMoney(row.stated_total)}</td>
++                <td className='amount-cell-number'>{formatMoney(row.item_total)}</td>
++                <td className={'amount-verify is-' + (row.matches ? 'ok' : 'bad')}>
++                  {row.matches ? '일치' : totalGapText(row.difference)}
++                </td>
++              </tr>)}
++            </tbody>
++          </table>
++        </div>}
++
++        {/* 부가세를 빼고 비교한다는 사실을 반드시 적는다. 문서의 합계가 부가세를
++            포함한 값이면 이 대조는 늘 불일치로 나오는데, 그 이유를 모르면
++            계산이 틀렸다고 읽는다. */}
++        {checks.length > 0 && <p className='amount-scope-note'>
++          「항목을 더한 합계」는 <strong>부가가치세를 제외한 값</strong>입니다.
++          문서의 합계가 부가세를 포함한 값이면 그만큼 차이가 납니다.
++        </p>}
++
++        {missing > 0 && <p className='amount-scope-note'>
++          문서 <strong>{formatNumber(missing)}건</strong>은 적힌 합계가 없어 대조하지 못했습니다.
++          공고문처럼 합계가 없는 문서가 있어서 <strong>오류가 아닙니다.</strong>
++        </p>}
++      </>}
++  </section>
++}
++
++/** 문서 합계 차이를 문장으로. difference = 항목 합계 − 문서 합계 다.
++ *  양수면 문서에 적힌 합계가 더 작다. 부호를 그대로 보여주지 않는 이유는
++ *  항목 검산(verifyText)과 같다. */
++function totalGapText(difference) {
++  const gap = difference ?? 0
++  return gap > 0
++    ? `문서 합계가 ${formatMoney(gap)}원 적음`
++    : `문서 합계가 ${formatMoney(Math.abs(gap))}원 많음`
++}
++
+ // 목록 걸러보기. 서버가 준 값만 보고 나누므로 규칙을 화면이 다시 만들지 않는다.
+ //
+ // '검산 불가' 와 '어긋남' 을 **따로 두는 이유**: 제경비·기술료는 수량·단가가

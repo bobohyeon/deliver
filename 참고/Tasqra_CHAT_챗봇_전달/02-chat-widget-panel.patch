@@ -1,0 +1,384 @@
+diff --git a/frontend/src/features/chat/ChatView.css b/frontend/src/features/chat/ChatView.css
+index 980f95d..4631286 100644
+--- a/frontend/src/features/chat/ChatView.css
++++ b/frontend/src/features/chat/ChatView.css
+@@ -1,27 +1,88 @@
+ /* =============================================================================
+-   이 파일의 책임: 문서 챗봇(CHAT-001) 질문 폼·답변·원문 근거 목록을 배치한다.
+-   다른 파일과의 관계: ChatView.jsx가 사용하며 panel·primary 등 공통 스타일은
+-   기존 전역 스타일을 재사용한다.
+-   Spring 비교: 서버 템플릿의 feature 전용 stylesheet와 같은 역할이다.
++   이 파일의 책임: 문서 챗봇(CHAT-001)의 우측 하단 실행 버튼, 데스크톱 사이드
++   패널, 모바일 하단 모달, 답변과 원문 근거를 배치한다.
++   다른 파일과의 관계: ChatView.jsx 전용이며 색·테두리는 앱 테마 토큰을 쓴다.
++   Spring 비교: 공통 레이아웃 위에 떠 있는 Widget View 전용 stylesheet다.
+    ============================================================================= */
+ 
+-.chat-panel { display: flex; flex-direction: column; gap: 14px; }
+-.chat-form label { display: block; margin-bottom: 9px; color: var(--c-text-strong); font-weight: 800; }
+-.chat-form-row { display: flex; align-items: flex-end; gap: 10px; }
+-.chat-form textarea { flex: 1; min-width: 0; resize: vertical; padding: 12px 14px; border: 1px solid var(--c-border); border-radius: 10px; background: var(--c-bg); color: var(--c-text-strong); line-height: 1.6; }
+-.chat-form textarea:focus { border-color: var(--c-accent); outline: 3px solid var(--c-accent-bg); }
+-.chat-form p, .chat-answer .panel-head p { margin: 9px 0 0; color: var(--c-text-muted); font-size: 12px; line-height: 1.6; }
+-.chat-error, .chat-answer { margin-top: 20px; }
+-.chat-error { border-left: 4px solid var(--c-text-strong); }
+-.chat-error p { margin: 8px 0; }
+-.chat-answer .panel-head p { color: var(--c-text); font-size: 15px; white-space: pre-wrap; }
+-.chat-answer h3 { margin: 22px 0 10px; font-size: 14px; }
+-.chat-evidence-list { display: flex; flex-direction: column; gap: 10px; margin: 0; padding-left: 22px; }
+-.chat-evidence-list button { width: 100%; padding: 14px 16px; border: 1px solid var(--c-border); border-radius: 12px; background: var(--c-bg); color: var(--c-text); text-align: left; cursor: pointer; }
+-.chat-evidence-list button:hover { border-color: var(--c-border-strong); background: var(--c-bg-hover); }
+-.chat-evidence-list strong, .chat-evidence-list span { display: block; }
+-.chat-evidence-list span { margin-top: 4px; color: var(--c-text-muted); font-size: 12px; }
+-.chat-evidence-list blockquote { margin: 12px 0 0; padding-left: 12px; border-left: 3px solid var(--c-text-strong); color: var(--c-text); line-height: 1.7; white-space: pre-wrap; }
+-.chat-no-evidence, .chat-budget { color: var(--c-text-muted); font-size: 12px; }
+-.chat-budget { margin: 16px 0 0; }
+-@media (max-width: 640px) { .chat-form-row { align-items: stretch; flex-direction: column; } }
++.chat-widget { position: relative; }
++.chat-widget-backdrop { position: fixed; inset: 0; z-index: 1190; border: 0; background: rgba(15, 23, 42, .08); cursor: default; }
++
++.chat-launcher {
++  position: fixed; right: 24px; bottom: 24px; z-index: 1210; display: flex; align-items: center;
++  gap: 9px; min-height: 52px; padding: 0 19px; border: 1px solid var(--c-accent);
++  border-radius: 999px; background: var(--c-accent); color: white; font-size: 14px;
++  font-weight: 800; box-shadow: 0 12px 32px rgba(15, 23, 42, .2); cursor: pointer;
++  transition: transform .18s ease, box-shadow .18s ease, opacity .12s ease;
++}
++.chat-launcher:hover { transform: translateY(-2px); box-shadow: 0 15px 36px rgba(15, 23, 42, .25); }
++.chat-launcher:focus-visible { outline: 3px solid var(--c-accent-bg); outline-offset: 3px; }
++.chat-widget.is-open .chat-launcher { opacity: 0; pointer-events: none; }
++
++.chat-drawer {
++  position: fixed; right: 24px; bottom: 24px; z-index: 1200; display: flex; overflow: hidden;
++  flex-direction: column; width: min(420px, calc(100vw - 48px)); height: min(720px, calc(100vh - 48px));
++  border: 1px solid var(--c-border); border-radius: 20px; background: var(--c-bg);
++  color: var(--c-text); box-shadow: 0 24px 70px rgba(15, 23, 42, .24);
++  animation: chat-drawer-in .18s ease-out;
++}
++@keyframes chat-drawer-in { from { opacity: 0; transform: translateY(12px) scale(.985); } to { opacity: 1; transform: none; } }
++
++.chat-drawer-header { display: flex; flex: 0 0 auto; align-items: center; gap: 11px; min-height: 68px; padding: 12px 14px 12px 16px; border-bottom: 1px solid var(--c-border); background: var(--c-bg); }
++.chat-drawer-symbol { display: grid; flex: 0 0 38px; width: 38px; height: 38px; place-items: center; border-radius: 50%; background: var(--c-text-strong); color: var(--c-bg); }
++.chat-drawer-header > div:nth-child(2) { min-width: 0; }
++.chat-drawer-header strong, .chat-drawer-header span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
++.chat-drawer-header strong { color: var(--c-text-strong); font-size: 15px; }
++.chat-drawer-header span { margin-top: 3px; color: var(--c-text-muted); font-size: 11px; }
++.chat-drawer-close { display: grid; width: 38px; height: 38px; margin-left: auto; padding: 0; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--c-text); cursor: pointer; }
++.chat-drawer-close:hover { background: var(--c-bg-hover); }
++.chat-drawer-close:focus-visible { outline: 3px solid var(--c-accent-bg); }
++
++.chat-drawer-body { display: flex; flex: 1 1 auto; overflow-y: auto; flex-direction: column; gap: 17px; padding: 18px 16px 22px; background: var(--c-bg-canvas); scroll-behavior: smooth; }
++.chat-intro { padding: 13px 14px; border: 1px solid var(--c-border); border-radius: 13px; background: var(--c-bg); }
++.chat-intro strong { color: var(--c-text-strong); font-size: 13px; }
++.chat-intro p { margin: 5px 0 0; color: var(--c-text-muted); font-size: 12px; line-height: 1.55; }
++
++.chat-message { display: flex; max-width: 92%; flex-direction: column; align-items: flex-start; }
++.chat-message > span { margin: 0 0 6px 3px; color: var(--c-text-muted); font-size: 11px; font-weight: 700; }
++.chat-message > p { margin: 0; padding: 11px 13px; border: 1px solid var(--c-border); border-radius: 5px 14px 14px; background: var(--c-bg); color: var(--c-text); font-size: 13px; line-height: 1.68; white-space: pre-wrap; }
++.chat-message > small { margin: 7px 3px 0; color: var(--c-text-muted); font-size: 10px; line-height: 1.5; }
++.chat-message--user { align-self: flex-end; align-items: flex-end; }
++.chat-message--user > span { margin-right: 3px; }
++.chat-message--user > p { border-color: var(--c-text-strong); border-radius: 14px 5px 14px 14px; background: var(--c-text-strong); color: var(--c-bg); }
++.chat-message--error > p { border-left: 4px solid var(--c-text-strong); }
++.chat-thinking { color: var(--c-text-muted) !important; }
++
++.chat-citations { width: 100%; margin-top: 10px; padding: 12px; border: 1px solid var(--c-border); border-radius: 12px; background: var(--c-bg); }
++.chat-citations > strong { display: block; margin-bottom: 9px; color: var(--c-text-strong); font-size: 12px; }
++.chat-citations ol { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
++.chat-citations button { width: 100%; padding: 11px 12px; border: 1px solid var(--c-border); border-radius: 10px; background: var(--c-bg-canvas); color: var(--c-text); text-align: left; cursor: pointer; }
++.chat-citations button:hover { border-color: var(--c-border-strong); background: var(--c-bg-hover); }
++.chat-citations button:focus-visible { outline: 3px solid var(--c-accent-bg); }
++.chat-citations b, .chat-citations span { display: block; }
++.chat-citations b { overflow: hidden; color: var(--c-text-strong); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
++.chat-citations span { margin-top: 4px; color: var(--c-text-muted); font-size: 10px; }
++.chat-citations blockquote { display: -webkit-box; overflow: hidden; margin: 9px 0 0; padding-left: 9px; border-left: 2px solid var(--c-text-strong); -webkit-box-orient: vertical; -webkit-line-clamp: 4; color: var(--c-text); font-size: 11px; line-height: 1.55; white-space: pre-wrap; }
++.chat-budget { opacity: .78; }
++
++.chat-composer { position: relative; display: grid; flex: 0 0 auto; grid-template-columns: 1fr 42px; gap: 8px; padding: 13px 14px 11px; border-top: 1px solid var(--c-border); background: var(--c-bg); }
++.chat-composer textarea { min-width: 0; max-height: 116px; resize: none; padding: 10px 12px; border: 1px solid var(--c-border); border-radius: 12px; background: var(--c-bg-canvas); color: var(--c-text-strong); font-size: 13px; line-height: 1.5; }
++.chat-composer textarea:focus { border-color: var(--c-accent); outline: 3px solid var(--c-accent-bg); }
++.chat-composer button { display: grid; width: 42px; height: 42px; align-self: end; padding: 0; place-items: center; border: 1px solid var(--c-text-strong); border-radius: 12px; background: var(--c-text-strong); color: var(--c-bg); cursor: pointer; }
++.chat-composer button:disabled { opacity: .35; cursor: not-allowed; }
++.chat-composer button:focus-visible { outline: 3px solid var(--c-accent-bg); }
++.chat-composer > small { grid-column: 1 / -1; color: var(--c-text-muted); font-size: 10px; }
++.chat-widget .sr-only { position: absolute; overflow: hidden; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; clip: rect(0, 0, 0, 0); white-space: nowrap; }
++
++@media (max-width: 640px) {
++  .chat-widget-backdrop { background: rgba(15, 23, 42, .34); }
++  .chat-launcher { right: 16px; bottom: 16px; min-height: 50px; padding: 0 17px; }
++  .chat-drawer { right: 0; bottom: 0; width: 100%; height: min(88vh, 760px); border-right: 0; border-bottom: 0; border-left: 0; border-radius: 20px 20px 0 0; animation-name: chat-sheet-in; }
++  .chat-message { max-width: 96%; }
++  @keyframes chat-sheet-in { from { transform: translateY(100%); } to { transform: none; } }
++}
++
++@media (prefers-reduced-motion: reduce) {
++  .chat-drawer, .chat-launcher { animation: none; transition: none; }
++  .chat-drawer-body { scroll-behavior: auto; }
++}
+diff --git a/frontend/src/features/chat/ChatView.jsx b/frontend/src/features/chat/ChatView.jsx
+index 17d3b5d..229a695 100644
+--- a/frontend/src/features/chat/ChatView.jsx
++++ b/frontend/src/features/chat/ChatView.jsx
+@@ -1,32 +1,52 @@
+ // =============================================================================
+-// 이 파일의 책임: 현재 프로젝트 문서에 질문 한 건을 보내고 답변과 서버가 검증한
+-//   원문 근거를 함께 표시한다(CHAT-001 MVP).
+-// 다른 파일과의 관계: WorkspacePage의 chat 탭에서 렌더링되고 api/chat.js만
++// 이 파일의 책임: 프로젝트 화면 어디서든 우측 하단 버튼으로 여는 문서 질의응답
++//   패널을 제공하고, 답변과 서버가 검증한 원문 근거를 표시한다(CHAT-001 MVP).
++// 다른 파일과의 관계: WorkspacePage가 프로젝트별로 한 번 마운트하고 api/chat.js만
+ //   호출한다. 근거를 누르면 기존 문서 원문 화면의 해당 청크 구간으로 이동한다.
+-// Spring 비교: 단건 Command form과 응답 View를 한 React 컴포넌트로 묶은 형태다.
++// Spring 비교: 전역 레이아웃에 붙는 공통 Widget View와 단건 Command form이다.
+ // =============================================================================
+ 
+-import { useState } from 'react'
++import { useEffect, useRef, useState } from 'react'
+ import { useMutation } from '@tanstack/react-query'
+ import { useNavigate } from 'react-router-dom'
+-import PageHeading from '../../components/common/PageHeading'
+ import { askProjectDocuments } from '../../api/chat'
+ import './ChatView.css'
+ 
+-export default function ChatView({ projectId }) {
++export default function ChatView({ projectId, projectName }) {
++  const [open, setOpen] = useState(false)
+   const [question, setQuestion] = useState('')
++  const [askedQuestion, setAskedQuestion] = useState('')
++  const bodyRef = useRef(null)
++  const inputRef = useRef(null)
+   const navigate = useNavigate()
+   const chat = useMutation({ mutationFn: value => askProjectDocuments(projectId, value) })
+ 
++  useEffect(() => {
++    if (!open) return undefined
++    const onKeyDown = event => {
++      if (event.key === 'Escape') setOpen(false)
++    }
++    window.addEventListener('keydown', onKeyDown)
++    window.setTimeout(() => inputRef.current?.focus(), 0)
++    return () => window.removeEventListener('keydown', onKeyDown)
++  }, [open])
++
++  useEffect(() => {
++    if (!open || !bodyRef.current) return
++    bodyRef.current.scrollTo({ top: bodyRef.current.scrollHeight, behavior: 'smooth' })
++  }, [open, chat.data, chat.isError, chat.isPending])
++
+   function submit(event) {
+     event.preventDefault()
+     const trimmed = question.trim()
+     if (!trimmed || chat.isPending) return
++    setAskedQuestion(trimmed)
+     chat.mutate(trimmed)
+   }
+ 
+   function openEvidence(item) {
+     const target = `/projects/${item.project_id}/documents/${item.document_id}`
++    setOpen(false)
+     if (item.content_start === null || item.content_end === null) {
+       navigate(target)
+       return
+@@ -39,52 +59,104 @@ export default function ChatView({ projectId }) {
+     navigate(`${target}?${params.toString()}`)
+   }
+ 
+-  return <>
+-    <PageHeading
+-      eyebrow='DOCUMENT Q&A'
+-      title='문서 챗봇'
+-      description='현재 프로젝트에서 접근 가능한 문서를 찾아 답하고, 사용한 원문 근거를 함께 보여줍니다.'/>
+-
+-    <section className='panel chat-panel'>
+-      <form className='chat-form' onSubmit={submit}>
+-        <label htmlFor='chat-question'>프로젝트 문서에 질문하기</label>
+-        <div className='chat-form-row'>
+-          <textarea id='chat-question' value={question} maxLength={1000} rows={3}
+-            onChange={event => setQuestion(event.target.value)}
+-            placeholder='예: 대금 지급 조건과 기한을 근거와 함께 알려주세요.'/>
+-          <button className='primary' type='submit' disabled={!question.trim() || chat.isPending}>
+-            {chat.isPending ? '답변 생성 중...' : '질문하기'}
+-          </button>
++  return <div className={`chat-widget${open ? ' is-open' : ''}`}>
++    {open && <button type='button' className='chat-widget-backdrop' aria-label='챗봇 닫기' onClick={() => setOpen(false)}/>} 
++
++    <button type='button' className='chat-launcher' aria-expanded={open}
++      aria-controls='project-chat-panel' onClick={() => setOpen(value => !value)}>
++      {open ? <CloseIcon/> : <ChatIcon/>}
++      <span>{open ? '닫기' : '문서에 질문'}</span>
++    </button>
++
++    {open && <aside id='project-chat-panel' className='chat-drawer' role='dialog'
++      aria-modal='true' aria-labelledby='project-chat-title'>
++      <header className='chat-drawer-header'>
++        <div className='chat-drawer-symbol'><ChatIcon/></div>
++        <div>
++          <strong id='project-chat-title'>문서 챗봇</strong>
++          <span>{projectName || '현재 프로젝트'}</span>
+         </div>
+-        <p>질문마다 독립적으로 답합니다. 대화 이력은 저장하거나 다음 질문에 전달하지 않습니다.</p>
+-      </form>
+-    </section>
++        <button type='button' className='chat-drawer-close' aria-label='챗봇 닫기'
++          onClick={() => setOpen(false)}><CloseIcon/></button>
++      </header>
++
++      <div className='chat-drawer-body' ref={bodyRef}>
++        <div className='chat-intro'>
++          <strong>프로젝트 문서를 근거로 답합니다.</strong>
++          <p>답변에 사용한 문서와 원문 인용을 함께 확인할 수 있습니다.</p>
++        </div>
++
++        {askedQuestion && <div className='chat-message chat-message--user'>
++          <span>나</span><p>{askedQuestion}</p>
++        </div>}
+ 
+-    {chat.isError && <section className='panel chat-error'>
+-      <strong>답변을 만들지 못했습니다.</strong>
+-      <p>{chat.error?.message}</p>
+-      {chat.error?.code && <small>코드 {chat.error.code}</small>}
+-    </section>}
++        {chat.isPending && <div className='chat-message chat-message--assistant'>
++          <span>문서 챗봇</span><p className='chat-thinking'>관련 문서를 찾고 답변을 만들고 있습니다…</p>
++        </div>}
+ 
+-    {chat.data && <ChatAnswer response={chat.data} onOpen={openEvidence}/>}
+-  </>
++        {chat.isError && !chat.isPending && <div className='chat-message chat-message--assistant chat-message--error'>
++          <span>문서 챗봇</span>
++          <p>답변을 만들지 못했습니다.</p>
++          <small>{chat.error?.message}{chat.error?.code ? ` · ${chat.error.code}` : ''}</small>
++        </div>}
++
++        {chat.data && !chat.isPending && <ChatAnswer response={chat.data} onOpen={openEvidence}/>} 
++      </div>
++
++      <form className='chat-composer' onSubmit={submit}>
++        <label className='sr-only' htmlFor='chat-question'>프로젝트 문서에 질문하기</label>
++        <textarea ref={inputRef} id='chat-question' value={question} maxLength={1000} rows={2}
++          onChange={event => setQuestion(event.target.value)}
++          onKeyDown={event => {
++            if (event.key === 'Enter' && !event.shiftKey) {
++              event.preventDefault()
++              submit(event)
++            }
++          }}
++          placeholder='프로젝트 문서에 질문해 보세요.'/>
++        <button type='submit' aria-label='질문 보내기' disabled={!question.trim() || chat.isPending}>
++          <SendIcon/>
++        </button>
++        <small>Enter 전송 · Shift+Enter 줄바꿈</small>
++      </form>
++    </aside>}
++  </div>
+ }
+ 
+ function ChatAnswer({ response, onOpen }) {
+-  return <section className='panel chat-answer' aria-live='polite'>
+-    <div className='panel-head'><div><h2>답변</h2><p>{response.answer}</p></div></div>
+-    {response.evidence.length > 0 ? <>
+-      <h3>근거 문서와 원문 인용</h3>
+-      <ol className='chat-evidence-list'>
++  return <div className='chat-message chat-message--assistant' aria-live='polite'>
++    <span>문서 챗봇</span>
++    <p>{response.answer}</p>
++    {response.evidence.length > 0 ? <div className='chat-citations'>
++      <strong>근거 문서와 원문 인용</strong>
++      <ol>
+         {response.evidence.map(item => <li key={item.evidence_id}>
+           <button type='button' onClick={() => onOpen(item)}>
+-            <strong>[근거 {item.evidence_id}] {item.document_filename}</strong>
++            <b>[근거 {item.evidence_id}] {item.document_filename}</b>
+             <span>{item.page_number ? `${item.page_number}쪽 · ` : ''}조각 {item.seq + 1}번</span>
+             <blockquote>{item.quote}</blockquote>
+           </button>
+         </li>)}
+       </ol>
+-    </> : <p className='chat-no-evidence'>답변에 사용된 문서 근거가 없습니다.</p>}
+-    <p className='chat-budget'>근거 예산 {response.evidence_used_tokens}/{response.evidence_budget_tokens} · {response.token_counter}{response.token_count_is_exact ? '' : ' (보수적 근사)'}</p>
+-  </section>
++    </div> : <small>답변에 사용된 문서 근거가 없습니다.</small>}
++    <small className='chat-budget'>근거 예산 {response.evidence_used_tokens}/{response.evidence_budget_tokens} · {response.token_count_is_exact ? '정확 계산' : '보수적 근사'}</small>
++  </div>
++}
++
++function ChatIcon() {
++  return <svg width='22' height='22' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.8' aria-hidden='true'>
++    <path d='M4 4.5h16v11H9l-5 4v-4H4z'/><path d='M8 9h8M8 12h5'/>
++  </svg>
++}
++
++function CloseIcon() {
++  return <svg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='2' aria-hidden='true'>
++    <path d='m6 6 12 12M18 6 6 18'/>
++  </svg>
++}
++
++function SendIcon() {
++  return <svg width='19' height='19' viewBox='0 0 24 24' fill='none' stroke='currentColor' strokeWidth='1.9' aria-hidden='true'>
++    <path d='m3 11 17-8-6 18-3-7z'/><path d='m11 14 9-11'/>
++  </svg>
+ }
+diff --git a/frontend/src/features/projects/ProjectSidebar.jsx b/frontend/src/features/projects/ProjectSidebar.jsx
+index 3c58f52..854279f 100644
+--- a/frontend/src/features/projects/ProjectSidebar.jsx
++++ b/frontend/src/features/projects/ProjectSidebar.jsx
+@@ -13,7 +13,7 @@ import { projectColorIndex } from '../../utils/projectColor'
+ //   · TABS = 주소로 들어왔을 때 허용되는 곳 (없으면 대시보드로 되돌린다)
+ // 한쪽만 고치면 **에러 없이** 어긋난다 — 여기만 넣으면 눌러도 대시보드로
+ // 튕기고, TABS 에만 넣으면 주소를 직접 쳐야 들어갈 수 있다.
+-const PROJECT_MENUS = [['dashboard','dashboard','대시보드'],['documents','document','문서'],['search','search','검색'],['chat','chat','문서 챗봇'],['board','board','보드'],['amounts','amount','금액'],['deliverables','deliverable','산출물'],['settings','settings','설정']]
++const PROJECT_MENUS = [['dashboard','dashboard','대시보드'],['documents','document','문서'],['search','search','검색'],['board','board','보드'],['amounts','amount','금액'],['deliverables','deliverable','산출물'],['settings','settings','설정']]
+ 
+ export default function ProjectSidebar({ projects, activeProjectId, activeTab, portfolioActive = false, onOpenPortfolio, onSelect, onNavigateTab, onCreate }) {
+   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('tasqra-rail-collapsed') === '1')
+@@ -40,7 +40,6 @@ function Icon({ name }) {
+   if(name==='dashboard') return <svg {...common}><rect x="2.5" y="2.5" width="6" height="6" rx="1.4"/><rect x="11.5" y="2.5" width="6" height="6" rx="1.4"/><rect x="2.5" y="11.5" width="6" height="6" rx="1.4"/><rect x="11.5" y="11.5" width="6" height="6" rx="1.4"/></svg>
+   if(name==='document') return <svg {...common}><path d="M5 2.5h6l4 4v11H5z"/><path d="M11 2.5v4h4"/></svg>
+   if(name==='search') return <svg {...common}><circle cx="9" cy="9" r="5.5"/><path d="M13.2 13.2 17 17"/></svg>
+-  if(name==='chat') return <svg {...common}><path d="M3 3.5h14v10H8l-4 3v-3H3z"/><path d="M6.5 7h7M6.5 10h4.5"/></svg>
+   if(name==='deliverable') return <svg {...common}><path d="M3 16V9m4.7 7V4.5M12.3 16v-5M17 16V7"/></svg>
+   // 금액은 원화 기호(₩)로 둔다 — 동전·지폐 그림은 16px 에서 뭉개진다.
+   if(name==='amount') return <svg {...common}><path d="M5.6 5l2.4 5 2-3.4 2 3.4 2.4-5"/><path d="M3.6 11.4h12.8M3.6 14h12.8"/></svg>
+diff --git a/frontend/src/pages/WorkspacePage.jsx b/frontend/src/pages/WorkspacePage.jsx
+index 85695a6..69ee0d8 100644
+--- a/frontend/src/pages/WorkspacePage.jsx
++++ b/frontend/src/pages/WorkspacePage.jsx
+@@ -39,7 +39,7 @@ import '../styles/workspace.css'
+ // PROJECT_MENUS 다. 거기가 사이드바에서 눌러 들어가는 목록이고, 이 배열은
+ // 주소로 들어왔을 때 허용하는 목록이다(없으면 대시보드로 되돌린다).
+ // 셋 중 하나를 빠뜨리면 에러 없이 어긋난다.
+-const TABS = [['dashboard','대시보드'],['documents','문서'],['search','검색'],['chat','문서 챗봇'],['board','보드'],['amounts','금액'],['deliverables','산출물'],['settings','설정']]
++const TABS = [['dashboard','대시보드'],['documents','문서'],['search','검색'],['board','보드'],['amounts','금액'],['deliverables','산출물'],['settings','설정']]
+ const DOCUMENT_STATES = new Set(['PROCESSING', 'REVIEW_REQUIRED', 'COMPLETED', 'FAILED'])
+ 
+ export default function WorkspacePage({ user, onLogout, notify }) {
+@@ -80,7 +80,7 @@ function WorkspaceContent({ project, projects, tab, navigate, notify, user, onLo
+   const scheduledUploadIdsRef = useRef(new Set())
+   const nextUploadIdRef = useRef(1)
+   const canEdit = project.role !== 'VIEWER'
+-  const waitsForWorkspaceData = !['search', 'chat', 'deliverables', 'amounts'].includes(tab)
++  const waitsForWorkspaceData = !['search', 'deliverables', 'amounts'].includes(tab)
+   const openUpload = () => fileInputRef.current?.click()
+ 
+   useEffect(() => { setRecentProjectId(user?.id, project.id) }, [project.id, user?.id])
+@@ -170,6 +170,9 @@ function WorkspaceContent({ project, projects, tab, navigate, notify, user, onLo
+     </div>
+     <ProjectCreateModal open={creating} recentInvitees={recentInvitees} pending={createMutation.isPending} onClose={() => setCreating(false)} onSubmit={createNewProject}/>
+     {uploadFiles.length > 0 && <DocumentUploadModal files={uploadFiles} uploading={false} onClose={() => setUploadFiles([])} onRemove={index => setUploadFiles(current => current.filter((_, currentIndex) => currentIndex !== index))} onSubmit={confirmUpload}/>}
++    {/* 챗봇은 특정 탭이 아니라 프로젝트 전체에 붙는 공통 도구다. 프로젝트를
++        바꾸면 key가 바뀌어 이전 프로젝트 질문·근거가 새 프로젝트에 남지 않는다. */}
++    <ChatView key={project.id} projectId={project.id} projectName={project.name}/>
+   </div>
+ }
+ 
+@@ -180,9 +183,6 @@ function TabContent({ tab, project, data, documentType, documentState, onDocumen
+   // 검색은 워크스페이스 데이터(문서 목록 · 멤버)를 쓰지 않는다. 자기 상태만
+   // 들고 api/search.js 를 부른다. 범위 토글에 쓸 프로젝트 이름만 넘긴다.
+   if (tab === 'search') return <SearchView projectId={project.id} projectName={project.name}/>
+-  // 챗봇은 현재 프로젝트 ID만 보내고, 검색 범위·권한·전문 조립은 서버가 맡는다.
+-  // 대화 이력 없이 질문 한 건씩 처리하므로 워크스페이스 목록 데이터가 필요 없다.
+-  if (tab === 'chat') return <ChatView key={project.id} projectId={project.id}/>
+   // 산출물도 워크스페이스 데이터를 쓰지 않는다. 건수는 서버가 세므로(DLV-001-2)
+   // 화면에 넘겨준 문서 목록으로 다시 세지 않는다 — 그 목록은 첫 페이지라
+   // 문서가 21건 이상이면 조용히 틀린다(대시보드에서 겪은 것과 같은 함정).

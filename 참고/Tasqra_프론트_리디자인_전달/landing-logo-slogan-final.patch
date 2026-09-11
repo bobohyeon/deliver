@@ -1,0 +1,59 @@
+diff --git a/frontend/src/components/common/Logo.jsx b/frontend/src/components/common/Logo.jsx
+--- a/frontend/src/components/common/Logo.jsx
++++ b/frontend/src/components/common/Logo.jsx
+@@ -5,7 +5,7 @@
+ // =============================================================================
+ 
+ export function BrandMark({ className = 'logo-mark', size = 36 }) {
+-  return <img className={className} src="/tasqra-logo.svg" width={size} height={size} alt="" aria-hidden="true" draggable="false"/>
++  return <img className={className} src="/tasqra-logo.png" width={size} height={size} alt="" aria-hidden="true" draggable="false"/>
+ }
+ 
+ export default function Logo() {
+diff --git a/frontend/src/pages/LandingPage.jsx b/frontend/src/pages/LandingPage.jsx
+index a46091f..ef64d4f 100644
+--- a/frontend/src/pages/LandingPage.jsx
++++ b/frontend/src/pages/LandingPage.jsx
+@@ -53,7 +53,7 @@ export default function LandingPage({ user, onLogout, notify }) {
+       <section className="landing-hero">
+         <div className="landing-hero__copy">
+           <p className="eyebrow">DOCUMENT INTELLIGENCE WORKSPACE</p>
+-          <h1>복잡한 문서를<br/>명확한 <strong>실행으로</strong></h1>
++          <h1>흩어진 문서를 <strong>한곳에</strong><br/>프로젝트를 <strong>한눈에</strong></h1>
+           <p className="landing-hero__description">AI가 문서의 핵심을 분석하고,<br/>프로젝트와 태스크로 전환해 실행까지 지원합니다.</p>
+           <div className="landing-hero__actions">
+             <Link className="primary" to={user ? '/projects' : '/signup'}>{user ? '내 대시보드 열기' : '무료로 시작하기'}<Arrow/></Link>
+diff --git a/frontend/src/styles/design-refresh.css b/frontend/src/styles/design-refresh.css
+--- a/frontend/src/styles/design-refresh.css
++++ b/frontend/src/styles/design-refresh.css
+@@ -23,7 +23,7 @@
+ 
+ body { background: var(--c-bg-canvas); }
+ .logo { gap:9px; }
+-.logo-mark { flex:0 0 auto; }
++.logo-mark { flex:0 0 auto; object-fit:contain; }
+ .app-frame { background: var(--c-bg-canvas); }
+ .app-frame > .app-header { position: fixed; inset: 0 0 auto var(--tasqra-rail-w); height: var(--tasqra-header-h); padding: 0 28px; border-bottom: 1px solid var(--c-border); background: rgba(255,255,255,.96); backdrop-filter: blur(12px); }
+ .app-frame > .app-header .app-header__brand,
+@@ -43,6 +43,6 @@ body { background: var(--c-bg-canvas); }
+ .project-sidebar__top { display:flex; align-items:center; gap:8px; padding:2px 4px 14px; }
+ .project-sidebar__brand { display:flex; min-width:0; flex:1; align-items:center; gap:10px; margin:0; color:var(--tasqra-rail-text); }
+-.project-sidebar__logo { flex:0 0 auto; }
++.project-sidebar__logo { flex:0 0 auto; object-fit:contain; }
+ .project-sidebar__brand strong { display:block; font-size:18px; line-height:1.1; }
+ .project-sidebar__brand small { display:block; margin-top:3px; color:var(--tasqra-rail-muted); font-size:8px; letter-spacing:.12em; }
+ .project-sidebar__collapse { display:grid; width:30px; height:30px; flex:0 0 auto; padding:0; place-items:center; border:1px solid rgba(255,255,255,.09); border-radius:8px; background:rgba(255,255,255,.05); color:var(--tasqra-rail-muted); cursor:pointer; }
+diff --git a/frontend/src/styles/landing.css b/frontend/src/styles/landing.css
+index c5d12ed..2463388 100644
+--- a/frontend/src/styles/landing.css
++++ b/frontend/src/styles/landing.css
+@@ -6,6 +6,9 @@
+ 
+ .landing{min-width:320px;min-height:100vh;overflow-x:clip;background:#fff;color:#475569;font-family:"Pretendard Variable",Pretendard,"Noto Sans KR","Malgun Gothic","Apple SD Gothic Neo",-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif}
+ .landing .app-header{position:sticky;top:0;height:74px;padding-inline:max(24px,calc((100vw - 1192px)/2));border-color:#edf1f7;background:rgba(255,255,255,.96);backdrop-filter:blur(12px)}
++.landing .app-header__brand .logo{gap:0}
++.landing .app-header__brand .logo-mark{width:44px;height:44px}
++.landing .app-header__brand .logo strong{font-size:20px;letter-spacing:-.01em}
+ .landing-page{width:min(1320px,100%);margin:0 auto;overflow:hidden;background:#fff}
+ .landing-hero{position:relative;display:grid;min-height:570px;grid-template-columns:minmax(390px,.9fr) minmax(0,1.1fr);column-gap:clamp(40px,4.5vw,64px);align-items:center;padding:34px clamp(24px,4vw,64px) 26px;background:#fff;isolation:isolate}
+ .landing-hero__copy{position:relative;z-index:3;width:min(450px,100%);justify-self:end;animation:landing-copy-enter .65s cubic-bezier(.2,.8,.2,1) both}

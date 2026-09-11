@@ -1,0 +1,199 @@
+diff --git a/backend/app/core/config.py b/backend/app/core/config.py
+index 3cb1734..9bb9e9a 100644
+--- a/backend/app/core/config.py
++++ b/backend/app/core/config.py
+@@ -174,6 +174,12 @@ class Settings(BaseSettings):
+     # 근거가 너무 많으면 LLM 이 무엇을 인용할지 흐려지고("lost in the middle"),
+     # 사용자도 출처를 확인하기 어렵다. 예산과 개수를 함께 거는 이유다.
+     CONTEXT_MAX_EVIDENCES: int = 8
++    # 챗봇은 하이브리드 검색이 결과를 항상 돌려줘도, 의미상 가까운 근거가 없으면
++    # 답을 만들지 않는다. vector/both 결과 전체의 최고 cosine이 이 값보다 낮고
++    # 정확 키워드 일치도 없으면 LLM 호출 전에 "근거 없음"으로 끝낸다.
++    # 검색 화면의 전역 기준이 아니라 CHAT 전용 보수적 초기값이다. 정답·무답
++    # 질문 회귀셋이 쌓이면 그 분포로 조정한다.
++    CHAT_MIN_VECTOR_SIMILARITY: float = Field(default=0.35, ge=-1.0, le=1.0)
+ 
+     # RRF(Reciprocal Rank Fusion)의 완충 상수. 점수 = Σ 1/(k + 순위).
+     #
+diff --git a/backend/app/services/chat_service.py b/backend/app/services/chat_service.py
+index 53c975f..e5754f5 100644
+--- a/backend/app/services/chat_service.py
++++ b/backend/app/services/chat_service.py
+@@ -11,6 +11,7 @@ from __future__ import annotations
+ 
+ import asyncio
+ import logging
++from collections.abc import Sequence
+ from typing import Protocol
+ 
+ from pydantic import ValidationError
+@@ -21,7 +22,7 @@ from app.core.error_codes import ErrorCode
+ from app.core.exceptions import BusinessError
+ from app.repositories.chunk_repository import ChunkRepository
+ from app.schemas.chat import ChatEvidence, ChatModelOutput, ChatResponse
+-from app.schemas.search import HybridSearchRequest
++from app.schemas.search import HybridSearchRequest, SearchResultItem
+ from app.services.context_assembly import ContextChunk, assemble_context
+ from app.services.search_service import SearchService
+ 
+@@ -81,6 +82,16 @@ class ChatService:
+         if not search.results:
+             return self._empty_response(project_id, evidence_budget)
+ 
++        relevant, best_vector_similarity = self._search_is_relevant(search.results)
++        if not relevant:
++            logger.info(
++                "챗봇 검색 관련성 미달: project_id=%s best_vector_similarity=%s threshold=%.3f",
++                project_id,
++                "none" if best_vector_similarity is None else f"{best_vector_similarity:.3f}",
++                self._settings.CHAT_MIN_VECTOR_SIMILARITY,
++            )
++            return self._empty_response(project_id, evidence_budget)
++
+         ranked_ids = [item.chunk_id for item in search.results]
+         rows = self._chunks.get_context_rows(
+             chunk_ids=ranked_ids,
+@@ -167,6 +178,34 @@ class ChatService:
+             evidence_used_tokens=self._counter.count(assembled.text),
+         )
+ 
++    def _search_is_relevant(
++        self,
++        results: Sequence[SearchResultItem],
++    ) -> tuple[bool, float | None]:
++        """정확 키워드 일치 또는 충분한 vector cosine이 있는지 판정한다.
++
++        하이브리드 첫 결과는 RRF·리랭커 순서라 최고 cosine이라는 보장이 없다.
++        keyword-only의 similarity는 cosine이 아니므로 vector 최댓값에서 제외한다.
++        """
++        has_exact_keyword_match = any(
++            item.match_kind in {"keyword", "both"}
++            and (item.match_count or 0) > 0
++            for item in results
++        )
++        vector_similarities = [
++            item.similarity
++            for item in results
++            if item.match_kind in {None, "vector", "both"}
++        ]
++        best_vector_similarity = (
++            max(vector_similarities) if vector_similarities else None
++        )
++        relevant = has_exact_keyword_match or (
++            best_vector_similarity is not None
++            and best_vector_similarity >= self._settings.CHAT_MIN_VECTOR_SIMILARITY
++        )
++        return relevant, best_vector_similarity
++
+     def _calculate_evidence_budget(self, question: str) -> int:
+         input_limit = (
+             self._settings.AI_CONTEXT_TOKENS
+diff --git a/backend/tests/test_chat_service.py b/backend/tests/test_chat_service.py
+index 08d78ec..f92b39b 100644
+--- a/backend/tests/test_chat_service.py
++++ b/backend/tests/test_chat_service.py
+@@ -1,5 +1,5 @@
+ # =============================================================================
+-# 이 파일의 책임: 문서 기반 질의응답 챗봇(CHAT-001)의 권한 재사용·빈 검색·프롬프트
++# 이 파일의 책임: 문서 기반 질의응답 챗봇(CHAT-001)의 권한 재사용·빈/저관련 검색·프롬프트
+ #   예산·LLM 근거 번호 매핑을 DB와 실제 모델 없이 검증한다.
+ # 다른 파일과의 관계: ChatService에 SearchService·ChunkRepository·AI client fake를
+ #   주입하고 context_assembly의 구분자 포함 예산 보장도 함께 고정한다.
+@@ -66,13 +66,29 @@ def _settings(**overrides):
+         "AI_CONTEXT_TOKENS": 8192,
+         "AI_MAX_OUTPUT_TOKENS": 1536,
+         "AI_TIMEOUT_SECONDS": 5,
++        "CHAT_MIN_VECTOR_SIMILARITY": 0.35,
+     }
+     values.update(overrides)
+     return SimpleNamespace(**values)
+ 
+ 
+-def _search_item(chunk_id, *, document_id=10, seq=0):
+-    return SimpleNamespace(chunk_id=chunk_id, document_id=document_id, seq=seq)
++def _search_item(
++    chunk_id,
++    *,
++    document_id=10,
++    seq=0,
++    similarity=0.8,
++    match_kind="vector",
++    match_count=None,
++):
++    return SimpleNamespace(
++        chunk_id=chunk_id,
++        document_id=document_id,
++        seq=seq,
++        similarity=similarity,
++        match_kind=match_kind,
++        match_count=match_count,
++    )
+ 
+ 
+ def _search_response(items=()):
+@@ -139,6 +155,65 @@ def test_no_search_results_returns_without_calling_llm():
+     assert ai.requests == []
+ 
+ 
++def test_low_similarity_vector_results_return_without_calling_llm():
++    service, _, repository, ai = _service(
++        search_response=_search_response([
++            _search_item(11, similarity=0.30),
++            _search_item(22, similarity=0.27),
++        ])
++    )
++
++    response = asyncio.run(
++        service.ask(user_id=7, project_id=1, question="기술자 1인당 인건비는?")
++    )
++
++    assert response.evidence == []
++    assert "근거를 찾지 못했습니다" in response.answer
++    repository.get_context_rows.assert_not_called()
++    assert ai.requests == []
++
++
++def test_relevance_gate_uses_best_vector_similarity_not_rrf_first_item():
++    service, _, _, ai = _service(
++        search_response=_search_response([
++            _search_item(11, similarity=0.20),
++            _search_item(22, similarity=0.40),
++        ]),
++        rows=[
++            _chunk(11, "첫 번째 RRF 결과다."),
++            _chunk(22, "충분히 가까운 두 번째 vector 결과다."),
++        ],
++    )
++
++    response = asyncio.run(
++        service.ask(user_id=7, project_id=1, question="두 번째 근거는?")
++    )
++
++    assert response.evidence
++    assert len(ai.requests) == 1
++
++
++def test_exact_keyword_match_bypasses_vector_similarity_gate():
++    service, _, _, ai = _service(
++        search_response=_search_response([
++            _search_item(
++                11,
++                similarity=0.10,
++                match_kind="keyword",
++                match_count=1,
++            )
++        ]),
++        rows=[_chunk(11, "문서번호 제2026-403호의 정확 일치 근거다.")],
++    )
++
++    response = asyncio.run(
++        service.ask(user_id=7, project_id=1, question="제2026-403호")
++    )
++
++    assert response.evidence
++    assert len(ai.requests) == 1
++
++
+ def test_final_evidence_and_full_prompt_fit_calculated_budget():
+     text = " ".join(
+         f"{index}번째 대금은 검수 완료 후 30일 이내 지급한다."

@@ -1,0 +1,851 @@
+diff --git a/backend/app/api/routes/dashboard_router.py b/backend/app/api/routes/dashboard_router.py
+new file mode 100644
+index 0000000..981f461
+--- /dev/null
++++ b/backend/app/api/routes/dashboard_router.py
+@@ -0,0 +1,47 @@
++# =============================================================================
++# 이 파일의 책임: 프로젝트 핵심 현황 조회 엔드포인트다(DSH-001).
++#   GET /api/projects/{project_id}/dashboard 하나뿐이다.
++# 다른 파일과의 관계: services/dashboard_service.py 를 부르고
++#   schemas/dashboard.py 를 돌려준다.
++# Spring 비교: @RestController + @GetMapping 이다. ProjectAccess 는 인터셉터가
++#   넣어 주는 인증·권한 컨텍스트에 해당한다.
++#
++# 지표를 하나로 묶어 한 번에 주는 이유
++#   카드마다 엔드포인트를 두면 대시보드를 열 때 요청이 다섯 번 나가고, 그 사이에
++#   문서가 늘면 카드끼리 숫자가 안 맞는다("문서 12건" 인데 "유형 분포 합 11").
++#   한 응답으로 주면 같은 시점의 값이라 서로 맞는다. 대시보드는 지표를 함께 보는
++#   화면이라 부분만 갱신할 이유도 없다.
++#
++# get_project_access 를 쓰는 이유
++#   현황 조회는 VIEWER 도 할 수 있어야 한다. 프로젝트에 무슨 문서가 있는지는
++#   멤버라면 문서 목록에서 이미 볼 수 있는 정보이고, 대시보드는 그것을 세어
++#   보여주는 것이라 더 넓은 권한을 요구할 근거가 없다.
++#
++#   다만 금액 승인 대기 건수는 amount-precedents 와 같은 상황에 있다 — 금액
++#   열람 권한 제한(AMT-003-1)의 VIEWER 정책이 아직 미결이다. 정책이 정해져
++#   VIEWER 에게 금액을 감춰야 한다면, 이 의존성을 바꾸는 것이 아니라
++#   pending_amount_items 만 가리는 편이 맞다. 나머지 지표는 VIEWER 가 봐도
++#   되는 값이라 엔드포인트 전체를 잠그면 과하다.
++# =============================================================================
++
++from fastapi import APIRouter, Depends, Query
++
++from app.dependencies import ProjectAccess, get_dashboard_service, get_project_access
++from app.schemas.dashboard import DashboardResponse
++from app.services.dashboard_service import DashboardService
++
++router = APIRouter(prefix="/api/projects/{project_id}", tags=["dashboard"])
++
++
++@router.get("/dashboard", response_model=DashboardResponse)
++def get_dashboard(
++    recent_limit: int = Query(
++        5, ge=1, le=20, description="최근 문서를 몇 건까지 돌려줄지"
++    ),
++    access: ProjectAccess = Depends(get_project_access),
++    service: DashboardService = Depends(get_dashboard_service),
++) -> DashboardResponse:
++    return service.get_overview(
++        project_id=access.project.id,
++        recent_limit=recent_limit,
++    )
+diff --git a/backend/app/dependencies.py b/backend/app/dependencies.py
+index ebd983d..a0045d8 100644
+--- a/backend/app/dependencies.py
++++ b/backend/app/dependencies.py
+@@ -45,6 +45,7 @@ from app.extractors.registry import ExtractorRegistry
+ from app.repositories.amount_repository import AmountRepository
+ from app.repositories.analysis_repository import AnalysisRepository
+ from app.repositories.chunk_repository import ChunkRepository
++from app.repositories.dashboard_repository import DashboardRepository
+ from app.repositories.document_repository import DocumentRepository
+ from app.repositories.project_repository import ProjectRepository
+ from app.repositories.user_repository import UserRepository
+@@ -56,6 +57,7 @@ from app.services.auth_service import AuthService
+ from app.services.project_service import ProjectService
+ from app.services.analysis_service import AnalysisService
+ from app.services.chunking_service import ChunkingService
++from app.services.dashboard_service import DashboardService
+ from app.services.extraction_service import ExtractionService
+ from app.services.search_service import SearchService
+ from app.services.document_service import DocumentService
+@@ -201,6 +203,25 @@ def get_amount_precedent_service(
+     return AmountPrecedentService(db, amount_repository, project_repository)
+ 
+ 
++def get_dashboard_repository(db: Session = Depends(get_db)) -> DashboardRepository:
++    return DashboardRepository(db)
++
++
++# get_search_service 와 같은 이유로 get_dashboard_repository **아래에** 두어야
++# 한다. Depends(...) 는 기본값이라 함수를 정의하는 순간 평가된다.
++def get_dashboard_service(
++    dashboard_repository: DashboardRepository = Depends(get_dashboard_repository),
++) -> DashboardService:
++    # 세션을 넘기지 않는다. 대시보드는 읽기만 해서 commit 할 것이 없고, 조회는
++    # 전부 리포지토리를 거친다. 쓰지 않을 의존성을 받아 두면 나중에 읽는 사람이
++    # "여기서 직접 쿼리를 날리기도 하나" 를 확인해야 한다.
++    #
++    # ProjectRepository 도 넘기지 않는다. 조회 범위가 현재 프로젝트 하나로
++    # 정해져 있어서 멤버십으로 범위를 계산할 필요가 없다 —
++    # get_amount_precedent_service 가 그것을 받는 이유와 대비된다.
++    return DashboardService(dashboard_repository)
++
++
+ def get_auth_service(db: Session = Depends(get_db), users: UserRepository = Depends(get_user_repository)) -> AuthService:
+     return AuthService(db, users)
+ 
+diff --git a/backend/app/main.py b/backend/app/main.py
+index 3fef8c4..3e5fc72 100644
+--- a/backend/app/main.py
++++ b/backend/app/main.py
+@@ -5,7 +5,7 @@ from fastapi.exceptions import RequestValidationError
+ from starlette.middleware.cors import CORSMiddleware
+ 
+ import app.models  # noqa: F401
+-from app.api.routes import amount_router, analysis_router, auth_router, document_router, invitation_router, project_router, search_router, upload_router
++from app.api.routes import amount_router, analysis_router, auth_router, dashboard_router, document_router, invitation_router, project_router, search_router, upload_router
+ from app.core.config import settings
+ from app.core.exceptions import BusinessError, business_error_handler, unhandled_exception_handler, validation_error_handler
+ from app.core.logging_config import setup_logging
+@@ -37,3 +37,6 @@ app.include_router(document_router.router)
+ # 의미 검색(RAG-04). 담당 보현. 계약은 API_계약서.md 에 초안으로 추가했다.
+ app.include_router(search_router.router)
+ app.include_router(amount_router.router)
++# 프로젝트 핵심 현황(DSH-001). 담당 보현. 되는 지표만 — 열린 태스크는 decisions
++# ORM 모델이 없어 아직 세지 않는다(응답에서 open_tasks = null).
++app.include_router(dashboard_router.router)
+diff --git a/backend/app/repositories/dashboard_repository.py b/backend/app/repositories/dashboard_repository.py
+new file mode 100644
+index 0000000..e36c9b7
+--- /dev/null
++++ b/backend/app/repositories/dashboard_repository.py
+@@ -0,0 +1,119 @@
++# =============================================================================
++# 이 파일의 책임: 대시보드(DSH-001)가 쓸 집계 조회를 담는다. 세기만 하고 판단은
++#   하지 않는다 — 상태 여러 개를 "처리 중" 으로 묶는 것은
++#   services/dashboard_service.py 가 한다.
++# 다른 파일과의 관계: models/document.py 의 Document 와 models/amount.py 의
++#   AmountItem 을 읽는다. dependencies.py 가 세션을 넣어 만들고
++#   services/dashboard_service.py 가 쓴다.
++# Spring 비교: @Repository 다. group by 로 상태별 건수를 한 번에 받아오는 것은
++#   JPQL 의 프로젝션 집계 쿼리에 해당한다.
++#
++# document_repository.py 에 넣지 않고 파일을 새로 만든 이유 두 개
++#   1. 대시보드 집계는 한 테이블에 머물지 않는다. documents 를 세고 amount_items
++#      를 조인해 세고, 앞으로 decisions · schedule_items 가 연결되면 그것도
++#      센다. "이 숫자가 어디서 나왔나" 를 한 파일에서 전부 확인할 수 있는 편이
++#      낫다. 지표가 여러 리포지토리에 흩어지면 합이 안 맞을 때 추적이 어렵다.
++#   2. document_repository.py 는 문서 도메인(재정님 영역) 파일이다. 집계만
++#      더하려고 그 파일을 건드리면 충돌 지점이 생긴다. 얻는 것 없이 남의 작업과
++#      부딪히는 변경은 피한다.
++#
++# 조회를 다섯 번 내보내는 것에 대해
++#   지표마다 한 번씩이라 항상 다섯 번이다. 결과 수에 비례하지 않으므로 N+1 이
++#   아니다. 하나로 합칠 수도 있지만(FILTER 절이나 CTE) 그러면 지표를 더할 때마다
++#   쿼리 하나를 다시 손봐야 하고, 어느 숫자가 틀렸는지 따로 확인하기도 어려워진다.
++#   documents 는 ix_doc_list · ix_doc_type 이, amount_items 는 ix_amount_pending
++#   이 이미 각 조회에 맞는 인덱스라 다섯 번이 싼 쪽이다.
++# =============================================================================
++
++from __future__ import annotations
++
++from sqlalchemy import Select, func, select
++from sqlalchemy.orm import Session
++
++from app.models.amount import AmountItem
++from app.models.document import Document
++
++# 승인 대기로 셀 상태. amount_items.decision 의 값이다.
++# APPROVED · EDITED 는 사람이 이미 판단한 것이고 REJECTED 는 거절한 것이라
++# "대기" 가 아니다. 이 값이 ix_amount_pending 부분 인덱스의 조건과 같아야
++# 인덱스를 탄다(리비전 0007 의 postgresql_where="decision = 'PENDING'").
++PENDING_DECISION = "PENDING"
++
++
++class DashboardRepository:
++    def __init__(self, db: Session) -> None:
++        self._db = db
++
++    def count_documents_by_status(self, project_id: int) -> dict[str, int]:
++        """{상태: 건수}. 그 프로젝트에 없는 상태는 키가 아예 없다.
++
++        호출한 쪽이 dict.get(상태, 0) 으로 읽어야 한다. 상태 여섯 개를 0 으로
++        채워 돌려주지 않는 이유는, 그 목록을 여기에 적으면 enums.py 의
++        DocumentStatus 와 두 곳에서 관리해야 하기 때문이다.
++        """
++        stmt: Select = (
++            select(Document.status, func.count())
++            .where(Document.project_id == project_id)
++            .group_by(Document.status)
++        )
++        return {row[0]: int(row[1]) for row in self._db.execute(stmt).all()}
++
++    def count_documents_by_review_status(self, project_id: int) -> dict[str, int]:
++        """{검수 상태: 건수}. 위와 같은 방식이다."""
++        stmt: Select = (
++            select(Document.review_status, func.count())
++            .where(Document.project_id == project_id)
++            .group_by(Document.review_status)
++        )
++        return {row[0]: int(row[1]) for row in self._db.execute(stmt).all()}
++
++    def count_documents_by_type(self, project_id: int) -> list[tuple[str | None, int]]:
++        """[(문서 유형, 건수)]. 유형이 없는 문서는 첫 값이 None 인 칸으로 온다.
++
++        NULL 을 걸러내지 않는다. documents.document_type 은 nullable 이고
++        분류되지 않은 문서가 실제로 있다. 걸러내면 분포의 합이 문서 수보다
++        작아져서 화면의 숫자가 서로 맞지 않는다.
++
++        정렬하지 않는다 — 어떤 순서로 보여줄지는 서비스가 정한다.
++        ix_doc_type (project_id, document_type) 이 이 조회 순서와 같다.
++        """
++        stmt: Select = (
++            select(Document.document_type, func.count())
++            .where(Document.project_id == project_id)
++            .group_by(Document.document_type)
++        )
++        return [(row[0], int(row[1])) for row in self._db.execute(stmt).all()]
++
++    def list_recent_documents(self, *, project_id: int, limit: int) -> list[Document]:
++        """최근 올라온 문서. 최신이 먼저다.
++
++        created_at 이 같을 때 id 로 한 번 더 정렬한다. server_default=func.now()
++        라 같은 트랜잭션에서 여러 건을 넣으면 created_at 이 동일해지고, 그러면
++        정렬이 실행마다 달라져 새로고침할 때 목록 순서가 흔들린다.
++
++        ix_doc_list (project_id, created_at) 를 탄다.
++        """
++        stmt: Select = (
++            select(Document)
++            .where(Document.project_id == project_id)
++            .order_by(Document.created_at.desc(), Document.id.desc())
++            .limit(limit)
++        )
++        return list(self._db.execute(stmt).scalars())
++
++    def count_pending_amount_items(self, project_id: int) -> int:
++        """승인 대기 금액 항목 수.
++
++        amount_items 에는 project_id 가 없어서 documents 를 조인해 거른다.
++        금액 항목은 문서에서 읽은 값이므로 프로젝트가 아니라 문서에 매달려
++        있다(models/amount.py 참고). 그래서 프로젝트 단위로 세려면 조인이
++        반드시 필요하다.
++        """
++        stmt: Select = (
++            select(func.count())
++            .select_from(AmountItem)
++            .join(Document, Document.id == AmountItem.document_id)
++            .where(Document.project_id == project_id)
++            .where(AmountItem.decision == PENDING_DECISION)
++        )
++        return int(self._db.execute(stmt).scalar_one())
+diff --git a/backend/app/schemas/dashboard.py b/backend/app/schemas/dashboard.py
+new file mode 100644
+index 0000000..191502e
+--- /dev/null
++++ b/backend/app/schemas/dashboard.py
+@@ -0,0 +1,102 @@
++# =============================================================================
++# 이 파일의 책임: 프로젝트 핵심 현황(DSH-001) 응답 계약이다. 대시보드가 보여줄
++#   지표와 최근 문서 목록의 모양을 정한다.
++# 다른 파일과의 관계: services/dashboard_service.py 가 이 모델을 채워 돌려주고
++#   api/routes/dashboard_router.py 가 response_model 로 쓴다. 최근 문서 항목은
++#   models/document.py 의 Document 에서 그대로 만든다(from_attributes).
++# Spring 비교: 응답 DTO 다. ConfigDict(from_attributes=True) 는 엔티티에서 DTO 를
++#   만드는 MapStruct 매핑이나 생성자 프로젝션에 해당한다.
++#
++# DSH-001 이 요구하는 지표는 여섯이다 — 문서 수 · 처리 중 문서 · 열린 태스크 ·
++# 승인 대기 · 문서 유형 분포 · 최근 문서. 이 중 넷은 지금 셀 수 있고 둘은 아니다.
++#
++#   열린 태스크    decisions 테이블은 리비전 0007 로 있지만 ORM 모델이 없다.
++#                 그래서 open_tasks 는 int 가 아니라 int | None 이고 기본값이
++#                 None 이다. **0 을 넣으면 안 된다** — "열린 태스크가 0건" 과
++#                 "아직 셀 수 없다" 를 화면에서 구별할 수 없게 된다. 그러면
++#                 사용자가 "할 일이 없다" 고 잘못 읽는다. 없음을 0 이 아니라
++#                 None 으로 두는 것은 amount_precedent.py 의 summary 와 같은
++#                 판단이다.
++#
++#   승인 대기      amount_items 만 센다. 그래서 이름이 pending_amount_items 이고
++#                 pending_suggestions 가 아니다. 같은 승인 대기인 decisions ·
++#                 schedule_items 는 모델이 없어 빠져 있는데, 이름을 뭉뚱그리면
++#                 나중에 그 둘이 연결됐을 때 "이미 다 세고 있었다" 고 착각하게
++#                 된다. 세는 대상을 이름에 박아 둔다.
++# =============================================================================
++
++from __future__ import annotations
++
++from datetime import datetime
++
++from pydantic import BaseModel, ConfigDict, Field
++
++
++class DashboardDocumentCounts(BaseModel):
++    """문서 수와 상태별 내역.
++
++    total 은 상태별 합이다. 상태 분포를 한 번 조회해서 더하므로 총계를 위한
++    COUNT 조회를 따로 내지 않는다 — 두 조회로 나누면 그 사이에 문서가 늘어
++    "총계 11, 상태별 합 10" 처럼 어긋날 수 있다.
++
++    processing 은 PENDING · EXTRACTING · ANALYZING 을 합한 값이다. 화면이
++    이미 그 셋을 "처리 중" 으로 묶어 왔고(utils/documentStatus.js 의
++    getDocumentPrimaryAction 도 같은 셋을 쓴다) 같은 기준을 서버에도 둔다.
++
++    failed 를 따로 두는 이유는 사용자가 손을 써야 하는 유일한 상태이기 때문이다.
++    처리 중에 섞으면 기다리면 끝나는 것처럼 보인다.
++    """
++
++    total: int
++    processing: int
++    extracted: int
++    completed: int
++    failed: int
++
++
++class DashboardDocumentTypeCount(BaseModel):
++    """문서 유형 분포 한 칸.
++
++    document_type 이 None 인 칸은 "아직 유형이 정해지지 않은 문서" 다.
++    documents.document_type 이 nullable 이라 실제로 생긴다(업로드할 때 유형을
++    고르지 않으면 비어 있고, AI 분류가 채우기 전까지 NULL 이다). 이 칸을 빼면
++    분포의 합이 문서 수와 맞지 않아 사용자가 숫자를 믿지 못한다.
++    """
++
++    document_type: str | None
++    count: int
++
++
++class DashboardRecentDocument(BaseModel):
++    """최근 문서 한 줄. Document 엔티티에서 그대로 만든다.
++
++    상태와 검수 상태를 함께 주는 이유는 화면이 배지 두 개를 그리기 때문이다
++    (기존 DashboardView 의 RecentDocument 가 그렇게 하고 있다). id 는 문서
++    상세로 이동하는 데 쓴다 — DSH-001 완료 판정의 "관련 화면으로 이동" 부분이다.
++    """
++
++    model_config = ConfigDict(from_attributes=True)
++
++    id: int
++    filename: str
++    file_type: str
++    document_type: str | None
++    status: str
++    review_status: str
++    created_at: datetime
++
++
++class DashboardResponse(BaseModel):
++    documents: DashboardDocumentCounts
++    # OCR 검수가 필요한 문서 수. review_status 가 PENDING 또는 IN_PROGRESS 다.
++    # DSH-001 목록에는 없지만 기존 대시보드가 이미 보여주던 지표라서 함께 낸다.
++    # 화면에서 세던 것을 서버로 옮기는 것이 이 작업의 요점이므로, 옮기면서
++    # 빠뜨리면 되던 것이 사라진다.
++    review_pending: int
++    # 승인 대기 금액 항목 수. amount_items.decision = 'PENDING'.
++    # ix_amount_pending 부분 인덱스가 바로 이 조회를 위해 있다(리비전 0007).
++    pending_amount_items: int
++    # 열린 태스크. 모델이 없어 아직 셀 수 없다 — 위 파일 주석 참고.
++    open_tasks: int | None = None
++    document_types: list[DashboardDocumentTypeCount] = Field(default_factory=list)
++    recent_documents: list[DashboardRecentDocument] = Field(default_factory=list)
+diff --git a/backend/app/services/dashboard_service.py b/backend/app/services/dashboard_service.py
+new file mode 100644
+index 0000000..6d1d8e8
+--- /dev/null
++++ b/backend/app/services/dashboard_service.py
+@@ -0,0 +1,162 @@
++# =============================================================================
++# 이 파일의 책임: 프로젝트 핵심 현황(DSH-001)을 만든다. 리포지토리가 세어 준
++#   상태 분포를 화면이 쓰는 묶음(처리 중 · 완료 · 실패)으로 접고, 문서 유형
++#   분포를 보여줄 순서로 정렬하고, 응답 스키마로 바꾼다.
++# 다른 파일과의 관계: repositories/dashboard_repository.py 로 조회하고 응답 계약은
++#   schemas/dashboard.py 다. api/routes/dashboard_router.py 가 부른다.
++# Spring 비교: @Service 다. 상태 묶기 규칙이 이 계층에 있는 것은
++#   amount_calculator 의 집계가 서비스에 있는 것과 같은 이유다 — 판단은 SQL 이
++#   아니라 코드에 두고 테스트할 수 있게 한다.
++#
++# 권한을 여기서 다시 확인하지 않는다
++#   라우터의 get_project_access 가 "내가 멤버인 프로젝트인가" 를 이미 판정했고,
++#   그 결과인 project_id 만 받는다. AmountPrecedentService 는 멤버십으로 범위를
++#   계산해야 해서 ProjectRepository 를 받았지만, 대시보드는 범위가 현재 프로젝트
++#   하나로 이미 정해져 있다. 판단 지점을 늘리지 않는다.
++#
++# 왜 화면에서 세지 않고 서버에서 세나
++#   기존 대시보드는 문서 목록을 받아 화면에서 셌다. 그런데 그 목록은
++#   GET /documents 의 첫 페이지이고 기본 size 가 20 이다(document_router.py).
++#   useWorkspaceData 는 응답의 items 만 쓰므로 **문서가 21건 이상인 프로젝트에서
++#   숫자가 조용히 틀린다.** 에러도 안 나고 화면도 정상으로 보인다. 페이지를 전부
++#   받아 세는 방법은 문서가 늘수록 요청이 늘어 답이 아니다. 세는 일은 DB 가
++#   해야 한다.
++# =============================================================================
++
++from __future__ import annotations
++
++import logging
++
++from app.models.enums import DocumentStatus, ReviewStatus
++from app.repositories.dashboard_repository import DashboardRepository
++from app.schemas.dashboard import (
++    DashboardDocumentCounts,
++    DashboardDocumentTypeCount,
++    DashboardRecentDocument,
++    DashboardResponse,
++)
++
++logger = logging.getLogger(__name__)
++
++# "처리 중" 으로 묶을 상태. 사용자가 기다리면 저절로 끝나는 상태들이다.
++#
++# FAILED 를 넣지 않는다 — 기다려도 끝나지 않고 사람이 재처리를 눌러야 한다.
++# EXTRACTED 도 넣지 않는다. 추출은 끝났고 다음 단계(검수·분석)를 기다리는
++# 상태라서, 처리 중에 넣으면 "언제 끝나나" 를 잘못 읽게 된다.
++#
++# 화면의 utils/documentStatus.js 가 쓰는 셋과 같아야 한다. 다르면 같은 문서가
++# 대시보드와 문서 목록에서 다르게 분류된다.
++PROCESSING_STATUSES = (
++    DocumentStatus.PENDING.value,
++    DocumentStatus.EXTRACTING.value,
++    DocumentStatus.ANALYZING.value,
++)
++
++# OCR 검수가 필요한 상태. NOT_REQUIRED(검수 대상 아님)와 COMPLETED(끝냄)는 빼고
++# 사람이 아직 손대야 하는 둘만 센다.
++REVIEW_PENDING_STATUSES = (
++    ReviewStatus.PENDING.value,
++    ReviewStatus.IN_PROGRESS.value,
++)
++
++
++class DashboardService:
++    def __init__(self, dashboard_repository: DashboardRepository) -> None:
++        self._dashboard = dashboard_repository
++
++    def get_overview(
++        self,
++        *,
++        project_id: int,
++        recent_limit: int,
++    ) -> DashboardResponse:
++        by_status = self._dashboard.count_documents_by_status(project_id)
++        by_review = self._dashboard.count_documents_by_review_status(project_id)
++        type_rows = self._dashboard.count_documents_by_type(project_id)
++        recent = self._dashboard.list_recent_documents(
++            project_id=project_id, limit=recent_limit
++        )
++        pending_amounts = self._dashboard.count_pending_amount_items(project_id)
++
++        counts = DashboardDocumentCounts(**document_counts(by_status))
++
++        review_pending = review_pending_count(by_review)
++
++        logger.info(
++            "대시보드 현황 project_id=%s 문서=%d건 처리중=%d 검수대기=%d 금액승인대기=%d",
++            project_id,
++            counts.total,
++            counts.processing,
++            review_pending,
++            pending_amounts,
++        )
++
++        return DashboardResponse(
++            documents=counts,
++            review_pending=review_pending,
++            pending_amount_items=pending_amounts,
++            # open_tasks 를 넘기지 않는다. 기본값 None 이 "아직 셀 수 없다" 는
++            # 뜻이다. decisions 에 ORM 모델이 생기면 여기서 채운다.
++            document_types=[
++                DashboardDocumentTypeCount(document_type=document_type, count=count)
++                for document_type, count in sort_type_rows(type_rows)
++            ],
++            recent_documents=[
++                DashboardRecentDocument.model_validate(document) for document in recent
++            ],
++        )
++
++
++# --- 집계 (순수 함수) --------------------------------------------------------
++#
++# 아래 셋은 DB 도 스키마도 모르는 순수 함수다. 그래서 sqlalchemy·pydantic 이
++# 없는 환경에서도 그대로 실행해 검사할 수 있다 — 도구/check_dashboard.py 가
++# 소스에서 이 함수들만 잘라내 돌린다. 숫자를 접는 규칙이 지표의 핵심이라
++# 확인할 수 있는 자리에 두었다.
++
++
++def document_counts(by_status: dict[str, int]) -> dict[str, int]:
++    """상태 분포를 화면이 쓰는 묶음으로 접는다.
++
++    total 은 **모든 상태의 합**이다. 아는 상태만 더하지 않는다 — enums.py 에
++    상태가 추가되고 이 파일이 안 고쳐지면 총계가 조용히 작아진다. 합으로 두면
++    모르는 상태가 와도 총계는 맞고, 묶음(processing 등)에만 안 잡힌다.
++
++    상태가 없는 문서는 있을 수 없다(documents.status 가 not null, 기본값 PENDING).
++    """
++    return {
++        "total": sum(by_status.values()),
++        "processing": _sum_of(by_status, PROCESSING_STATUSES),
++        "extracted": by_status.get(DocumentStatus.EXTRACTED.value, 0),
++        "completed": by_status.get(DocumentStatus.COMPLETED.value, 0),
++        "failed": by_status.get(DocumentStatus.FAILED.value, 0),
++    }
++
++
++def review_pending_count(by_review: dict[str, int]) -> int:
++    """OCR 검수가 필요한 문서 수."""
++    return _sum_of(by_review, REVIEW_PENDING_STATUSES)
++
++
++def _sum_of(counts: dict[str, int], keys: tuple[str, ...]) -> int:
++    """분포 dict 에서 여러 상태를 합친다. 없는 키는 0 으로 본다.
++
++    리포지토리가 그 프로젝트에 있는 상태만 돌려주므로 키가 없는 경우가 정상이다.
++    """
++    return sum(counts.get(key, 0) for key in keys)
++
++
++def sort_type_rows(rows: list[tuple[str | None, int]]) -> list[tuple[str | None, int]]:
++    """많은 유형부터. 유형이 없는 칸(None)은 언제나 맨 끝이다.
++
++    많은 순서로 두는 이유는 대시보드가 "이 프로젝트에 무슨 문서가 쌓였나" 를
++    보여주는 자리이기 때문이다. 정의 순서로 두면 0건인 유형이 앞에 오고 실제로
++    쌓인 유형을 아래에서 찾아야 한다.
++
++    건수가 같으면 유형 이름으로 정렬한다. 그러지 않으면 DB 가 돌려주는 순서에
++    따라 새로고침할 때마다 칸 순서가 바뀐다.
++
++    None 을 맨 끝에 두는 것은 "미분류" 가 유형이 아니라 유형이 없는 상태라서다.
++    개수가 많다고 맨 앞에 오면 분포를 읽는 데 방해가 된다.
++    """
++    return sorted(rows, key=lambda row: (row[0] is None, -row[1], row[0] or ""))
+diff --git a/frontend/src/api/dashboard.js b/frontend/src/api/dashboard.js
+new file mode 100644
+index 0000000..a22fe8a
+--- /dev/null
++++ b/frontend/src/api/dashboard.js
+@@ -0,0 +1,38 @@
++// =============================================================================
++// 이 파일의 책임: 프로젝트 핵심 현황 API(DSH-001) 호출을 감싼다.
++//   화면(DashboardView)은 axios 나 경로를 모르고 이 함수만 부른다.
++// 다른 파일과의 관계: api/http.js 의 공통 인스턴스를 쓴다 — 토큰 첨부와 401
++//   재발급이 거기 인터셉터에 있다. 응답 필드 이름은 서버와 같은 snake_case
++//   그대로 둔다(프로젝트 합의).
++// Spring 비교: RestTemplate 을 감싼 Gateway 클래스에 해당한다.
++// =============================================================================
++
++import { http } from './http'
++
++// GET /api/projects/{projectId}/dashboard
++//
++// 지표를 화면에서 세지 않고 서버에서 받는 이유
++//   전에는 문서 목록을 받아 화면에서 셌다. 그런데 그 목록은 GET /documents 의
++//   첫 페이지이고 기본 size 가 20 이다. 그래서 문서가 21건 이상인 프로젝트에서
++//   "처리 중 3건" 같은 숫자가 조용히 틀렸다 — 에러도 안 나고 화면도 정상으로
++//   보인다. 세는 일은 DB 가 한다.
++//
++// 응답: {
++//   documents: { total, processing, extracted, completed, failed },
++//   review_pending,            // OCR 검수가 필요한 문서 수
++//   pending_amount_items,      // 승인 대기 금액 항목 수
++//   open_tasks,                // null 이면 "아직 셀 수 없다" (0 건이 아니다)
++//   document_types: [{ document_type, count }],   // document_type: null = 미분류
++//   recent_documents: [{ id, filename, file_type, document_type,
++//                        status, review_status, created_at }]
++// }
++//
++// open_tasks 가 null 인 이유: decisions 테이블은 있지만 ORM 모델이 없어 아직
++// 세지 못한다. 화면에서 0 으로 바꾸지 말 것 — 사용자가 "할 일이 없다" 고
++// 잘못 읽는다.
++export async function getDashboard(projectId, { recentLimit = 5 } = {}) {
++  const { data } = await http.get(`/api/projects/${projectId}/dashboard`, {
++    params: { recent_limit: recentLimit },
++  })
++  return data
++}
+diff --git a/frontend/src/features/dashboard/DashboardView.jsx b/frontend/src/features/dashboard/DashboardView.jsx
+index 8bbd948..bf6f2f7 100644
+--- a/frontend/src/features/dashboard/DashboardView.jsx
++++ b/frontend/src/features/dashboard/DashboardView.jsx
+@@ -1,38 +1,140 @@
++// =============================================================================
++// 이 파일의 책임: 프로젝트 핵심 현황 화면이다(DSH-001). 지표 카드 · 문서 유형
++//   분포 · OCR 검수 필요 목록 · 최근 문서를 보여주고, 각 항목에서 관련 화면으로
++//   이동시킨다.
++// 다른 파일과의 관계: api/dashboard.js 로 집계를 받는다. OCR 검수 목록 항목만
++//   상위(WorkspacePage → useWorkspaceData)가 넘겨준 documents 를 쓴다.
++//   표기는 utils/documentStatus.js · utils/documentType.js 를 쓴다.
++// Spring 비교: 서버가 만든 뷰 모델을 그대로 그리는 화면이다. 숫자를 화면에서
++//   다시 계산하지 않는다.
++//
++// 숫자를 화면에서 세지 않게 바꾼 이유
++//   전에는 documents 배열을 filter().length 로 세었다. 그런데 그 배열은
++//   GET /documents 첫 페이지이고 기본 size 가 20 이다(useWorkspaceData 가
++//   응답의 items 만 쓴다). 문서가 21건 이상이면 카드 숫자가 조용히 틀렸다 —
++//   에러도 안 나고 화면도 정상으로 보인다. 그래서 지표는 전부 서버 집계를 쓴다.
++//
++//   documents 를 아직 쓰는 곳이 하나 남아 있다 — "OCR 확인 필요" 목록의 항목들.
++//   그 목록은 서버 집계에 포함하지 않았다. 대신 **건수는 서버 값(review_pending)
++//   을 쓴다.** 그래서 문서가 많을 때 "3건 표시 · 외 N건" 의 N 이 맞다.
++// =============================================================================
++
++import { useQuery } from '@tanstack/react-query'
+ import { useNavigate } from 'react-router-dom'
++import { getDashboard } from '../../api/dashboard'
+ import PageHeading from '../../components/common/PageHeading'
+ import { getDocumentPrimaryAction, getDocumentStatus, getReviewStatus } from '../../utils/documentStatus'
+-import { formatDateShort } from '../../utils/format'
++import { getDocumentTypeLabel } from '../../utils/documentType'
++import { formatDateShort, formatNumber } from '../../utils/format'
+ import ActionTaskPanel from './ActionTaskPanel'
+ 
++// 목록에 미리 보여줄 건수. 나머지는 "외 N건" 으로 접는다.
++const PREVIEW_COUNT = 3
++
+ export default function DashboardView({ projectId, documents, members }) {
+   const navigate = useNavigate()
+-  const processing = documents.filter(document => ['PENDING', 'EXTRACTING', 'ANALYZING'].includes(document.status))
++  const dashboardQuery = useQuery({
++    queryKey: ['projects', projectId, 'dashboard'],
++    queryFn: () => getDashboard(projectId),
++    // 처리 중인 문서가 있으면 3초마다 다시 받는다. DSH-001 완료 판정이 "최신
++    // 데이터가 지표·목록에 반영되고" 이므로, 추출이 끝나면 새로고침 없이 숫자가
++    // 바뀌어야 한다. 처리 중이 0이면 폴링하지 않는다 — 가만히 있는 화면에
++    // 요청을 계속 보낼 이유가 없다. useWorkspaceData 의 문서 목록 폴링과 같은
++    // 간격이라 두 값이 크게 어긋나지 않는다.
++    refetchInterval: query => (query.state.data?.documents?.processing > 0 ? 3_000 : false),
++  })
++  const data = dashboardQuery.data
++  const counts = data?.documents
++  const goDocuments = () => navigate(`/projects/${projectId}/documents`)
++
++  // 서버 건수를 우선 쓰고, 아직 안 왔으면 넘겨받은 목록으로 임시 표시한다.
+   const needsReview = documents.filter(document => ['PENDING', 'IN_PROGRESS'].includes(document.review_status))
+-  const completed = documents.filter(document => document.status === 'COMPLETED')
++  const shownReview = needsReview.slice(0, PREVIEW_COUNT)
++  const reviewPending = data ? data.review_pending : needsReview.length
+ 
+   return <>
+     <PageHeading eyebrow='PROJECT OVERVIEW' title='대시보드' description='지금 확인할 문서와 우선 처리할 액션 태스크를 확인하세요.'/>
+-    <section className='dashboard-summary-grid dashboard-summary-grid--compact' aria-label='문서 현황 요약'>
+-      <SummaryCard label='처리 중' value={processing.length}/>
+-      <SummaryCard label='OCR 검수' value={needsReview.length} emphasis={needsReview.length > 0}/>
+-      <SummaryCard label='처리 완료' value={completed.length}/>
+-      <SummaryCard label='참여자' value={members.length}/>
++
++    {dashboardQuery.isError && <section className='panel dashboard-notice'>
++      <div><strong>현황 지표를 불러오지 못했습니다.</strong><p>{dashboardQuery.error?.message}</p></div>
++      <button onClick={() => dashboardQuery.refetch()}>다시 시도</button>
++    </section>}
++
++    <section className='dashboard-summary-grid dashboard-summary-grid--compact' aria-label='프로젝트 핵심 현황'>
++      <SummaryCard label='전체 문서' value={counts?.total} onOpen={goDocuments}/>
++      <SummaryCard label='처리 중' value={counts?.processing} onOpen={goDocuments}/>
++      <SummaryCard label='처리 완료' value={counts?.completed} onOpen={goDocuments}/>
++      <SummaryCard label='처리 실패' value={counts?.failed} emphasis={counts?.failed > 0} onOpen={goDocuments}/>
++      <SummaryCard label='OCR 검수' value={reviewPending} emphasis={reviewPending > 0} onOpen={goDocuments}/>
++      {/* 금액 승인 대기는 amount_items 만 센다. 금액 화면이 아직 없어서 이동
++          대상이 없다 — onOpen 을 주지 않아 클릭되지 않는 카드로 둔다. */}
++      <SummaryCard label='금액 승인 대기' value={data?.pending_amount_items} note='금액 항목 기준'/>
++      {/* open_tasks 는 null 이다. 0 으로 바꾸면 "할 일이 없다" 로 잘못 읽힌다. */}
++      <SummaryCard label='열린 태스크' value={data?.open_tasks ?? null} note='아직 집계 전'/>
++      <SummaryCard label='참여자' value={members.length} onOpen={() => navigate(`/projects/${projectId}/settings`)}/>
+     </section>
++
+     <div className="dashboard-top-grid">
+-      <section className='panel dashboard-next-actions'><div className='panel-head'><div><h2>OCR 확인 필요</h2><p>검수 후 최종 텍스트에 반영할 문서입니다.</p></div><span>{needsReview.length}건</span></div>
+-        {needsReview.length ? <ul className='dashboard-document-list'>{needsReview.slice(0, 3).map(document => <NextAction document={document} key={document.id} onOpen={() => navigate(`/projects/${projectId}/documents/${document.id}/review`)}/>)}</ul> : <div className='dashboard-empty-state'><strong>현재 검수가 필요한 문서가 없습니다.</strong><p>검수할 문서가 생기면 이곳에 우선 표시됩니다.</p></div>}
+-        {needsReview.length > 3 && <div className="dashboard-panel-footer"><span>외 {needsReview.length - 3}건이 더 있습니다.</span><button onClick={() => navigate(`/projects/${projectId}/documents`)}>전체 보기 →</button></div>}
++      <section className='panel dashboard-next-actions'>
++        <div className='panel-head'><div><h2>OCR 확인 필요</h2><p>검수 후 최종 텍스트에 반영할 문서입니다.</p></div><span>{formatNumber(reviewPending)}건</span></div>
++        {/* 미리보기 항목은 넘겨받은 문서 목록(첫 페이지)에서 고르고 건수는 서버
++            값을 쓴다. 그래서 "서버는 5건이라는데 이 페이지에는 하나도 없다" 가
++            생길 수 있다 — 그때 "없습니다" 를 띄우면 배지의 5건과 모순된다.
++            세 갈래로 나눠 각각 사실에 맞는 문구를 낸다. */}
++        {shownReview.length > 0
++          ? <ul className='dashboard-document-list'>{shownReview.map(document => <NextAction document={document} key={document.id} onOpen={() => navigate(`/projects/${projectId}/documents/${document.id}/review`)}/>)}</ul>
++          : reviewPending > 0
++            ? <div className='dashboard-empty-state'><strong>검수가 필요한 문서가 {formatNumber(reviewPending)}건 있습니다.</strong><p>최근 목록에는 없습니다. 전체 문서에서 확인해 주세요.</p></div>
++            : <div className='dashboard-empty-state'><strong>현재 검수가 필요한 문서가 없습니다.</strong><p>검수할 문서가 생기면 이곳에 우선 표시됩니다.</p></div>}
++        {reviewPending > shownReview.length && <div className="dashboard-panel-footer"><span>외 {formatNumber(reviewPending - shownReview.length)}건이 더 있습니다.</span><button onClick={goDocuments}>전체 보기 →</button></div>}
+       </section>
+       <ActionTaskPanel tasks={[]} onOpenBoard={() => navigate(`/projects/${projectId}/board`)}/>
+     </div>
+-    <section className='panel dashboard-recent-panel'><div className='panel-head'><div><h2>최근 문서</h2><p>최근에 업로드된 문서의 현재 상태입니다.</p></div><span>{documents.length}건</span></div>{documents.length ? <ul className='dashboard-document-list dashboard-recent-list'>{documents.slice(0, 3).map(document => <RecentDocument document={document} key={document.id} onOpen={() => navigate(`/projects/${projectId}/documents/${document.id}`)}/>)}</ul> : <div className='dashboard-empty-state'><strong>등록된 문서가 없습니다.</strong><p>문서 탭에서 파일을 업로드하면 처리 현황이 표시됩니다.</p></div>}
+-      {documents.length > 3 && <div className="dashboard-panel-footer"><span>외 {documents.length - 3}건이 더 있습니다.</span><button onClick={() => navigate(`/projects/${projectId}/documents`)}>전체 문서 보기 →</button></div>}
++
++    <DocumentTypePanel types={data?.document_types} total={counts?.total} loaded={Boolean(data)}/>
++
++    <section className='panel dashboard-recent-panel'>
++      <div className='panel-head'><div><h2>최근 문서</h2><p>최근에 업로드된 문서의 현재 상태입니다.</p></div><span>{formatNumber(counts?.total ?? null)}건</span></div>
++      {data?.recent_documents?.length
++        ? <ul className='dashboard-document-list dashboard-recent-list'>{data.recent_documents.map(document => <RecentDocument document={document} key={document.id} onOpen={() => navigate(`/projects/${projectId}/documents/${document.id}`)}/>)}</ul>
++        : <div className='dashboard-empty-state'><strong>{data ? '등록된 문서가 없습니다.' : '문서 현황을 불러오는 중입니다.'}</strong><p>문서 탭에서 파일을 업로드하면 처리 현황이 표시됩니다.</p></div>}
++      {counts?.total > (data?.recent_documents?.length ?? 0) && <div className="dashboard-panel-footer"><span>외 {formatNumber(counts.total - data.recent_documents.length)}건이 더 있습니다.</span><button onClick={goDocuments}>전체 문서 보기 →</button></div>}
+     </section>
+   </>
+ }
+ 
+-function SummaryCard({ label, value, emphasis }) {
+-  return <section className={'dashboard-summary-card' + (emphasis ? ' is-emphasis' : '')}><span>{label}</span><strong>{value}</strong></section>
++// 값이 null·undefined 면 "—" 를 보여준다. 0 과 구별하기 위한 것이다.
++//   0    — 실제로 0건이다
++//   —    — 아직 못 받았거나(로딩) 셀 수 없다(열린 태스크)
++// onOpen 이 없으면 이동할 화면이 없는 카드라서 button 이 아니라 div 로 그린다.
++// 눌러도 아무 일이 없는 버튼을 두면 고장으로 읽힌다.
++function SummaryCard({ label, value, emphasis, note, onOpen }) {
++  const className = 'dashboard-summary-card' + (emphasis ? ' is-emphasis' : '') + (onOpen ? ' is-clickable' : '')
++  const shown = value === null || value === undefined ? '—' : formatNumber(value)
++  const body = <><span>{label}</span><strong>{shown}</strong>{note && <p>{note}</p>}</>
++  if (!onOpen) return <section className={className}>{body}</section>
++  return <button className={className} type='button' onClick={onOpen}>{body}</button>
++}
++
++// 문서 유형 분포.
++//
++// 각 칸에서 "그 유형만 걸러진 문서 목록" 으로 이동하지 않는다. DocumentsView 에
++// 유형 필터가 없기 때문이다(GET /documents 는 document_type 파라미터를 받지만
++// 화면이 쓰지 않는다). 이동할 수 없는 것을 누를 수 있게 두면 고장으로 읽히므로
++// 지금은 표시만 한다 — DocumentsView 에 필터가 붙으면 그때 연결한다.
++function DocumentTypePanel({ types, total, loaded }) {
++  const rows = types ?? []
++  const max = rows.reduce((top, row) => Math.max(top, row.count), 0)
++  return <section className='panel dashboard-type-panel'>
++    <div className='panel-head'><div><h2>문서 유형 분포</h2><p>이 프로젝트에 쌓인 문서를 유형별로 셉니다.</p></div><span>{rows.length}종</span></div>
++    {rows.length
++      ? <ul className='dashboard-type-list'>{rows.map(row => <li className='dashboard-type-item' key={row.document_type ?? '__unclassified__'}>
++          <span className={'dashboard-type-name' + (row.document_type ? '' : ' is-unclassified')}>{getDocumentTypeLabel(row.document_type)}</span>
++          <span className='dashboard-type-bar' aria-hidden='true'><i style={{ width: `${max ? (row.count / max) * 100 : 0}%` }}/></span>
++          <span className='dashboard-type-count'>{formatNumber(row.count)}건{total ? ` · ${Math.round((row.count / total) * 100)}%` : ''}</span>
++        </li>)}</ul>
++      : <div className='dashboard-empty-state'><strong>{loaded ? '집계할 문서가 없습니다.' : '유형 분포를 불러오는 중입니다.'}</strong><p>문서를 업로드하면 유형별 건수가 표시됩니다.</p></div>}
++  </section>
+ }
+ 
+ function NextAction({ document, onOpen }) {
+@@ -43,5 +145,5 @@ function NextAction({ document, onOpen }) {
+ function RecentDocument({ document, onOpen }) {
+   const status = getDocumentStatus(document.status)
+   const review = getReviewStatus(document.review_status)
+-  return <li className='dashboard-document-item'><div><strong>{document.filename}</strong><p>{document.file_type?.toUpperCase()} · {formatDateShort(document.created_at)}</p></div><div className='dashboard-document-statuses'><span className={'status-badge status-' + status.tone}>{status.label}</span><span className={'status-badge status-' + review.tone}>{review.label}</span><button onClick={onOpen}>상세 보기</button></div></li>
++  return <li className='dashboard-document-item'><div><strong>{document.filename}</strong><p>{document.file_type?.toUpperCase()} · {getDocumentTypeLabel(document.document_type)} · {formatDateShort(document.created_at)}</p></div><div className='dashboard-document-statuses'><span className={'status-badge status-' + status.tone}>{status.label}</span><span className={'status-badge status-' + review.tone}>{review.label}</span><button onClick={onOpen}>상세 보기</button></div></li>
+ }
+diff --git a/frontend/src/features/documents/DocumentUploadModal.jsx b/frontend/src/features/documents/DocumentUploadModal.jsx
+index b82a493..dea888f 100644
+--- a/frontend/src/features/documents/DocumentUploadModal.jsx
++++ b/frontend/src/features/documents/DocumentUploadModal.jsx
+@@ -1,18 +1,9 @@
+ import { useEffect, useRef, useState } from 'react'
+ import '../../styles/dialog.css'
+ import './DocumentsView.css'
+-
+-const DOCUMENT_TYPES = [
+-  ['RFP', '제안요청서·입찰공고'],
+-  ['PROPOSAL', '제안서·기술제안서'],
+-  ['COST_SHEET', '산출내역서·견적서'],
+-  ['CONTRACT', '계약서·과업지시서'],
+-  ['CONTRACT_CHANGE', '변경계약서·과업변경합의서'],
+-  ['REPORT', '보고서·검사조서'],
+-  ['MEETING_NOTES', '회의록'],
+-  ['BILLING', '대가지급청구서·세금계산서'],
+-  ['ETC', '기타'],
+-]
++// 목록을 utils/documentType.js 로 옮겼다. 대시보드 유형 분포도 같은 표기를
++// 써야 해서다 — 복사해 두면 한쪽만 고쳐져 같은 유형이 다르게 불린다.
++import { DOCUMENT_TYPES } from '../../utils/documentType'
+ 
+ export default function DocumentUploadModal({ file, uploading, onClose, onSubmit }) {
+   const [documentType, setDocumentType] = useState('')
+diff --git a/frontend/src/styles/workspace.css b/frontend/src/styles/workspace.css
+index de05ba7..8526e27 100644
+--- a/frontend/src/styles/workspace.css
++++ b/frontend/src/styles/workspace.css
+@@ -75,3 +75,37 @@
+ @media (max-width: 680px) { .dashboard-summary-grid--compact, .dashboard-task-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+ @media (max-width: 760px) { .dashboard-recent-list { grid-template-columns: 1fr; } }
+ @media (max-width: 440px) { .dashboard-summary-grid--compact, .dashboard-task-grid { grid-template-columns: 1fr; } }
++
++
++/* 대시보드 지표(DSH-001): 서버 집계 연결에 따라 추가된 부분 */
++
++/* 이동할 화면이 있는 지표 카드는 button 으로 그린다. button 기본 스타일(가운데
++   정렬 · 폰트 상속 안 함)을 section 과 같아 보이게 되돌린다. 그러지 않으면
++   클릭 가능한 카드만 글자가 가운데로 몰려 카드끼리 어긋난다. */
++.dashboard-summary-card.is-clickable { width: 100%; font: inherit; text-align: left; cursor: pointer; }
++.dashboard-summary-card.is-clickable:hover, .dashboard-summary-card.is-clickable:focus-visible { border-color: #756de8; background: #f7f6ff; }
++
++/* 집계를 못 받았을 때. 화면 전체를 막지 않고 이 줄만 띄운다 — 나머지 목록은
++   여전히 볼 수 있어야 한다. */
++.dashboard-notice { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; border-color: #e8c9c9; background: #fdf6f6; }
++.dashboard-notice strong { display: block; color: #8a3d3d; }
++.dashboard-notice p { margin: 6px 0 0; color: #7d6a6a; font-size: 13px; }
++.dashboard-notice button { flex: 0 0 auto; min-height: 36px; padding: 8px 12px; border: 1px solid #d9bcbc; border-radius: 8px; background: #fff; color: #8a3d3d; font-weight: 750; cursor: pointer; }
++
++.dashboard-type-panel { margin-top: 18px; }
++.dashboard-type-list { margin: 0; padding: 0; list-style: none; }
++/* 이름 · 막대 · 건수 세 칸. 막대만 남는 폭을 먹는다. */
++.dashboard-type-item { display: grid; grid-template-columns: minmax(120px, 190px) minmax(0, 1fr) auto; align-items: center; gap: 14px; padding: 11px 0; border-top: 1px solid #e8edf4; }
++.dashboard-type-item:first-child { border-top: 0; }
++.dashboard-type-name { overflow: hidden; color: #36435a; font-size: 13px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
++/* 미분류는 유형 이름이 아니라 유형이 없는 상태다. 흐리게 둬서 구별한다. */
++.dashboard-type-name.is-unclassified { color: #8a96a6; font-weight: 600; font-style: italic; }
++.dashboard-type-bar { display: block; height: 8px; border-radius: 99px; background: #eef1f7; }
++.dashboard-type-bar > i { display: block; height: 100%; min-width: 3px; border-radius: 99px; background: #756de8; }
++.dashboard-type-count { color: #65748a; font-size: 12px; font-weight: 700; white-space: nowrap; }
++@media (max-width: 640px) {
++  .dashboard-type-item { grid-template-columns: minmax(0, 1fr) auto; }
++  .dashboard-type-bar { display: none; }
++  .dashboard-notice { align-items: flex-start; flex-direction: column; }
++  .dashboard-notice button { width: 100%; }
++}
+diff --git a/frontend/src/utils/documentType.js b/frontend/src/utils/documentType.js
+new file mode 100644
+index 0000000..e09c8d9
+--- /dev/null
++++ b/frontend/src/utils/documentType.js
+@@ -0,0 +1,46 @@
++// =============================================================================
++// 이 파일의 책임: 문서 유형(documents.document_type) 값을 화면 문구로 바꾼다.
++//   업로드 모달과 대시보드 유형 분포가 같은 표기를 쓰게 하는 것이 목적이다.
++// 다른 파일과의 관계: features/documents/DocumentUploadModal.jsx 의 선택 목록과
++//   features/dashboard/DashboardView.jsx 의 유형 분포가 이 목록을 쓴다.
++//   utils/documentStatus.js 와 같은 자리다 — 상태값 표기를 한 곳에 모아 화면마다
++//   다르게 보이는 일을 막는 파일.
++// Spring 비교: 코드값 → 표시명 매핑을 담은 공용 CodeTable 이나 MessageSource 에
++//   해당한다. 상태를 갖지 않는 순수 함수만 둔다.
++//
++// 이 파일을 따로 만든 이유
++//   전에는 이 목록이 DocumentUploadModal.jsx 안에만 있었다. 대시보드가 유형
++//   분포를 보여주려고 목록을 복사하면, 나중에 한쪽 문구만 고쳐서 업로드 화면과
++//   대시보드가 같은 유형을 다르게 부르게 된다. 에러가 나지 않아 알아채기 어렵다.
++//   백엔드 값 목록은 models/enums.py 의 DocumentType 9종이다.
++// =============================================================================
++
++// [값, 표시명]. 순서는 업로드 모달의 선택 순서이기도 하다 — 문서가 만들어지는
++// 흐름(제안요청서 → 제안서 → 산출내역서 → 계약서 → ...)에 맞춰 둔 것이다.
++export const DOCUMENT_TYPES = [
++  ['RFP', '제안요청서·입찰공고'],
++  ['PROPOSAL', '제안서·기술제안서'],
++  ['COST_SHEET', '산출내역서·견적서'],
++  ['CONTRACT', '계약서·과업지시서'],
++  ['CONTRACT_CHANGE', '변경계약서·과업변경합의서'],
++  ['REPORT', '보고서·검사조서'],
++  ['MEETING_NOTES', '회의록'],
++  ['BILLING', '대가지급청구서·세금계산서'],
++  ['ETC', '기타'],
++]
++
++const LABELS = Object.fromEntries(DOCUMENT_TYPES)
++
++/** 문서 유형 값을 표시명으로. null·빈 값은 "미분류" 다.
++ *
++ * document_type 은 nullable 이다. 업로드할 때 유형을 고르지 않으면 비어 있고
++ * AI 분류가 채우기 전까지 그대로다. "미분류" 는 유형 이름이 아니라 유형이 없는
++ * 상태를 가리킨다 — ETC(기타)와 다르다. 기타는 사람이 고른 값이다.
++ *
++ * 목록에 없는 값이 오면 값 자체를 그대로 보여준다. 임의로 "기타" 로 바꾸면
++ * 백엔드에 유형이 추가됐을 때 화면에서 그 사실이 감춰진다.
++ */
++export function getDocumentTypeLabel(documentType) {
++  if (!documentType) return '미분류'
++  return LABELS[documentType] ?? documentType
++}

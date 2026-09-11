@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">TQ1 링과 화살표</title>
+  <defs>
+    <linearGradient id="tq1" x1="10" y1="52" x2="54" y2="10" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#173cff"/>
+      <stop offset=".58" stop-color="#087ff4"/>
+      <stop offset="1" stop-color="#08d7e5"/>
+    </linearGradient>
+  </defs>
+  <circle cx="30" cy="30" r="21" fill="none" stroke="url(#tq1)" stroke-width="8"/>
+  <path d="m44 45 11 10" fill="none" stroke="url(#tq1)" stroke-width="8" stroke-linecap="round"/>
+  <path fill="url(#tq1)" d="M17 18h29l-5 8h-8l-7 22h-9l7-22H12z"/>
+</svg>

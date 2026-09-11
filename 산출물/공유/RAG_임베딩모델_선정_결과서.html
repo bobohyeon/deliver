@@ -1,0 +1,5609 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>RAG_임베딩모델_선정_결과서</title>
+<style>
+@page { size: A4 portrait; margin: 18mm 16mm; }
+* { box-sizing: border-box; }
+body {
+  font-family: "Malgun Gothic", "맑은 고딕", -apple-system, sans-serif;
+  font-size: 10.5pt; line-height: 1.6; color: #111;
+  max-width: 900px; margin: 0 auto; padding: 24px;
+}
+h1 {
+  font-size: 19pt; margin: 0 0 6px; padding-bottom: 10px;
+  border-bottom: 2px solid #111; color: #000;
+}
+h2 {
+  font-size: 13pt; margin: 26px 0 10px; padding: 6px 10px;
+  background: #111; color: #fff;
+  page-break-after: avoid;
+}
+h3 {
+  font-size: 11.5pt; margin: 18px 0 8px; padding-left: 8px;
+  border-left: 3px solid #111; color: #000;
+  page-break-after: avoid;
+}
+h4 {
+  font-size: 10.5pt; margin: 14px 0 6px; color: #000;
+  page-break-after: avoid;
+}
+p { margin: 7px 0; }
+table {
+  width: 100%; border-collapse: collapse; margin: 10px 0 16px;
+  font-size: 9.5pt; page-break-inside: avoid;
+}
+th, td {
+  border: 1px solid #999; padding: 5px 8px;
+  text-align: left; vertical-align: top; word-break: break-word;
+}
+th { background: #e8e8e8; color: #000; font-weight: 600; }
+pre {
+  background: #f4f4f4; border: 1px solid #ccc; border-left: 3px solid #666;
+  padding: 9px 12px; margin: 10px 0;
+  font-family: Consolas, "D2Coding", monospace; font-size: 9pt;
+  line-height: 1.45; white-space: pre-wrap; page-break-inside: avoid;
+}
+code {
+  font-family: Consolas, "D2Coding", monospace; font-size: 9.2pt;
+  background: #eee; padding: 1px 4px; color: #000;
+}
+pre code { background: none; padding: 0; }
+blockquote {
+  margin: 10px 0; padding: 8px 13px;
+  background: #f6f6f6; border-left: 3px solid #666; color: #222;
+}
+blockquote p { margin: 4px 0; }
+ul, ol { margin: 7px 0; padding-left: 20px; }
+li { margin: 2px 0; }
+/* 중첩 목록은 <ul> 이 <li> 의 형제로 놓인다. 자손 선택자로 잡는다. */
+ul ul { margin: 2px 0; }
+hr { border: 0; border-top: 1px solid #ccc; margin: 20px 0; }
+strong { color: #000; }
+a { color: #000; text-decoration: underline; }
+
+/* 목차는 촘촘하게. 문서 첫 장에서 한눈에 들어와야 한다. */
+h2 + ul { font-size: 10pt; line-height: 1.45; }
+h2 + ul li { margin: 1px 0; }
+
+.doc-foot {
+  margin-top: 28px; padding-top: 10px; border-top: 1px solid #ccc;
+  font-size: 8.5pt; color: #555; text-align: center;
+}
+@media print {
+  body { padding: 0; }
+  h2 { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  a { text-decoration: none; color: #000; }
+}
+</style>
+</head>
+<body>
+<h1 id="docflow-임베딩-모델-선정-결과서">DocFlow 임베딩 모델 선정 결과서</h1>
+<pre><code>시스템명(업무명)   DocFlow
+문서번호           DOCFLOW-RAG-EMB-01
+작성일자           2026. 8. 13. (2026. 8. 11. 판을 전면 갱신)
+작성자 / 시험자     김보현
+문서버전           1.2 (5차 측정 반영 · 모델 9개 · 질의 133개 · 청크 649개)
+연결 기능          RAG-01 · RAG-02 · RAG-04 · RAG-05 · RAG-10 · RAG-12
+시험 도구          도구/embed-test (deliver 레포)
+전 지표 표         관리/RAG_임베딩모델_전체측정표.md
+성능 외 8기준      관리/RAG_임베딩모델_선정기준표.md</code></pre>
+<blockquote>
+<p><strong>8월 11일 판과 결론이 다르다.</strong> 코퍼스를 127청크에서 649청크로, 질의를
+73개에서 133개로 키우고 후보를 5종에서 9종으로 늘렸다.
+<strong>기본 모델이 바뀌었고 서술 두 개를 철회했다.</strong> 7.6절과 8절에 정리했다.</p>
+</blockquote>
+<h2 id="목차">목차</h2>
+<ul>
+<li><a href="#이-문서에-나오는-기능-id">이 문서에 나오는 기능 ID</a></li>
+<li><a href="#0-한-장-요약">0. 한 장 요약</a></li>
+<ul>
+<li><a href="#8월-12일-판에서-바뀐-것">8월 12일 판에서 바뀐 것</a></li>
+</ul>
+<li><a href="#1-목적과-연결-기능">1. 목적과 연결 기능</a></li>
+<ul>
+<li><a href="#11-무엇을-정하려-했나">1.1 무엇을 정하려 했나</a></li>
+<li><a href="#12-기능명세서-연결">1.2 기능명세서 연결</a></li>
+</ul>
+<li><a href="#2-실행-환경-제약--이것이-선택-기준을-정했다">2. 실행 환경 제약 — 이것이 선택 기준을 정했다</a></li>
+<li><a href="#3-모델-선택-시-고려-사항-8가지">3. 모델 선택 시 고려 사항 8가지</a></li>
+<li><a href="#4-후보를-9종으로-늘린-근거">4. 후보를 9종으로 늘린 근거</a></li>
+<ul>
+<li><a href="#41-후보-9종--각-모델이-하나의-질문에-답한다">4.1 후보 9종 — 각 모델이 하나의 질문에 답한다</a></li>
+<li><a href="#42-5차에서-후보를-늘린-이유">4.2 5차에서 후보를 늘린 이유</a></li>
+<li><a href="#43-아직-보류한-후보">4.3 아직 보류한 후보</a></li>
+<li><a href="#44-계획과-실제의-차이">4.4 계획과 실제의 차이</a></li>
+</ul>
+<li><a href="#5-시험-방법">5. 시험 방법</a></li>
+<ul>
+<li><a href="#51-코퍼스--문서-10건--210078자--649청크">5.1 코퍼스 — 문서 10건 · 210,078자 · 649청크</a></li>
+<li><a href="#52-청킹">5.2 청킹</a></li>
+<li><a href="#53-평가셋-설계--질의를-구하지-않고-문서에서-역으로-뽑았다">5.3 평가셋 설계 — 질의를 구하지 않고 문서에서 역으로 뽑았다</a></li>
+<li><a href="#54-채점">5.4 채점</a></li>
+<li><a href="#55-공정성-검증--접두어">5.5 공정성 검증 — 접두어</a></li>
+<li><a href="#56-하네스-점검--바닥-확인">5.6 하네스 점검 — 바닥 확인</a></li>
+<li><a href="#57-실행-환경">5.7 실행 환경</a></li>
+</ul>
+<li><a href="#6-평가셋-결함과-수정-경과">6. 평가셋 결함과 수정 경과</a></li>
+<ul>
+<li><a href="#61-검사-도구를-만든-이유">6.1 검사 도구를 만든 이유</a></li>
+<li><a href="#62-기각된-가설-두-개">6.2 기각된 가설 두 개</a></li>
+<li><a href="#63-확인된-결함--모델이-맞고-정답-표시가-틀렸다">6.3 확인된 결함 — 모델이 맞고 정답 표시가 틀렸다</a></li>
+<li><a href="#64-수정-내역--78문항--73문항">6.4 수정 내역 — 78문항 → 73문항</a></li>
+<li><a href="#65-5차--질의를-두-배로-늘렸다">6.5 5차 — 질의를 두 배로 늘렸다</a></li>
+</ul>
+<li><a href="#7-결과">7. 결과</a></li>
+<ul>
+<li><a href="#71-1차--78문항-평가셋-결함-포함-상태">7.1 1차 — 78문항 (평가셋 결함 포함 상태)</a></li>
+<li><a href="#72-2차--73문항-결함-수정-후--실측">7.2 2차 — 73문항 (결함 수정 후) · 실측</a></li>
+<li><a href="#73-3차--73문항--어휘-누출-제거--확정값">7.3 3차 — 73문항 · 어휘 누출 제거 · 확정값</a></li>
+<li><a href="#74-측정-3회-대조--무엇이-바뀌고-무엇이-안-바뀌었나">7.4 측정 3회 대조 — 무엇이 바뀌고 무엇이 안 바뀌었나</a></li>
+<li><a href="#75-4차--모델-5개--차원과-계열을-분리한-측정">7.5 4차 — 모델 5개 · 차원과 계열을 분리한 측정</a></li>
+</ul>
+<li><a href="#76-5차--모델-9개--질의-133개--청크-649개--확정값">7.6 5차 — 모델 9개 · 질의 133개 · 청크 649개 · 확정값</a></li>
+<ul>
+<li><a href="#검색-품질--no_overlap-64문항-판단-기준">검색 품질 — <code>no_overlap</code> 64문항 (판단 기준)</a></li>
+<li><a href="#검색-품질--overlap-69문항-참고용--순위가-뒤집힌다">검색 품질 — <code>overlap</code> 69문항 (참고용 · 순위가 뒤집힌다)</a></li>
+<li><a href="#검색-품질--전체-133문항">검색 품질 — 전체 133문항</a></li>
+<li><a href="#개수-차이가-우연인지-검정했다">개수 차이가 우연인지 검정했다</a></li>
+<li><a href="#실행-비용--믿을-수-있는-값-3종">실행 비용 — 믿을 수 있는 값 3종</a></li>
+<li><a href="#실행-비용--참고-값-6종-신뢰도-낮음">실행 비용 — 참고 값 6종 (신뢰도 낮음)</a></li>
+<li><a href="#정밀도를-놓쳐-한-모델을-잘못-판정했다">정밀도를 놓쳐 한 모델을 잘못 판정했다</a></li>
+<li><a href="#재현성이-확인됐다">재현성이 확인됐다</a></li>
+</ul>
+<li><a href="#8-결과가-말하는-것--주장과-근거">8. 결과가 말하는 것 — 주장과 근거</a></li>
+<ul>
+<li><a href="#81-pgvector-컬럼은-vector1024--확정">8.1 <code>pgvector</code> 컬럼은 <code>vector(1024)</code> — 확정</a></li>
+<li><a href="#82-기본-모델은-bge-m3-ko--확정">8.2 기본 모델은 <code>BGE-m3-ko</code> — 확정</a></li>
+<li><a href="#83-e5-small-탈락--이유가-결론보다-중요하다">8.3 e5-small 탈락 — 이유가 결론보다 중요하다</a></li>
+<li><a href="#84-문서-성격이-검색-난이도를-지배한다">8.4 문서 성격이 검색 난이도를 지배한다</a></li>
+<li><a href="#85-rag-04-후반-조건--이번-조건에서는-측정하지-않았다">8.5 <code>RAG-04</code> 후반 조건 — 이번 조건에서는 측정하지 않았다</a></li>
+<li><a href="#86-숫자코드번호-검색은-벡터가-약하다--rag-05-실측-근거">8.6 숫자·코드번호 검색은 벡터가 약하다 — <code>RAG-05</code> 실측 근거</a></li>
+<li><a href="#87-큰-청크는-overlap-질의로도-못-찾는다--rag-01-근거">8.7 큰 청크는 <code>overlap</code> 질의로도 못 찾는다 — <code>RAG-01</code> 근거</a></li>
+<li><a href="#88-긴-표는-조용히-잘릴-수-있다--아직-안-터진-위험">8.8 긴 표는 조용히 잘릴 수 있다 — 아직 안 터진 위험</a></li>
+<li><a href="#89-top-k는-5-이상이어야-한다">8.9 <code>top-k</code>는 5 이상이어야 한다</a></li>
+</ul>
+<li><a href="#9-색인-규모-실측-환산">9. 색인 규모 실측 환산</a></li>
+<ul>
+<li><a href="#91-per-01-60초--worker-는-아직-코드에-없다">9.1 <code>PER-01</code> 60초 — Worker 는 아직 코드에 없다</a></li>
+<li><a href="#92-질의-쪽은-문제가-없다">9.2 질의 쪽은 문제가 없다</a></li>
+</ul>
+<li><a href="#10-한계">10. 한계</a></li>
+<ul>
+<li><a href="#101-8월-12일-판에서-한계가-늘어난-이유">10.1 8월 12일 판에서 한계가 늘어난 이유</a></li>
+</ul>
+<li><a href="#11-후속-과제">11. 후속 과제</a></li>
+<ul>
+<li><a href="#완료된-것">완료된 것</a></li>
+<li><a href="#남은-것">남은 것</a></li>
+<li><a href="#110-리비전-0011-보다-먼저-해야-할-것--pgvector-가-설치되어-있지-않다">11.0 리비전 <code>0011</code> 보다 먼저 해야 할 것 — pgvector 가 설치되어 있지 않다</a></li>
+<li><a href="#111-리비전-번호--versions-폴더로-확인한-값">11.1 리비전 번호 — <code>versions/</code> 폴더로 확인한 값</a></li>
+<li><a href="#112-다른-문서-갱신--완료">11.2 다른 문서 갱신 — 완료</a></li>
+<li><a href="#113-768-차원-측정--완료-결과는-75--81절">11.3 768 차원 측정 — 완료 (결과는 7.5 · 8.1절)</a></li>
+</ul>
+<li><a href="#12-llm-모델-비교와의-경계--판단은-세현-재는-자는-보현">12. LLM 모델 비교와의 경계 — 판단은 세현, 재는 자는 보현</a></li>
+<ul>
+<li><a href="#120-anl-17--이번-도구가-그-원형이다">12.0 <code>ANL-17</code> — 이번 도구가 그 원형이다</a></li>
+<li><a href="#121-왜-분리하는가">12.1 왜 분리하는가</a></li>
+<li><a href="#122-임베딩을-먼저-확정하는-것이-llm-시험의-전제다">12.2 임베딩을 먼저 확정하는 것이 LLM 시험의 전제다</a></li>
+<li><a href="#123-llm-결과서에-담겨야-할-것">12.3 LLM 결과서에 담겨야 할 것</a></li>
+</ul>
+<li><a href="#13-팀-확인-필요-사항">13. 팀 확인 필요 사항</a></li>
+<ul>
+<li><a href="#131-파인튜닝--기능명세서와-어긋날-수-있다">13.1 파인튜닝 — 기능명세서와 어긋날 수 있다</a></li>
+<li><a href="#132-이-결과서-판단의-상한--v03-기획안을-보지-못했다">13.2 이 결과서 판단의 상한 — v0.3 기획안을 보지 못했다</a></li>
+<li><a href="#133-확인-필요--검색의-구현-계층">13.3 확인 필요 — 검색의 구현 계층</a></li>
+<li><a href="#134-vis-07-과-rag-04-가-같은-기능을-두-번-정의한다">13.4 <code>VIS-07</code> 과 <code>RAG-04</code> 가 같은 기능을 두 번 정의한다</a></li>
+<li><a href="#135-api-계약서에-검색-엔드포인트가-없다">13.5 API 계약서에 검색 엔드포인트가 없다</a></li>
+<li><a href="#136-api-를-배제할-근거가-약해졌다--8월-12일-판의-논거를-철회한다">13.6 API 를 배제할 근거가 약해졌다 — 8월 12일 판의 논거를 철회한다</a></li>
+<li><a href="#137-청크에-ocr-출처를-남길지--재정님-0009-가-준-선택지">13.7 청크에 OCR 출처를 남길지 — 재정님 <code>0009</code> 가 준 선택지</a></li>
+<li><a href="#138-라이선스와-배포-무게--허깅페이스가-왜-나오나">13.8 라이선스와 배포 무게 — 허깅페이스가 왜 나오나</a></li>
+<li><a href="#139-api-실측을-시도하다-나온-것--무료-등급의-함정-둘">13.9 API 실측을 시도하다 나온 것 — 무료 등급의 함정 둘</a></li>
+</ul>
+<li><a href="#부록-재현-방법">부록. 재현 방법</a></li>
+</ul>
+<hr>
+<hr>
+<h2 id="이-문서에-나오는-기능-id">이 문서에 나오는 기능 ID</h2>
+<p><strong>ID 를 찾아보지 않아도 되게 표로 둔다.</strong> 명세서 작업명과 쉬운 말을 함께 적었다.</p>
+<table><thead><tr>
+<th>ID</th>
+<th>명세서 작업명</th>
+<th>쉬운 말</th>
+<th>담당</th>
+</tr></thead><tbody>
+<tr>
+<td><code>RAG-01</code></td>
+<td>텍스트 정규화 · 청킹</td>
+<td><strong>문서를 조각으로 자르기</strong></td>
+<td>보현</td>
+</tr>
+<tr>
+<td><code>RAG-02</code></td>
+<td>임베딩 생성 · 저장</td>
+<td><strong>조각을 숫자로 바꿔 저장하기</strong></td>
+<td>보현</td>
+</tr>
+<tr>
+<td><code>RAG-03</code></td>
+<td>벡터 인덱스 구축 (pgvector)</td>
+<td>숫자로 빨리 찾게 색인 만들기</td>
+<td>보현</td>
+</tr>
+<tr>
+<td><code>RAG-04</code></td>
+<td>의미 검색</td>
+<td><strong>뜻으로 찾기</strong> (글자가 안 겹쳐도)</td>
+<td>보현</td>
+</tr>
+<tr>
+<td><code>RAG-05</code></td>
+<td>하이브리드 검색</td>
+<td><strong>글자로 찾기 + 뜻으로 찾기 합치기</strong></td>
+<td>보현</td>
+</tr>
+<tr>
+<td><code>RAG-06</code></td>
+<td>검색 결과 재순위</td>
+<td>찾은 것을 다시 줄 세우기</td>
+<td>보현</td>
+</tr>
+<tr>
+<td><code>RAG-07</code></td>
+<td>프롬프트 컨텍스트 조립</td>
+<td><strong>긴 문서에서 AI 에 넣을 조각 고르기</strong></td>
+<td>보현</td>
+</tr>
+<tr>
+<td><code>RAG-08</code></td>
+<td>근거 스니펫 연결</td>
+<td><strong>결과마다 출처와 원문 인용 붙이기</strong></td>
+<td>보현</td>
+</tr>
+<tr>
+<td><code>RAG-09</code></td>
+<td>검수 확정 시 재임베딩</td>
+<td><strong>OCR 을 고치면 숫자도 다시 만들기</strong></td>
+<td>보현</td>
+</tr>
+<tr>
+<td><code>RAG-10</code></td>
+<td>검색 품질 측정</td>
+<td><strong>검색이 잘 되는지 점수로 재기</strong></td>
+<td>보현</td>
+</tr>
+<tr>
+<td><code>RAG-12</code></td>
+<td>유사 사업 단가 선례 검색</td>
+<td><strong>과거 사업에서 비슷한 단가 찾기</strong></td>
+<td>보현</td>
+</tr>
+<tr>
+<td><code>REV-17</code></td>
+<td>텍스트 재조립</td>
+<td><strong>OCR 박스를 고치면 본문을 다시 합치기</strong></td>
+<td>재정</td>
+</tr>
+<tr>
+<td><code>PRJ-08</code></td>
+<td>프로젝트 스코프 강제</td>
+<td><strong>다른 프로젝트 자료가 안 보이게 막기</strong></td>
+<td>재정</td>
+</tr>
+<tr>
+<td><code>SYS-02</code></td>
+<td>Celery + Redis</td>
+<td><strong>오래 걸리는 일을 뒤에서 돌리는 작업 큐</strong></td>
+<td>재정</td>
+</tr>
+<tr>
+<td><code>VIS-06</code></td>
+<td>통합 검색 (PostgreSQL FTS)</td>
+<td>검색 화면과 글자 검색</td>
+<td>보현</td>
+</tr>
+<tr>
+<td><code>VIS-07</code></td>
+<td>검색 화면의 의미 검색 표시</td>
+<td><strong>찾은 것이 글자로 걸렸나 뜻으로 걸렸나 구분해 보여주기</strong></td>
+<td>보현</td>
+</tr>
+<tr>
+<td><code>ANL-02</code></td>
+<td>분류 분석기</td>
+<td>문서 종류 자동 판별</td>
+<td>세현</td>
+</tr>
+<tr>
+<td><code>ANL-16</code></td>
+<td>구조화 출력 검증 · 재시도</td>
+<td><strong>AI 가 형식을 어기면 잡아내고 다시 시키기</strong></td>
+<td>보현</td>
+</tr>
+<tr>
+<td><code>ANL-17</code></td>
+<td>평가셋 기반 정확도 측정 자동화</td>
+<td><strong>모델을 바꿔도 같은 자로 재기</strong></td>
+<td>보현</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="0-한-장-요약">0. 한 장 요약</h2>
+<table><thead><tr>
+<th></th>
+<th></th>
+</tr></thead><tbody>
+<tr>
+<td><strong>결정</strong></td>
+<td><code>pgvector</code> 컬럼을 <strong><code>vector(1024)</code></strong> 로 한다</td>
+</tr>
+<tr>
+<td><strong>기본 모델</strong></td>
+<td><strong><code>dragonkue/BGE-m3-ko</code></strong> (1024차원 · <strong>apache-2.0</strong>)</td>
+</tr>
+<tr>
+<td><strong>대안</strong></td>
+<td><code>nlpai-lab/KURE-v1</code>(mit) · <code>Snowflake/snowflake-arctic-embed-l-v2.0</code>(apache-2.0). 차원이 같아 <strong>재임베딩 없이 교체 가능</strong></td>
+</tr>
+<tr>
+<td><strong>탈락</strong></td>
+<td><code>e5</code> 3종(384·768·1024) · <code>nomic-embed-text-v2-moe</code>(768) · <code>Qwen3-Embedding-0.6B</code>(1024)</td>
+</tr>
+<tr>
+<td><strong>핵심 근거</strong></td>
+<td>글자가 겹치지 않는 질의 <strong>64개 중 41개.</strong> 2·3위는 37개, 최하위는 18개</td>
+</tr>
+<tr>
+<td><strong>모델 확정</strong></td>
+<td><strong>확정한다.</strong> 8월 12일 판의 &quot;보류&quot; 를 해제한다. 질의를 73 → 133 으로 키워 판별했다</td>
+</tr>
+<tr>
+<td><strong>측정</strong></td>
+<td><strong>5차까지 진행.</strong> 모델 9개 · 질의 133개 · 청크 649개 (7.6절)</td>
+</tr>
+<tr>
+<td><strong>라이선스</strong></td>
+<td><strong>후보 9종 전부 확인 — apache-2.0 넷 · mit 다섯.</strong> 걸러지는 것 없음 (13.8절)</td>
+</tr>
+<tr>
+<td><strong>범위</strong></td>
+<td><strong>임베딩 모델만 다룬다.</strong> LLM 모델 비교는 별도 문서 (12절)</td>
+</tr>
+<tr>
+<td><strong>왜 1024 인가</strong></td>
+<td><strong>상위 4위가 모두 1024다</strong>(41·37·37·35). 768 은 27·22, 384 는 19</td>
+</tr>
+<tr>
+<td><strong>확인된 것</strong></td>
+<td><strong>차원이 높으면 좋다는 것은 성립하지 않는다.</strong> 1024인 <code>e5-large</code> 가 9종 중 <strong>최하위</strong>다 (8.1절)</td>
+</tr>
+<tr>
+<td><strong>철회한 것 둘</strong></td>
+<td><strong>&quot;768 이 384 보다 낮다&quot;</strong> · <strong>&quot;한국어 특화가 효과 있다&quot;</strong> — 표본을 키우니 성립하지 않았다 (8.1 · 8.2절)</td>
+</tr>
+<tr>
+<td><strong>주의</strong></td>
+<td>채택 모델은 <strong>Ollama 공식 라이브러리에 없다.</strong> GGUF 등록 작업이 붙는다 (13.8절)</td>
+</tr>
+</tbody></table>
+<p><strong>이 결정으로 pgvector 마이그레이션을 착수할 수 있다.</strong></p>
+<p>차원을 몰라 미뤄뒀던 것이 이번 시험의 목적이었다.</p>
+<p><strong>리비전 번호는 <code>0011</code> 이다 — 근거와 주의사항은 11.1절을 본다.</strong></p>
+<h3 id="8월-12일-판에서-바뀐-것">8월 12일 판에서 바뀐 것</h3>
+<table><thead><tr>
+<th></th>
+<th>8월 12일 판 (127청크 · 73질의 · 5모델)</th>
+<th><strong>8월 13일 판 (649청크 · 133질의 · 9모델)</strong></th>
+</tr></thead><tbody>
+<tr>
+<td>기본 모델</td>
+<td><code>KURE-v1</code></td>
+<td><strong><code>BGE-m3-ko</code></strong> (당시 후보에 없었다)</td>
+</tr>
+<tr>
+<td>모델 확정</td>
+<td><strong>보류</strong> (KURE 대 bge 1문항 차)</td>
+<td><strong>확정</strong> (검정으로 판별)</td>
+</tr>
+<tr>
+<td>384 대 768</td>
+<td>384 한국어판(14) <strong>&gt;</strong> 768 원본(13)</td>
+<td><strong>뒤집혔다.</strong> 384(19) <strong>&lt;</strong> 768(22)</td>
+</tr>
+<tr>
+<td>한국어 특화 효과</td>
+<td>&quot;확인됐다&quot;</td>
+<td><strong>범주로는 성립 안 한다.</strong> 다국어 <code>arctic</code>(37) = <code>KURE-v1</code>(37)</td>
+</tr>
+<tr>
+<td><code>e5-large</code></td>
+<td>23/34 (중위)</td>
+<td><strong>18/64 (최하위)</strong></td>
+</tr>
+<tr>
+<td>최대 입력 길이</td>
+<td>미실측</td>
+<td><strong>실측.</strong> 512토큰 초과 청크 0개 → <strong>잘림 없음</strong></td>
+</tr>
+<tr>
+<td>메모리 측정</td>
+<td>&quot;2차에서 정상&quot;</td>
+<td><strong>틀렸다.</strong> 가중치보다 작은 값을 찍었다 (10절)</td>
+</tr>
+<tr>
+<td>라이선스</td>
+<td>3종 MIT</td>
+<td><strong>9종 전부 확인</strong></td>
+</tr>
+</tbody></table>
+<p><strong>작은 표본의 결론을 그대로 들고 가면 안 된다는 사례로 남긴다.</strong></p>
+<hr>
+<h2 id="1-목적과-연결-기능">1. 목적과 연결 기능</h2>
+<h3 id="11-무엇을-정하려-했나">1.1 무엇을 정하려 했나</h3>
+<table><thead><tr>
+<th>정할 것</th>
+<th>왜 지금인가</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>벡터 차원</strong></td>
+<td><code>pgvector</code> 컬럼 타입에 박힌다. 나중에 바꾸면 <strong>전체 재임베딩</strong></td>
+</tr>
+<tr>
+<td><strong>기본 모델</strong></td>
+<td>위 차원 안에서 고른다</td>
+</tr>
+<tr>
+<td><strong>CPU 감당 여부</strong></td>
+<td>시험자 장비에 GPU가 없다</td>
+</tr>
+</tbody></table>
+<h3 id="12-기능명세서-연결">1.2 기능명세서 연결</h3>
+<table><thead><tr>
+<th>ID</th>
+<th>기능</th>
+<th>우선순위</th>
+<th>완료 판정 기준</th>
+<th>이번 시험과의 관계</th>
+</tr></thead><tbody>
+<tr>
+<td><code>RAG-01</code></td>
+<td>텍스트 정규화 · 청킹</td>
+<td>P1</td>
+<td>토큰 수 기준으로 자른다. 표는 행 단위로 유지</td>
+<td>청킹 조건이 검색 품질에 미치는 영향을 확인</td>
+</tr>
+<tr>
+<td><code>RAG-02</code></td>
+<td>임베딩 생성 · 저장</td>
+<td>P1</td>
+<td><strong>어느 모델·차원으로 만든 것인지 기록된다</strong></td>
+<td><strong>차원과 모델을 이 문서로 확정</strong></td>
+</tr>
+<tr>
+<td><code>RAG-04</code></td>
+<td>의미 검색</td>
+<td>P1</td>
+<td><strong>글자가 하나도 겹치지 않는 질의로 관련 문서가 나온다.</strong> 다른 프로젝트 문서는 나오지 않는다</td>
+<td>전반 조건 <strong>충족 (41/64)</strong>. 후반 조건은 <strong>측정 불가</strong> — 필터 없이 쟀다 (8.5절)</td>
+</tr>
+<tr>
+<td><code>RAG-10</code></td>
+<td>검색 품질 측정</td>
+<td>P2</td>
+<td>질의 목록에 대한 적중 여부가 수치로 나온다</td>
+<td><strong>이번 하네스가 곧 구현체</strong></td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="2-실행-환경-제약--이것이-선택-기준을-정했다">2. 실행 환경 제약 — 이것이 선택 기준을 정했다</h2>
+<table><thead><tr>
+<th>항목</th>
+<th>내용</th>
+</tr></thead><tbody>
+<tr>
+<td>시험 장비</td>
+<td>보현 PC. <strong>GPU 없음. CPU 단독</strong></td>
+</tr>
+<tr>
+<td>LLM 실행 장비</td>
+<td>세현 GPU 장비 (별도)</td>
+</tr>
+<tr>
+<td>발표 방식</td>
+<td><strong>실시간 데모가 아니라 영상 촬영</strong></td>
+</tr>
+<tr>
+<td>문서 크기 상한</td>
+<td><code>MAX_EXTRACTED_CHARS = 45,000자</code></td>
+</tr>
+<tr>
+<td>성능 요구</td>
+<td><code>PER-01</code> 10페이지 60초</td>
+</tr>
+</tbody></table>
+<p><strong>영상 촬영이라는 점이 판단을 바꿨다.</strong></p>
+<table><thead><tr>
+<th></th>
+<th>실시간 데모</th>
+<th>영상 촬영</th>
+</tr></thead><tbody>
+<tr>
+<td>느린 구간</td>
+<td>그대로 보인다</td>
+<td>편집으로 잘라낸다</td>
+</tr>
+<tr>
+<td>최종 실행 장비</td>
+<td>발표장 PC</td>
+<td><strong>세현 GPU 장비 가능</strong></td>
+</tr>
+<tr>
+<td>CPU 속도 압박</td>
+<td>크다</td>
+<td>작다</td>
+</tr>
+</tbody></table>
+<p>그래서 <strong>CPU가 느리다는 이유만으로 1024차원을 배제하지 않았다.</strong></p>
+<p>개발·시험은 CPU에서 하고, 최종 촬영은 GPU 장비에서 하면 된다.</p>
+<p>다만 384차원을 후보에 남겨 <strong>CPU로 감당이 안 될 정도인지 실제로 재봤다.</strong></p>
+<hr>
+<h2 id="3-모델-선택-시-고려-사항-8가지">3. 모델 선택 시 고려 사항 8가지</h2>
+<table><thead><tr>
+<th></th>
+<th>항목</th>
+<th>왜 중요한가</th>
+<th>이번에 확인한 방법</th>
+<th>결과</th>
+</tr></thead><tbody>
+<tr>
+<td>1</td>
+<td><strong>벡터 차원</strong></td>
+<td><code>pgvector</code> 컬럼을 묶는다. 바꾸면 전체 재임베딩</td>
+<td>384·768·1024 를 같은 평가셋으로 비교</td>
+<td><strong>1024 채택.</strong> 상위 4위 독점</td>
+</tr>
+<tr>
+<td>2</td>
+<td><strong>글자 안 겹치는 질의 성능</strong></td>
+<td>이게 임베딩을 쓰는 근거 자체</td>
+<td><code>no_overlap</code> <strong>64문항</strong> <code>R@5</code></td>
+<td>1위 41 · 최하위 18</td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong>글자 겹치는 질의만 보면 안 된다</strong></td>
+<td>키워드 검색으로도 되는 일이다</td>
+<td><code>overlap</code>과 분리 집계</td>
+<td><strong>역전 발생 (8.3절)</strong></td>
+</tr>
+<tr>
+<td>4</td>
+<td><strong>접두어 규칙</strong></td>
+<td>안 지키면 한쪽이 억울하게 진다</td>
+<td>모델이 선언한 값을 읽어 적용</td>
+<td>적용 확인 (5.5절). <strong>함정 하나 발견</strong></td>
+</tr>
+<tr>
+<td>5</td>
+<td><strong>최대 입력 길이</strong></td>
+<td>청크가 한도를 넘으면 <strong>조용히 잘린다</strong></td>
+<td><code>max_seq_length</code> 실측 + 토큰 수 실측</td>
+<td><strong>잘림 없음 확인</strong> (8.8절)</td>
+</tr>
+<tr>
+<td>6</td>
+<td><strong>정밀도(dtype)</strong></td>
+<td>하나만 다르면 속도가 수십 배 달라진다</td>
+<td>적재 후 <code>dtype</code> 출력</td>
+<td><strong>한 번 놓쳤다</strong> (7.6절)</td>
+</tr>
+<tr>
+<td>7</td>
+<td><strong>CPU 색인 속도</strong></td>
+<td>색인은 한 번, 질의는 매번 1건</td>
+<td>독립 프로세스에서 순차 측정</td>
+<td>1024 끼리는 비슷. 384 가 9~11배 빠르다</td>
+</tr>
+<tr>
+<td>8</td>
+<td><strong>메모리</strong></td>
+<td>컨테이너 상한을 정해야 한다</td>
+<td><strong>최고 사용량(peak)</strong> 측정</td>
+<td>1024 계열 <strong>2,203MB</strong> (10절)</td>
+</tr>
+<tr>
+<td>9</td>
+<td><strong>벡터 저장 용량</strong></td>
+<td>청크 수만큼 곱해진다</td>
+<td>차원 × 4바이트</td>
+<td>1024 = 4KB · 384 = 1.5KB</td>
+</tr>
+<tr>
+<td>10</td>
+<td><strong>라이선스</strong></td>
+<td>과제 제출물이다</td>
+<td>허브 모델 카드 <code>license</code> 필드</td>
+<td><strong>9종 전부 확인</strong> (13.8절)</td>
+</tr>
+<tr>
+<td>11</td>
+<td><strong>Ollama 지원</strong></td>
+<td>배포 경로가 정해진다</td>
+<td>공식 라이브러리 확인</td>
+<td><strong>채택 모델은 공식이 아니다</strong> (13.8절)</td>
+</tr>
+<tr>
+<td>12</td>
+<td><strong>로컬 대 API</strong></td>
+<td>비용과 반복 가능성</td>
+<td>로컬 우선, API는 2라운드</td>
+<td>미착수</td>
+</tr>
+</tbody></table>
+<p><strong>8월 12일 판에서 항목이 8개였고 지금 12개다.</strong> 늘어난 넷은 모두</p>
+<p><strong>측정하다가 문제가 터져서 추가된 것</strong>이다.</p>
+<table><thead><tr>
+<th>추가된 항목</th>
+<th>왜 추가됐나</th>
+</tr></thead><tbody>
+<tr>
+<td>5. 최대 입력 길이</td>
+<td><code>e5-large</code> 폭락을 토큰 잘림으로 단정했다가 틀렸다. <strong>재고 나서야 잘림이 없음을 알았다</strong></td>
+</tr>
+<tr>
+<td>6. 정밀도</td>
+<td><code>Qwen3</code> 만 <code>bfloat16</code> 으로 올라와 70배 느리게 나왔다. <strong>모델 특성으로 잘못 적었다</strong></td>
+</tr>
+<tr>
+<td>10. 라이선스</td>
+<td>같은 연구실의 <code>KULLM3</code> 가 비상업 라이선스였다. 확인 없이 넘어갈 항목이 아니었다</td>
+</tr>
+<tr>
+<td>11. Ollama 지원</td>
+<td><strong>채택 모델이 공식 라이브러리에 없다는 것을 뒤늦게 알았다</strong></td>
+</tr>
+</tbody></table>
+<p><strong>9번 저장 용량이 1024 채택의 유일한 손실이다.</strong> 청크당 2.5KB 차이다.</p>
+<p>이번 코퍼스 649청크면 약 1.6MB, 문서 100건 규모(약 6,500청크)면 약 16MB 다.</p>
+<p>무시할 수준이다.</p>
+<hr>
+<h2 id="4-후보를-9종으로-늘린-근거">4. 후보를 9종으로 늘린 근거</h2>
+<p><strong>3종 → 5종 → 9종으로 늘렸다.</strong> 늘린 이유가 회차마다 다르다.</p>
+<h3 id="41-후보-9종--각-모델이-하나의-질문에-답한다">4.1 후보 9종 — 각 모델이 하나의 질문에 답한다</h3>
+<table><thead><tr>
+<th></th>
+<th>모델</th>
+<th>차원</th>
+<th>질의 접두어</th>
+<th>문서 접두어</th>
+<th><strong>이 모델로 답하는 질문</strong></th>
+<th>넣은 회차</th>
+</tr></thead><tbody>
+<tr>
+<td>1</td>
+<td><code>BAAI/bge-m3</code></td>
+<td>1024</td>
+<td>없음</td>
+<td>없음</td>
+<td><strong>기준선.</strong> 한국어 특화가 이걸 못 이기면 특화의 의미가 없다</td>
+<td>1차</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>nlpai-lab/KURE-v1</code></td>
+<td>1024</td>
+<td>없음</td>
+<td>없음</td>
+<td><strong>한국어 특화가 효과 있나.</strong> bge-m3 기반이라 같은 조건 비교</td>
+<td>1차</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>dragonkue/multilingual-e5-small-ko-v2</code></td>
+<td>384</td>
+<td><code>query: </code></td>
+<td><code>passage: </code></td>
+<td><strong>작은 모델로 충분한가.</strong> CPU 현실성</td>
+<td>1차</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>intfloat/multilingual-e5-base</code></td>
+<td>768</td>
+<td><code>query: </code></td>
+<td><code>passage: </code></td>
+<td>같은 계열에서 <strong>차원만</strong> 다르면 어떻게 되나</td>
+<td>4차</td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>intfloat/multilingual-e5-large</code></td>
+<td>1024</td>
+<td><code>query: </code></td>
+<td><code>passage: </code></td>
+<td>위와 같은 축의 상단</td>
+<td>4차</td>
+</tr>
+<tr>
+<td>6</td>
+<td><strong><code>dragonkue/BGE-m3-ko</code></strong></td>
+<td>1024</td>
+<td>없음</td>
+<td>없음</td>
+<td><strong>다른 한국어 튜닝은 다른가.</strong> 같은 bge-m3 기반, 다른 제작자</td>
+<td><strong>5차</strong></td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>Snowflake/snowflake-arctic-embed-l-v2.0</code></td>
+<td>1024</td>
+<td><code>query: </code></td>
+<td><strong>없음</strong></td>
+<td><strong>다국어 최신 모델이 한국어 튜닝을 이기나</strong></td>
+<td><strong>5차</strong></td>
+</tr>
+<tr>
+<td>8</td>
+<td><code>nomic-ai/nomic-embed-text-v2-moe</code></td>
+<td>768</td>
+<td><code>search_query: </code></td>
+<td><code>search_document: </code></td>
+<td>768 · MoE 구조로 충분한가</td>
+<td><strong>5차</strong></td>
+</tr>
+<tr>
+<td>9</td>
+<td><code>Qwen/Qwen3-Embedding-0.6B</code></td>
+<td>1024</td>
+<td><code>Instruct: …Query:</code></td>
+<td>없음</td>
+<td><strong>디코더 계열이 인코더보다 나은가</strong></td>
+<td><strong>5차</strong></td>
+</tr>
+</tbody></table>
+<pre><code>축 1  한국어 튜닝 효과        -&gt;  bge-m3 대 KURE-v1 · BGE-m3-ko
+축 2  다국어 최신 대 한국어    -&gt;  arctic 대 KURE-v1 · BGE-m3-ko
+축 3  같은 계열의 차원        -&gt;  e5 384 · 768 · 1024
+축 4  구조 (인코더 대 디코더)  -&gt;  bge 계열 대 Qwen3</code></pre>
+<p>3번을 &quot;자원 절약용&quot;이 아니라 <strong>진짜 후보</strong>로 넣은 이유가 있다.</p>
+<p>모델 카드가 &quot;2배 큰 <code>e5-base</code>보다 한국어 벤치마크에서 낫다&quot;고 밝히고 있다.</p>
+<p><strong>5차에서 그 주장이 뒤집혔다</strong> — 384(19) &lt; 768(22) 이다(8.1절).</p>
+<h3 id="42-5차에서-후보를-늘린-이유">4.2 5차에서 후보를 늘린 이유</h3>
+<p>8월 12일 판은 <strong>&quot;1024차원 추가 모델은 지금 넣지 않는다&quot;</strong> 고 적었다.</p>
+<p>근거는 &quot;KURE 와 bge 차이가 1문항이라 같은 차원 모델을 더 넣으면 노이즈만</p>
+<p>늘어난다&quot; 였다. <strong>그 판단을 뒤집었다.</strong></p>
+<table><thead><tr>
+<th></th>
+<th>그때 판단</th>
+<th>5차에서 바꾼 이유</th>
+</tr></thead><tbody>
+<tr>
+<td>무엇</td>
+<td>1024 모델을 더 넣지 않는다</td>
+<td><strong>넷을 더 넣었다</strong></td>
+</tr>
+<tr>
+<td>왜</td>
+<td>표본 34문항에서 잡음만 늘어난다</td>
+<td><strong>표본을 64문항으로 키웠다.</strong> 잡음이 줄었으니 후보를 늘릴 조건이 됐다</td>
+</tr>
+<tr>
+<td>결과</td>
+<td>—</td>
+<td><strong>넣은 넷 중 하나(<code>BGE-m3-ko</code>)가 1위가 됐다</strong></td>
+</tr>
+</tbody></table>
+<p><strong>넣지 않았다면 1위 모델을 못 찾았을 것이다.</strong> 다만 순서가 중요했다 —</p>
+<p><strong>질의를 먼저 늘리고 후보를 늘렸다.</strong> 반대로 했다면 잡음 속에서 9종을 비교하는</p>
+<p>셈이었다.</p>
+<p>세현이 요청한 두 모델(<code>BGE-m3-ko</code> · <code>Qwen3-Embedding</code>)이 6번과 9번이다.</p>
+<p><strong>요청받은 모델을 재는 것이 이 회차의 계기였고, 그중 하나가 채택됐다.</strong></p>
+<h3 id="43-아직-보류한-후보">4.3 아직 보류한 후보</h3>
+<table><thead><tr>
+<th>모델</th>
+<th>차원</th>
+<th>언제 넣나</th>
+</tr></thead><tbody>
+<tr>
+<td><code>nlpai-lab/KoE5</code></td>
+<td>1024</td>
+<td>한국어 튜닝을 더 볼 때. <strong>접두어가 필요하다</strong> (KURE README 주의사항)</td>
+</tr>
+<tr>
+<td><code>mykor/KURE-v1-gguf</code></td>
+<td>1024</td>
+<td>양자화본 품질을 볼 때. <strong>채택 모델도 GGUF 로 배포하므로 같은 문제다</strong></td>
+</tr>
+<tr>
+<td>CLOVA Studio 임베딩</td>
+<td>확인 필요</td>
+<td><strong>유료.</strong> 로컬로 좁힌 뒤 마지막</td>
+</tr>
+<tr>
+<td><code>Qwen3-Embedding</code> 4B · 8B</td>
+<td>1024</td>
+<td><strong>CPU 로 무리다.</strong> 0.6B 가 이미 2~2.5배 느리다</td>
+</tr>
+</tbody></table>
+<p><strong>CLOVA를 볼 때 확인할 것</strong> — 임베딩 모델 목록에 <code>bge-m3</code>가 있는지 본다.</p>
+<p>같은 가중치를 호스팅한다면 이번 로컬 결과가 그대로 적용되고,</p>
+<p>비교가 &quot;성능&quot;이 아니라 <strong>&quot;직접 띄우기 대 API&quot;</strong> 로 단순해진다.</p>
+<h3 id="44-계획과-실제의-차이">4.4 계획과 실제의 차이</h3>
+<p>당초 3단계로 나눴다.</p>
+<table><thead><tr>
+<th></th>
+<th>계획</th>
+<th>실제</th>
+</tr></thead><tbody>
+<tr>
+<td>1라운드</td>
+<td>KURE 레포 발표 벤치마크로 후보 좁히기</td>
+<td><strong>실패.</strong> 레포 접근이 403으로 막혔다. <strong>나중에 MTEB-ko-retrieval 인용표로 대체했다</strong></td>
+</tr>
+<tr>
+<td>2라운드</td>
+<td>우리 문서 5건 + 질의 15개로 도메인 확인</td>
+<td><strong>여기서 직접 측정.</strong> 최종 문서 10건 · 질의 133개</td>
+</tr>
+<tr>
+<td>3라운드</td>
+<td>필요하면 확장</td>
+<td><strong>API 미착수.</strong> 하네스는 붙여 뒀다</td>
+</tr>
+</tbody></table>
+<p><strong>1라운드를 건너뛰고 2라운드를 크게 한 셈이다. 결과적으로 이게 나았다.</strong></p>
+<p>공개 벤치마크는 일반 한국어 검색을 재지만, 우리 도메인은 공공 SI 공고문과</p>
+<p>계약 CSV다. 문장 구조와 어휘가 다르다.</p>
+<p><strong>다만 공개 벤치마크를 나중에 인용표로 만든 것이 판단에 도움이 됐다.</strong></p>
+<p><code>관리/RAG_임베딩모델_공개벤치마크_인용표.md</code> 가 그것이고, 우리 실측 1·2·3·4위가</p>
+<p>공개 순위 1·2·3·4위와 겹친다는 것을 확인했다. **표본이 작다는 약점을</p>
+<p>남의 측정으로 보완한 것이다.**</p>
+<p>당초 &quot;질의 15개로 시작&quot;으로 잡았으나 최종 133개가 됐다. 과했다고 보지 않는다.</p>
+<p>**73개(안겹침 34)에서는 1위와 2위를 가릴 수 없었고, 133개(안겹침 64)에서</p>
+<p>갈렸다.** 15개였다면 아무것도 판별하지 못했다.</p>
+<hr>
+<h2 id="5-시험-방법">5. 시험 방법</h2>
+<h3 id="51-코퍼스--문서-10건--210078자--649청크">5.1 코퍼스 — 문서 10건 · 210,078자 · 649청크</h3>
+<table><thead><tr>
+<th>문서</th>
+<th>청크</th>
+<th>비중</th>
+<th>청크 번호</th>
+<th>출처 성격</th>
+<th>왜 넣었나</th>
+</tr></thead><tbody>
+<tr>
+<td>조달청 종합민원센터 질의응답 해석사례</td>
+<td><strong>300</strong></td>
+<td>46.2%</td>
+<td>132~431</td>
+<td>공공데이터 (CSV)</td>
+<td><strong>질문·답변 짝</strong>이 있는 산문. 상한 300 에 걸렸다</td>
+</tr>
+<tr>
+<td><strong>행정안전부고시 제2023-27호 정보시스템 구축·운영 지침</strong></td>
+<td><strong>104</strong></td>
+<td>16.0%</td>
+<td>546~649</td>
+<td>법령 고시 (PDF)</td>
+<td><strong>조문 산문.</strong> 정답이 하나로 확정되는 사실이 많다</td>
+</tr>
+<tr>
+<td>업종 및 근거법규 내역</td>
+<td>59</td>
+<td>9.1%</td>
+<td>432~490</td>
+<td>공공데이터 (PDF)</td>
+<td>업종 코드·법규 대응</td>
+</tr>
+<tr>
+<td>조달사업통계 (2026.6.30. 기준)</td>
+<td>55</td>
+<td>8.5%</td>
+<td>491~545</td>
+<td>조달청 (PDF)</td>
+<td>통계 표</td>
+</tr>
+<tr>
+<td>한국지역난방공사 준공정보</td>
+<td>38</td>
+<td>5.9%</td>
+<td>90~127</td>
+<td>공공데이터 (CSV)</td>
+<td><code>RAG-12</code> 단가 선례 자료</td>
+</tr>
+<tr>
+<td>중앙보훈병원 유지관리 용역 입찰공고문</td>
+<td>33</td>
+<td>5.1%</td>
+<td>7~39</td>
+<td>나라장터 공개 (PDF)</td>
+<td>실제 도메인 문서. 조항 나열형</td>
+</tr>
+<tr>
+<td>한국지역난방공사 낙찰현황</td>
+<td>29</td>
+<td>4.5%</td>
+<td>61~89</td>
+<td>공공데이터 (CSV)</td>
+<td>같음</td>
+</tr>
+<tr>
+<td>미니플젝_결정사항</td>
+<td>21</td>
+<td>3.2%</td>
+<td>40~60</td>
+<td><strong>우리 팀 문서</strong> (CSV)</td>
+<td><strong>정답을 우리가 안다.</strong> 서술형</td>
+</tr>
+<tr>
+<td>기초과학연구원 연구비 정산 용역 공고</td>
+<td>6</td>
+<td>0.9%</td>
+<td>1~6</td>
+<td>나라장터 공개 (PDF)</td>
+<td>화면 인쇄본. 표 구조가 다르다</td>
+</tr>
+<tr>
+<td>공고문 (PM용역)</td>
+<td>4</td>
+<td>0.6%</td>
+<td>128~131</td>
+<td>나라장터 공개 (PDF)</td>
+<td>같음</td>
+</tr>
+<tr>
+<td><strong>합계</strong></td>
+<td><strong>649</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody></table>
+<p><strong>우리 팀 문서를 반드시 섞었다.</strong> 우리가 쓴 문서라 답이 어디 있는지 확실히</p>
+<p>알 수 있어 정답 표시가 정확해진다.</p>
+<p>문서 성격을 셋으로 갈라 넣은 것이 8.4절 발견으로 이어졌다.</p>
+<h4 id="5차에서-추가한-문서--행정안전부고시가-결정적이었다">5차에서 추가한 문서 — 행정안전부고시가 결정적이었다</h4>
+<p><strong>조문 산문이라 정답이 하나로 확정되는 질의를 대량으로 만들 수 있었다.</strong></p>
+<table><thead><tr>
+<th>질의 예</th>
+<th>정답 위치</th>
+<th>값</th>
+</tr></thead><tbody>
+<tr>
+<td>제안서 평가위원은 최소 몇 명인가</td>
+<td>별표 2</td>
+<td>7 / 8 / 9명</td>
+</tr>
+<tr>
+<td>하도급 한도 비율</td>
+<td>제40조제1항</td>
+<td>50%</td>
+</tr>
+<tr>
+<td>기술능력평가 배점한도</td>
+<td>제18조</td>
+<td>90점(예외 80점)</td>
+</tr>
+<tr>
+<td>제안서 검토시간</td>
+<td>제33조제1항</td>
+<td>60 / 90 / 120분</td>
+</tr>
+<tr>
+<td>제안요청서 사전공개 기간</td>
+<td>제24조제2항</td>
+<td>5일(긴급 3일)</td>
+</tr>
+<tr>
+<td>착수계 제출 기한</td>
+<td>제39조제1항</td>
+<td>10일</td>
+</tr>
+<tr>
+<td>진단원 기본교육 시간</td>
+<td>별표 4</td>
+<td>40시간</td>
+</tr>
+</tbody></table>
+<p><strong>숫자·기한 기반이라 정답 청크가 하나로 확정된다.</strong> 6.3절에서 문제가 됐던</p>
+<p>&quot;같은 정보가 여러 문서에 흩어져 정답을 특정할 수 없다&quot; 를 피할 수 있다.</p>
+<p>그리고 이 문서는 <strong>도메인 근거 규정</strong>이다. 코퍼스에 있는 입찰공고문과</p>
+<p><code>06_공고문(PM용역)</code> 이 <strong>왜 그렇게 생겼는지</strong>를 정하는 문서다. 예를 들어</p>
+<p>공고문의 &quot;대기업참여제한사업&quot; 표기는 이 고시 제10조제2항에서 나온다.</p>
+<p><strong>법령 고시라 재배포에 제약이 없다.</strong> 저작권법 제7조 제2호가 국가·지방자치단체의</p>
+<p>고시·공고를 보호 대상이 아닌 저작물로 정하고 있다.</p>
+<h4 id="넣었다가-되돌린-것--계약현황-csv-20건">넣었다가 되돌린 것 — 계약현황 CSV 20건</h4>
+<p>한번은 계약현황·발주계획 CSV 20건을 넣어 청크를 <strong>3,655개</strong>까지 늘려 봤다.</p>
+<table><thead><tr>
+<th></th>
+<th>545청크</th>
+<th>3,655청크</th>
+</tr></thead><tbody>
+<tr>
+<td>청크</td>
+<td>545</td>
+<td>3,655 (6.7배)</td>
+</tr>
+<tr>
+<td>채점 질의</td>
+<td>73</td>
+<td><strong>73 (그대로)</strong></td>
+</tr>
+<tr>
+<td>정답 청크</td>
+<td>35</td>
+<td><strong>35 (그대로)</strong></td>
+</tr>
+</tbody></table>
+<p><strong>새로 들어온 3,110청크에 정답이 하나도 없었다.</strong> 순수한 방해물이고 측정 시간만</p>
+<p>5개 모델에 122분으로 늘었다. <strong>되돌리고 질의를 늘리는 쪽으로 갔다.</strong></p>
+<p>그리고 그 CSV 들에는 <strong>개인정보가 있었다.</strong> 확인 후 제외했다.</p>
+<table><thead><tr>
+<th>파일</th>
+<th>컬럼</th>
+<th>행수</th>
+</tr></thead><tbody>
+<tr>
+<td>방위사업청 국내조달 계약정보</td>
+<td><code>계약기관담당자명</code> <code>수요기관담당자명</code> <code>대표업체대표자명</code> <strong><code>대표업체주소</code></strong></td>
+<td>43,112</td>
+</tr>
+<tr>
+<td>한국수력원자력 국내 물품(구매)</td>
+<td><code>대표자명</code></td>
+<td>3,682</td>
+</tr>
+<tr>
+<td>충북개발공사 발주계획 용역</td>
+<td><code>담당자</code> <code>전화번호</code></td>
+<td>46</td>
+</tr>
+</tbody></table>
+<p><strong>공개 데이터라도 재배포는 별개 문제다.</strong> 이 파일들은 <code>input/_보류/</code> 로 옮기고</p>
+<p>코퍼스에서 뺐다. 분류 학습 데이터로는 쓸 값이 있다 — 계약명에 업무구분·계약방법</p>
+<p>라벨이 이미 붙어 있어 7만 건 넘는 분류 정답이 된다.</p>
+<h3 id="52-청킹">5.2 청킹</h3>
+<pre><code>python make_chunks.py --max-per-doc 300 --max 700
+
+문서 10건 -&gt; 청크 649개
+총 210,078자 · 평균 305자 · 최장 697자</code></pre>
+<p>절 제목(<code>#</code>, <code>제3조</code>)에서 끊고, 표로 보이는 줄은 이어 붙인다.</p>
+<p><strong>옵션이 8월 12일 판과 다르다.</strong> 그때는 <code>--target 500 --max 1200</code> 이었다.</p>
+<table><thead><tr>
+<th>옵션</th>
+<th>왜 바꿨나</th>
+</tr></thead><tbody>
+<tr>
+<td><code>--max 1200</code> → <strong><code>--max 700</code></strong></td>
+<td>1200 짜리 청크는 512토큰 상한 모델에서 잘릴 수 있었다. 8.8절이 지적한 위험을 실제로 줄인 것이다</td>
+</tr>
+<tr>
+<td><strong><code>--max-per-doc 300</code> 추가</strong></td>
+<td>문서 하나가 코퍼스를 지배하는 것을 막는다. 이것이 없어서 3,655청크 사고가 났다</td>
+</tr>
+</tbody></table>
+<h4 id="청킹-도구에서-고친-결함-셋">청킹 도구에서 고친 결함 셋</h4>
+<p>측정하면서 발견해 고쳤다.</p>
+<table><thead><tr>
+<th></th>
+<th>결함</th>
+<th>무슨 일이 났나</th>
+<th>고친 방식</th>
+</tr></thead><tbody>
+<tr>
+<td>1</td>
+<td><strong>상한을 넘는 덩어리를 쪼개지 않았다</strong></td>
+<td>표 하나가 2,000자·5,000자 청크가 되어 모델 입력에서 조용히 잘릴 수 있었다</td>
+<td>상한 초과분을 다시 쪼갠다</td>
+</tr>
+<tr>
+<td>2</td>
+<td><strong>문서 하나가 코퍼스를 지배했다</strong></td>
+<td>CSV 20건을 넣었더니 청크가 545 → 3,655 로 늘고 <strong>82%가 표의 행</strong>이 됐다</td>
+<td><code>--max-per-doc</code> 상한 + 지배 경고</td>
+</tr>
+<tr>
+<td>3</td>
+<td>중복 청크가 생겼다</td>
+<td>같은 내용이 두 번 들어가 정답 청크가 갈렸다</td>
+<td>중복 방지</td>
+</tr>
+</tbody></table>
+<h4 id="pdf-추출에서-공백이-사라지는-결함--제품에도-있다">PDF 추출에서 공백이 사라지는 결함 — 제품에도 있다</h4>
+<p>행안부 고시를 넣으면서 발견했다. **양쪽정렬(justified) PDF 를 PyMuPDF 로 뽑으면</p>
+<p>어절 사이 공백이 사라진다.**</p>
+<pre><code>원문        제1조(목적) 이 지침은 「전자정부법」...
+PyMuPDF     제1조(목적)이지침은「전자정부법」...</code></pre>
+<table><thead><tr>
+<th>도구</th>
+<th>공백 비율</th>
+</tr></thead><tbody>
+<tr>
+<td>PyMuPDF</td>
+<td><strong>9.7%</strong></td>
+</tr>
+<tr>
+<td>pdfplumber (<code>x_tolerance=1.5</code>)</td>
+<td><strong>19.9%</strong></td>
+</tr>
+</tbody></table>
+<p><strong>PDF 안에 정보가 있는데 추출기가 잃는 것이다.</strong> 양쪽정렬은 글자 위치를 좌표로</p>
+<p>벌려 놓아서, PyMuPDF 가 간격이 기준보다 좁으면 공백을 넣지 않는다.</p>
+<p><strong>이것은 시험 도구만의 문제가 아니다.</strong> <code>도구/embed-test/convert_inputs.py</code> 의</p>
+<p>주석에 <strong>본구현(<code>app/extractors/pdf_extractor.py</code>)도 PyMuPDF 를 쓴다</strong>고 적혀</p>
+<p>있다. **관공서 고시·지침·계약서는 대부분 양쪽정렬이므로 DocFlow 에 올리면 같은</p>
+<p>일이 생기고, 그 뒤 요약·분류·임베딩이 전부 공백 없는 텍스트를 받는다.**</p>
+<p><code>관리/산출물_변경대기_목록.md</code> <code>A-5</code> 에 제품 결함으로 등록했다.</p>
+<p><strong>시험 도구에서는 문서를 지정해서만 pdfplumber 로 바꿨다.</strong> 전부 바꾸면 이미</p>
+<p>측정에 쓰고 있는 문서들의 텍스트가 달라져 **청크 번호가 밀리고 <code>gold_chunk_ids</code></p>
+<p>가 조용히 어긋난다.** <code>check_queries.py</code> 는 번호가 존재하는지만 보므로 이 사고를</p>
+<p>잡지 못한다.</p>
+<h4 id="쪽-넘김이-문장을-끊는-문제--아직-안-고쳤다">쪽 넘김이 문장을 끊는 문제 — 아직 안 고쳤다</h4>
+<p>고시 조문에서 발견했다.</p>
+<pre><code>10쪽 끝 : ... 다만, 추정가격이 20억원 이상인 사업에 대해
+11쪽 시작: 서는 제안요청 설명회를 실시하여야 한다.</code></pre>
+<p>**<code>대해</code> 와 <code>서는</code> 사이에 쪽 표시(<code>## 11쪽</code>)가 끼어들어 문장이 두 조각으로</p>
+<p>갈라진다.** 질의 앵커를 잡을 때 이것 때문에 한 건이 실패했다.</p>
+<p><strong>쪽 표시를 청크 본문에서 빼고 메타로 옮기는 것</strong>을 검토해야 한다.</p>
+<p><code>RAG-01</code> 본구현은 <code>ocr_elements</code> 를 입력으로 쓰므로 쪽 경계 정보가 별도로</p>
+<p>들어온다. 이 문제는 시험 도구에만 있는 것일 수 있다.</p>
+<p><strong>본구현 청킹과 다르다는 점을 분명히 한다.</strong> <code>RAG-01</code> 완료 판정 기준은</p>
+<p><code>ocr_elements</code> 의 <code>element_type</code> 으로 단락을 묶고 <strong>토큰 수 기준</strong>으로 자르는</p>
+<p>것이다. 이 실험은 <code>corpus/*.md</code> 텍스트를 <strong>글자 수 기준</strong>으로 잘랐다.</p>
+<table><thead><tr>
+<th></th>
+<th>이 실험</th>
+<th><code>RAG-01</code> 본구현</th>
+</tr></thead><tbody>
+<tr>
+<td>입력</td>
+<td><code>corpus/*.md</code> (변환된 텍스트)</td>
+<td><code>ocr_elements</code> (DB 행)</td>
+</tr>
+<tr>
+<td>경계</td>
+<td>마크다운 제목 · 절 제목</td>
+<td><code>element_type</code> 단락 묶음</td>
+</tr>
+<tr>
+<td>길이 기준</td>
+<td><strong>글자 수</strong> (<code>--max 700</code>)</td>
+<td><strong>토큰 수</strong></td>
+</tr>
+</tbody></table>
+<p><strong>따라서 이 실험은 모델 비교용 근사 조건이다.</strong> 차원과 모델 선택 결론은</p>
+<p>청킹 방식에 크게 좌우되지 않으므로 유효하지만, **절대 점수(41/64)를 본구현</p>
+<p>검색 품질 예측치로 쓰면 안 된다.** 본구현 청킹이 완성된 뒤 <code>RAG-10</code> 으로</p>
+<p>다시 재야 한다. 표를 행 단위로 유지하는 규칙은 양쪽이 같다.</p>
+<h4 id="청킹-입력은-재정-담당-ocr-산출물에서-받는다">청킹 입력은 재정 담당 OCR 산출물에서 받는다</h4>
+<p>기능명세서에 이미 그렇게 적혀 있다.</p>
+<table><thead><tr>
+<th>ID</th>
+<th>선행</th>
+<th>비고</th>
+</tr></thead><tbody>
+<tr>
+<td><code>RAG-01</code></td>
+<td><strong><code>REV-17</code></strong> (텍스트 재조립)</td>
+<td><strong>재정님 단락 분리를 입력으로 쓴다</strong></td>
+</tr>
+</tbody></table>
+<p><strong>청킹을 별도로 만들지 않고 OCR 검수 파트의 출력을 받아 이어 붙인다.</strong></p>
+<p>같은 문서를 두 번 구조화하지 않는다.</p>
+<table><thead><tr>
+<th></th>
+<th></th>
+</tr></thead><tbody>
+<tr>
+<td>받는 것</td>
+<td><code>ocr_elements</code> (<code>element_type</code> · 좌표 · <code>reading_order</code> · <code>is_excluded</code>)</td>
+</tr>
+<tr>
+<td>하는 것</td>
+<td><code>element_type</code> 으로 단락 묶기 → 토큰 수로 자르기 → <code>document_chunks</code> 저장</td>
+</tr>
+<tr>
+<td>의존</td>
+<td><strong><code>RAG-01</code> 은 <code>REV-17</code> 완료에 블로킹된다</strong> (재정 담당 · P1)</td>
+</tr>
+</tbody></table>
+<h4 id="확인-필요--element_type-의-값-집합이-정의되어-있지-않다">확인 필요 — <code>element_type</code> 의 값 집합이 정의되어 있지 않다</h4>
+<p>Tasqra 코드를 확인한 결과다.</p>
+<table><thead><tr>
+<th>확인한 것</th>
+<th>결과</th>
+</tr></thead><tbody>
+<tr>
+<td><code>ocr_elements.element_type</code> 컬럼</td>
+<td><strong>있다.</strong> <code>String(20)</code> NOT NULL · 기본값 <code>&quot;TEXT_LINE&quot;</code></td>
+</tr>
+<tr>
+<td>허용 값 CHECK 제약</td>
+<td><strong>없다</strong> (0006 에는 좌표·version CHECK 만 있다)</td>
+</tr>
+<tr>
+<td><code>models/enums.py</code> 에 해당 Enum</td>
+<td><strong>없다</strong></td>
+</tr>
+<tr>
+<td>응답 스키마 <code>OcrElementResponse</code> 노출</td>
+<td><strong>안 된다</strong> (id · text · 좌표 · confidence · source · reading_order · version 만)</td>
+</tr>
+</tbody></table>
+<p><strong>즉 <code>&quot;TEXT_LINE&quot;</code> 하나만 확인되고 나머지 값이 무엇인지 모른다.</strong></p>
+<p><code>RAG-01</code> 이 이 컬럼으로 단락을 묶는데, **어떤 값이 단락 경계인지 재정님과</p>
+<p>합의해야 한다.** 값 집합이 없으면 청킹 규칙을 쓸 수 없다.</p>
+<p>0007 docstring 에 &quot;0006 은 <code>element_type</code> 컬럼으로 (단락 묶음) 같은 목적을</p>
+<p>달성하고 있으므로&quot; 라고 적혀 있어 <strong>의도는 있으나 값이 아직 안 정해진 상태다.</strong></p>
+<p>리비전 규칙(0001 부터)이 <strong>ENUM 대신 <code>String</code> + CHECK</strong> 이므로,</p>
+<p>값이 정해지면 CHECK 제약을 추가하는 마이그레이션이 필요하다.</p>
+<p><code>element_type</code> 을 응답 스키마에도 노출해야 프런트가 단락을 표시할 수 있다.</p>
+<p><code>REV-17</code> 의 완료 판정이 &quot;박스 수정 후 <code>extracted_texts.content</code> 가 같은</p>
+<p>트랜잭션에서 갱신된다&quot; 이므로, <strong>그 트랜잭션이 끝난 시점의 텍스트가 청킹 입력이다.</strong></p>
+<p>그리고 <code>RAG-10</code> 의 비고가 <strong>&quot;청킹 기준 변경의 판단 근거&quot;</strong> 다.</p>
+<p>즉 본구현 청킹이 완성된 뒤 이 평가셋으로 다시 재는 것이 <code>RAG-10</code> 의 설계 목적이다.</p>
+<p><strong>이번 결과서가 그 첫 회차 기록이 된다.</strong></p>
+<p><strong>다만 리비전 <code>0011</code>(pgvector + <code>document_chunks</code>)은 지금 만들 수 있다.</strong></p>
+<p>컬럼 차원만 알면 되고, 그것을 이 문서가 정했다. 청킹 로직과 스키마는 분리된다.</p>
+<p><strong>머지된 <code>0008</code> 이 <code>ocr_elements.is_excluded</code> 를 추가한 것에 주의한다.</strong></p>
+<p>제외 표시된 요소는 청킹에서 빼야 한다. 넣으면 검수로 지운 텍스트가 검색에</p>
+<p>남는다 — <code>RAG-09</code> 가 막으려는 것과 같은 문제다.</p>
+<p><strong>머지된 <code>0009</code> 는 <code>text_char_count</code> · <code>ocr_char_count</code> 를 나눠 저장한다.</strong></p>
+<p>청크가 OCR 에서 왔는지 판단할 근거가 되어 스니펫에 표시할 수 있다 — 11.1절.</p>
+<h3 id="53-평가셋-설계--질의를-구하지-않고-문서에서-역으로-뽑았다">5.3 평가셋 설계 — 질의를 구하지 않고 문서에서 역으로 뽑았다</h3>
+<p>도메인 지식이 필요 없는 방법을 썼다.</p>
+<pre><code>1. 문서를 청크로 쪼갠다
+2. 청크를 읽고 &quot;이 청크가 답이 되는 질문&quot; 을 쓴다
+3. 정답은 자동으로 그 청크 번호가 된다</code></pre>
+<p>청크마다 두 종류를 만들었다.</p>
+<table><thead><tr>
+<th><code>kind</code></th>
+<th>규칙</th>
+<th>무엇을 재나</th>
+</tr></thead><tbody>
+<tr>
+<td><code>overlap</code></td>
+<td>청크의 단어를 그대로 쓴다</td>
+<td>기준선. 키워드 검색으로도 찾힌다</td>
+</tr>
+<tr>
+<td><strong><code>no_overlap</code></strong></td>
+<td><strong>청크의 단어를 하나도 쓰지 않는다</strong></td>
+<td><strong>의미 검색만 찾을 수 있다</strong></td>
+</tr>
+</tbody></table>
+<p><code>no_overlap</code>이 <code>RAG-04</code> 완료 판정 기준(&quot;글자가 하나도 겹치지 않는 질의&quot;)에</p>
+<p>그대로 대응한다.</p>
+<p><strong>중요 — <code>no_overlap</code>에서 키워드 검색의 상한은 정의상 0이다.</strong></p>
+<p>2글자 이상 토큰이 정답 청크에 하나도 없도록 만들었고 이를 기계로 검증했다.</p>
+<p>따라서 토큰·부분문자열 기반 검색(<code>regexp_replace</code> + <code>ILIKE</code>)은 원리상 찾을 수 없다.</p>
+<p><strong>이건 측정 결과가 아니라 설계상 필연이므로, &quot;키워드로는 0%&quot;를 성과로 말하면 과장이다.</strong></p>
+<p>성과는 임베딩이 그 0을 얼마나 넘는지다.</p>
+<h3 id="54-채점">5.4 채점</h3>
+<table><thead><tr>
+<th>지표</th>
+<th>뜻</th>
+</tr></thead><tbody>
+<tr>
+<td><code>R@k</code></td>
+<td>정답이 상위 k개 안에 들어온 질의 비율</td>
+</tr>
+<tr>
+<td><code>MRR</code></td>
+<td>정답의 순위 역수 평균. 몇 번째로 나오는지</td>
+</tr>
+</tbody></table>
+<p><code>TOP_K = (1, 3, 5, 10)</code>. <strong>판단 1순위는 <code>no_overlap</code>의 <code>R@5</code>.</strong></p>
+<h3 id="55-공정성-검증--접두어">5.5 공정성 검증 — 접두어</h3>
+<p>접두어가 필수인 모델이 있다. 빼면 성능이 크게 떨어진다.</p>
+<p><strong>틀리면 성능이 아니라 설정 실수를 재게 되므로 코드로 확인했다.</strong></p>
+<pre><code>passages = [model_cfg[&quot;passage_prefix&quot;] + c[&quot;text&quot;] for c in chunks]   # run_eval.py
+q_texts  = [model_cfg[&quot;query_prefix&quot;]   + q[&quot;query&quot;] for q in queries]</code></pre>
+<p><strong>5차에서는 짐작하지 않고 모델이 선언한 값을 읽었다.</strong></p>
+<p><code>config_sentence_transformers.json</code> 의 <code>prompts</code> 를 그대로 옮겼다.</p>
+<table><thead><tr>
+<th>모델</th>
+<th><code>query_prefix</code></th>
+<th><code>passage_prefix</code></th>
+</tr></thead><tbody>
+<tr>
+<td>bge-m3 · KURE-v1 · <strong>BGE-m3-ko</strong></td>
+<td>(없음)</td>
+<td>(없음)</td>
+</tr>
+<tr>
+<td><strong>arctic-embed-l-v2.0</strong></td>
+<td><code>query: </code></td>
+<td><strong>(없음)</strong></td>
+</tr>
+<tr>
+<td><strong>nomic-embed-text-v2-moe</strong></td>
+<td><code>search_query: </code></td>
+<td><code>search_document: </code></td>
+</tr>
+<tr>
+<td>Qwen3-Embedding-0.6B</td>
+<td><code>Instruct: …</code> + 줄바꿈 + <code>Query:</code></td>
+<td>(없음)</td>
+</tr>
+<tr>
+<td>e5 3종</td>
+<td><code>query: </code></td>
+<td><code>passage: </code></td>
+</tr>
+</tbody></table>
+<p><strong>적용 확인. e5 의 패배는 설정 실수가 아니다.</strong></p>
+<h4 id="함정-하나--같은-빈-문자열인데-뜻이-다르다">함정 하나 — 같은 빈 문자열인데 뜻이 다르다</h4>
+<p><code>nomic</code> 이 선언한 값은 이렇다.</p>
+<pre><code>&quot;query&quot;:    &quot;search_query: &quot;
+&quot;document&quot;: &quot;&quot;                  &lt;- 비어 있다
+&quot;passage&quot;:  &quot;search_document: &quot; &lt;- 실제 문서 접두어는 여기</code></pre>
+<p><strong><code>document</code> 키를 그대로 믿으면 <code>nomic</code> 문서에 접두어가 안 붙는다.</strong></p>
+<p><code>nomic</code> 은 접두어가 필수인 모델이라 점수가 크게 떨어진다.</p>
+<p><strong><code>arctic</code> 은 정반대다.</strong> <code>arctic</code> 의 <code>&quot;document&quot;: &quot;&quot;</code> 는 **진짜로 안 붙이는 것이</p>
+<p>맞다**(<code>passage</code> 키가 아예 없다). 같은 빈 문자열인데 뜻이 반대다.</p>
+<p>그래서 규칙을 이렇게 정했다.</p>
+<blockquote>
+<p><code>passage</code> 가 있고 비어 있지 않으면 그것을 쓴다. 없으면 <code>document</code> 를 쓴다.
+그것도 비어 있으면 접두어 없음.</p>
+</blockquote>
+<p><strong><code>Qwen3</code> 의 질의 접두어는 줄바꿈을 포함하고 <code>Query:</code> 뒤에 공백이 없다.</strong></p>
+<p>임의로 공백을 넣으면 조건이 달라진다.</p>
+<h4 id="5차에서-놓친-조건--정밀도">5차에서 놓친 조건 — 정밀도</h4>
+<p>접두어와 최대 입력 길이는 맞췄는데 <strong>정밀도를 안 봤다.</strong></p>
+<p><code>Qwen3</code> 만 <code>bfloat16</code> 으로 올라와 나머지 <code>float32</code> 와 조건이 달랐다.</p>
+<p>경위는 7.6절에 있다.</p>
+<table><thead><tr>
+<th></th>
+<th>조건</th>
+<th>5차</th>
+</tr></thead><tbody>
+<tr>
+<td>1</td>
+<td>접두어</td>
+<td>맞췄다</td>
+</tr>
+<tr>
+<td>2</td>
+<td>최대 입력 길이</td>
+<td>맞췄다</td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong>정밀도(dtype)</strong></td>
+<td><strong>놓쳤다</strong></td>
+</tr>
+</tbody></table>
+<h3 id="56-하네스-점검--바닥-확인">5.6 하네스 점검 — 바닥 확인</h3>
+<p>모델을 내려받기 전에 가짜 인코더(글자 빈도를 64차원에 넣는 것)로 채점 로직을</p>
+<p>확인했다.</p>
+<table><thead><tr>
+<th>모델</th>
+<th><code>no_overlap</code> R@5</th>
+<th><code>overlap</code> R@5</th>
+</tr></thead><tbody>
+<tr>
+<td>가짜 인코더 (질의 78개 시점)</td>
+<td><strong>0 / 39</strong></td>
+<td>15 / 39</td>
+</tr>
+<tr>
+<td>가짜 인코더 (질의 73개 시점)</td>
+<td><strong>0 / 34</strong></td>
+<td>7 / 39</td>
+</tr>
+</tbody></table>
+<p><code>overlap</code>이 높고 <code>no_overlap</code>이 0인 방향이 나와야 정상이며 그대로 나왔다.</p>
+<p><strong><code>no_overlap</code> 0 은 아주 깨끗한 바닥이다.</strong> 실제 모델이 여기서 올리는 만큼이</p>
+<p>도입 근거다.</p>
+<h4 id="5차질의-133개에서는-이-점검을-다시-돌리지-않았다">5차(질의 133개)에서는 이 점검을 다시 돌리지 않았다</h4>
+<p><strong><code>--self-test</code> 가 <code>results.csv</code> 를 가짜 결과로 덮어쓰기 때문이다.</strong></p>
+<p>실제로 이 때문에 한 회차 결과를 잃었다 — 8모델 측정을 돌리기 전에 점검을</p>
+<p>했더니 이전 회차 수치가 사라졌다.</p>
+<p><strong>도구 결함으로 기록한다.</strong> 가짜 결과가 진짜 파일을 지운다.</p>
+<p><code>results_selftest.csv</code> 로 분리해야 한다.</p>
+<h3 id="57-실행-환경">5.7 실행 환경</h3>
+<pre><code>Python 3.10+ · CPU 단독 (GPU 없음)
+sentence-transformers · torch · numpy
+pymupdf · pdfplumber        (PDF 추출 · 5.2절 공백 결함 대응)
+einops                       (nomic-embed-text-v2-moe 적재에 필요)
+정밀도 float32               (Qwen3 는 bfloat16 -&gt; float32 강제)
+모델 9종 합계 십수 GB (HuggingFace 캐시)</code></pre>
+<p><strong><code>requirements.txt</code> 에 <code>einops</code> 와 <code>pdfplumber</code> 가 없으면 재현되지 않는다.</strong></p>
+<p><code>nomic</code> 은 커스텀 모델 코드를 쓰는데 그 코드가 <code>einops</code> 를 요구하고,</p>
+<p><code>13_</code> 고시 PDF 변환에 <code>pdfplumber</code> 가 필요하다. <code>nomic</code> 은 추가로</p>
+<p><code>trust_remote_code=True</code> 가 있어야 적재된다.</p>
+<hr>
+<h2 id="6-평가셋-결함과-수정-경과">6. 평가셋 결함과 수정 경과</h2>
+<p><strong>이 절이 결과 신뢰도의 근거다.</strong> 1차 결과에는 결함이 있었고, 진단으로 찾아 고쳤다.</p>
+<h3 id="61-검사-도구를-만든-이유">6.1 검사 도구를 만든 이유</h3>
+<p><code>run_eval.py</code>는 쓸 수 없는 행을 <strong>예외 없이 건너뛴다.</strong> 질의 40개를 넣고</p>
+<p>32개만 채점돼도 알아채기 어렵다. 그래서 앞에 검증을 세웠다.</p>
+<p><code>check_queries.py</code>가 잡는 것:</p>
+<table><thead><tr>
+<th>잡아내는 것</th>
+<th>위험</th>
+</tr></thead><tbody>
+<tr>
+<td><code>note</code>에 &quot;예시&quot;가 든 행</td>
+<td><strong>경고 없이 채점에서 빠진다</strong></td>
+</tr>
+<tr>
+<td>없는 청크 번호 · 정답 없음</td>
+<td>같이 조용히 빠진다</td>
+</tr>
+<tr>
+<td><code>no_overlap</code>인데 단어가 겹침</td>
+<td><strong>사람 눈으로는 반드시 새어나간다</strong></td>
+</tr>
+<tr>
+<td><code>overlap</code>인데 겹치는 말이 없음</td>
+<td>기준선이 기준선 역할을 못 한다</td>
+</tr>
+<tr>
+<td><code>kind</code> 오타</td>
+<td><code>unknown</code>이 되어 어느 집계에도 안 들어간다</td>
+</tr>
+<tr>
+<td>정답이 문서 한 곳에 몰림</td>
+<td>그 문서 특성만 재게 된다</td>
+</tr>
+</tbody></table>
+<p>실제로 78문항 중 3건이 <code>no_overlap</code> 라벨 위반으로 걸렸다.</p>
+<p><code>하는</code> <code>있는</code> <code>사업</code> 이 정답 청크에 들어 있었다.</p>
+<h3 id="62-기각된-가설-두-개">6.2 기각된 가설 두 개</h3>
+<p><code>no_overlap</code> 39문항 중 13문항을 <strong>세 모델이 모두 틀렸다.</strong> 원인을 세 번 추정했다.</p>
+<table><thead><tr>
+<th>가설</th>
+<th>결과</th>
+<th>반박한 데이터</th>
+</tr></thead><tbody>
+<tr>
+<td>청크가 커서 벡터가 희석된다</td>
+<td><strong>기각</strong></td>
+<td>실패한 청크에 151자·99자가 있고, 같은 길이 CSV 행 청크는 성공했다</td>
+</tr>
+<tr>
+<td>허브 청크가 상위를 점거한다</td>
+<td><strong>기각</strong></td>
+<td>전체 78질의로 세니 최다 10회. 기대값 3.07회의 3.3배 — 정상 분포</td>
+</tr>
+<tr>
+<td><strong>평가셋 결함이 지배한다</strong></td>
+<td><strong>확인</strong></td>
+<td>청크 13 · 24 · 2가 실제 정답이었다</td>
+</tr>
+</tbody></table>
+<p><strong>두 번 앞서갔고 두 번 데이터에 교정받았다.</strong></p>
+<p><code>--target</code> 조정 실험을 먼저 했다면 헛수고였다.</p>
+<h3 id="63-확인된-결함--모델이-맞고-정답-표시가-틀렸다">6.3 확인된 결함 — 모델이 맞고 정답 표시가 틀렸다</h3>
+<table><thead><tr>
+<th>청크</th>
+<th>내용</th>
+<th>오답 처리된 질의</th>
+</tr></thead><tbody>
+<tr>
+<td>13 (57자)</td>
+<td><code>공동이행방식만 가능하며, 공동수급체 구성원 모두가 입찰참가자격을 갖추어야 함</code></td>
+<td><code>여러 곳이 팀을 짜서 들어올 수 있나</code> (정답 1)</td>
+</tr>
+<tr>
+<td>24 (483자)</td>
+<td><code>낙찰자 결정방법 — 기술능력배점 90점, 입찰가격배점 10점</code></td>
+<td><code>점수를 어떻게 나눠 매기나</code> (정답 4)</td>
+</tr>
+<tr>
+<td>2 (465자)</td>
+<td><code>지역제한 업종제한 업종제한사항</code></td>
+<td><code>장부 다루는 곳만 응찰할 수 있나</code> (정답 1)</td>
+</tr>
+</tbody></table>
+<p>세 모델이 일관되게 이 청크들을 상위에 넣었다. <strong>셋 다 정답이다.</strong></p>
+<p>원인은 하나다. <strong>같은 종류의 정보가 여러 문서에 흩어져 있다.</strong></p>
+<pre><code>평가 배점   청크 4  기초과학연구원 80% / 20%
+            청크 24 중앙보훈병원  90점 / 10점      둘 다 정답이다
+
+공동수급    청크 1  공동수급불허
+            청크 13 공동이행방식만 가능              둘 다 답이 된다
+
+예산·금액   60개 이상 청크                          특정 하나를 정답으로 둘 수 없다</code></pre>
+<p><strong>이번 시험에서 얻은 가장 중요한 평가셋 설계 원칙이다.</strong></p>
+<p>문서 여러 건을 한 코퍼스에 넣으면 질의가 문서를 특정해야 하는데,</p>
+<p>문서를 특정하면 문서명이 질의에 들어가 <code>overlap</code>이 되어버린다.</p>
+<p><strong>해법은 정답을 넓게 두는 것이다.</strong> <code>R@5</code>로 재니 둘 중 하나만 잡아도 성공이다.</p>
+<h3 id="64-수정-내역--78문항--73문항">6.4 수정 내역 — 78문항 → 73문항</h3>
+<table><thead><tr>
+<th>조치</th>
+<th>질의</th>
+<th>이유</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>삭제</strong></td>
+<td><code>이 일에 잡힌 예산이 얼마인가</code> (4,5)</td>
+<td>예산 청크가 60개 이상. 측정 불가</td>
+</tr>
+<tr>
+<td>삭제</td>
+<td><code>배정된 예산 규모</code> (7)</td>
+<td>같은 이유</td>
+</tr>
+<tr>
+<td>삭제</td>
+<td><code>하나만 내면 되나</code> (31)</td>
+<td>&quot;하나&quot;가 무엇인지 문장에 없다. <strong>사람도 못 맞힌다</strong></td>
+</tr>
+<tr>
+<td>삭제</td>
+<td><code>무엇을 해야 하는지 적힌 서류를 어디서 받나</code> (6)</td>
+<td>&quot;받나&quot;가 다운로드인지 작성기준인지 모호</td>
+</tr>
+<tr>
+<td>삭제</td>
+<td><code>밖으로 새지 않게 다짐을 받아둘 수 있나</code> (33)</td>
+<td>코퍼스에 서약서·협약이 여럿</td>
+</tr>
+<tr>
+<td><strong>정답 확장</strong></td>
+<td><code>여러 곳이 팀을 짜서 들어올 수 있나</code></td>
+<td>1 → 1,13</td>
+</tr>
+<tr>
+<td>정답 확장</td>
+<td><code>장부 다루는 곳만 응찰할 수 있나</code></td>
+<td>1 → 1,2</td>
+</tr>
+<tr>
+<td>정답 확장</td>
+<td><code>점수를 어떻게 나눠 매기나</code></td>
+<td>4 → 4,24</td>
+</tr>
+<tr>
+<td>정답 확장</td>
+<td><code>기술능력평가비율</code></td>
+<td>4 → 4,24</td>
+</tr>
+</tbody></table>
+<pre><code>1차  78문항  overlap 39 · no_overlap 39
+2차  73문항  overlap 39 · no_overlap 34
+5차 133문항  overlap 69 · no_overlap 64      &lt;- 고시 조문 질의 60개 추가</code></pre>
+<p>**점수를 올리려는 조치가 아니다. 측정할 수 없는 문항을 빼고, 잘못 채점된</p>
+<p>문항을 바로잡은 것이다.** 남기면 지표가 오염된다.</p>
+<p><strong>1차 수치를 지우지 않고 함께 남긴다.</strong> 결함을 찾아 고친 경과가 기록되어야</p>
+<p>숫자를 신뢰할 수 있다.</p>
+<h3 id="65-5차--질의를-두-배로-늘렸다">6.5 5차 — 질의를 두 배로 늘렸다</h3>
+<p><strong>청크를 늘리는 것으로는 1위와 2위를 가릴 수 없다는 것을 4차에서 확인했다.</strong></p>
+<p>4차에서 청크를 127 → 545 로 4.3배 늘렸는데 <code>KURE</code> 대 <code>bge-m3</code> 격차가 1문항</p>
+<p>그대로였다. <strong>방해물만 늘고 판별력은 안 늘었다.</strong></p>
+<p>그래서 5차에서는 <strong>질의를 늘렸다.</strong></p>
+<table><thead><tr>
+<th></th>
+<th>4차</th>
+<th>5차</th>
+</tr></thead><tbody>
+<tr>
+<td>청크</td>
+<td>127</td>
+<td>649</td>
+</tr>
+<tr>
+<td><strong>안겹침 질의</strong></td>
+<td><strong>34</strong></td>
+<td><strong>64</strong></td>
+</tr>
+<tr>
+<td>정답 청크</td>
+<td>32</td>
+<td>62</td>
+</tr>
+</tbody></table>
+<h4 id="정답-청크-번호를-손으로-적지-않았다">정답 청크 번호를 손으로 적지 않았다</h4>
+<p>질의 60개를 만들면서 <strong>앵커 문구로 코드가 찾게 했다.</strong></p>
+<pre><code>(&quot;계약체결 후 10일 이내&quot;,                     &lt;- 앵커
+ &quot;계약체결 후 10일 이내 착수계 제출&quot;,           &lt;- overlap 질의
+ &quot;일을 시작하겠다는 서류를 언제까지 내나&quot;,       &lt;- no_overlap 질의
+ &quot;제39조 착수계 10일&quot;,                        &lt;- 사실 메모
+ &quot;착수계·계약체결·제출 안 씀&quot;)                 &lt;- 피한 낱말</code></pre>
+<p><code>make_queries_13.py</code> 가 <code>chunks.csv</code> 에서 앵커를 찾아 번호를 붙인다.</p>
+<p>**앵커 비교는 공백을 모두 지운 뒤 하므로 줄바꿈이나 띄어쓰기 차이에 영향받지</p>
+<p>않는다.** 앵커가 두 곳 이상에 걸리면 그 질의를 버린다.</p>
+<p><strong>손으로 번호를 적으면 재청킹 때마다 어긋난다.</strong> 앵커 방식은 청크가 다시 잘려도</p>
+<p>다시 찾는다.</p>
+<h4 id="부분-문자열까지-검사했다--9건이-걸렸다">부분 문자열까지 검사했다 — 9건이 걸렸다</h4>
+<p><code>no_overlap</code> 라벨이 실제로 맞는지 도구로 전수 검사했다.</p>
+<p><strong>낱말 단위가 아니라 부분 문자열까지 본다.</strong></p>
+<table><thead><tr>
+<th>질의에 쓴 말</th>
+<th>걸린 이유</th>
+</tr></thead><tbody>
+<tr>
+<td><code>보안</code></td>
+<td>정답 청크에 <strong><code>보안약점</code></strong> 이 있다</td>
+</tr>
+<tr>
+<td><code>정한</code></td>
+<td><strong><code>지정하여야</code></strong> 안에 들어 있다</td>
+</tr>
+<tr>
+<td><code>항목을</code> <code>이상</code></td>
+<td>정답 청크 본문에 그대로 있다</td>
+</tr>
+<tr>
+<td><code>않은</code> <code>외부</code></td>
+<td><code>검증되지 않은 외부 입력값</code></td>
+</tr>
+<tr>
+<td><code>받은</code> <code>전에</code> <code>기존</code> <code>예산이</code></td>
+<td>각각 정답 청크에 있다</td>
+</tr>
+</tbody></table>
+<p><strong>사람 눈으로는 못 잡는다.</strong> 9건을 고쳐 <code>겹침 0</code> 을 만들었다.</p>
+<h4 id="조-번호를-질의에-쓰지-않았다">조 번호를 질의에 쓰지 않았다</h4>
+<p>**&quot;제18조의 배점한도는?&quot; 이라고 물으면 <code>제18조</code> 라는 글자가 그 청크에만 있어서</p>
+<p>임베딩 실력이 아니라 글자 일치로 맞힌다.** 그래서 조 번호를 뺐다.</p>
+<p>운영에서는 뒤집힌다. 사용자가 &quot;제18조&quot; 라고 물으면 낱말 일치로 찾는 것이 맞다.</p>
+<p>**즉 조 번호·금액·날짜 같은 값은 벡터가 아니라 낱말 일치로 보내는 것이 낫고,</p>
+<p>이는 8.6절 하이브리드 검색 결론과 같은 방향이다.**</p>
+<h4 id="앵커-하나가-실패했다--쪽-넘김-때문">앵커 하나가 실패했다 — 쪽 넘김 때문</h4>
+<p><code>이상인 사업에 대해서는 제안요청 설명회</code> 가 안 걸렸다. 원문이 쪽을 넘어간다.</p>
+<pre><code>10쪽 끝 : ... 추정가격이 20억원 이상인 사업에 대해
+11쪽 시작: 서는 제안요청 설명회를 실시하여야 한다.</code></pre>
+<p><strong>앵커를 10쪽 안쪽으로 당겨 해결했다.</strong> 5.2절에 청킹 쪽 문제로도 기록했다.</p>
+<hr>
+<h2 id="7-결과">7. 결과</h2>
+<h3 id="71-1차--78문항-평가셋-결함-포함-상태">7.1 1차 — 78문항 (평가셋 결함 포함 상태)</h3>
+<p><strong>검색 품질</strong></p>
+<table><thead><tr>
+<th>모델</th>
+<th>차원</th>
+<th><code>no_overlap</code> R@1</th>
+<th><code>no_overlap</code> R@5</th>
+<th><code>no_overlap</code> MRR</th>
+<th><code>overlap</code> R@5</th>
+<th>전체 R@5</th>
+</tr></thead><tbody>
+<tr>
+<td>KURE-v1</td>
+<td>1024</td>
+<td>12 / 39 (0.308)</td>
+<td><strong>24 / 39 (0.615)</strong></td>
+<td>0.432</td>
+<td>32 / 39 (0.821)</td>
+<td>56 / 78 (0.718)</td>
+</tr>
+<tr>
+<td>bge-m3</td>
+<td>1024</td>
+<td>11 / 39 (0.282)</td>
+<td>23 / 39 (0.590)</td>
+<td>0.392</td>
+<td>31 / 39 (0.795)</td>
+<td>54 / 78 (0.692)</td>
+</tr>
+<tr>
+<td>e5-small-ko-v2</td>
+<td>384</td>
+<td>8 / 39 (0.205)</td>
+<td>12 / 39 (0.308)</td>
+<td>0.274</td>
+<td><strong>38 / 39 (0.974)</strong></td>
+<td>50 / 78 (0.641)</td>
+</tr>
+<tr>
+<td>(가짜 인코더)</td>
+<td>64</td>
+<td>0 / 39</td>
+<td>0 / 39</td>
+<td>0.005</td>
+<td>15 / 39 (0.385)</td>
+<td>15 / 78 (0.192)</td>
+</tr>
+</tbody></table>
+<p><strong>실행 비용 (CPU 단독)</strong></p>
+<table><thead><tr>
+<th>모델</th>
+<th>적재 초</th>
+<th>임베딩 초 (127청크)</th>
+<th>100청크당 초</th>
+<th>메모리 MB</th>
+</tr></thead><tbody>
+<tr>
+<td>bge-m3</td>
+<td>152.5</td>
+<td>65.0</td>
+<td>51.16</td>
+<td>3,466</td>
+</tr>
+<tr>
+<td>KURE-v1</td>
+<td>167.0</td>
+<td>52.7</td>
+<td>41.52</td>
+<td><strong>-490 (무효)</strong></td>
+</tr>
+<tr>
+<td>e5-small-ko-v2</td>
+<td>41.5</td>
+<td>4.9</td>
+<td><strong>3.86</strong></td>
+<td>408</td>
+</tr>
+</tbody></table>
+<p><strong>1차 실행 비용 수치는 쓰지 않는다.</strong> 이 실행이 모델을 처음 내려받는 회차였다.</p>
+<p>적재 152~167초에 다운로드 시간이 섞여 있고, 그 직후 측정이라 메모리와 속도가</p>
+<p>모두 왜곡됐다. <strong>7.2절 2차 수치를 쓴다.</strong></p>
+<p><strong>모델별 적중 분포 (<code>no_overlap</code> 39문항)</strong></p>
+<table><thead><tr>
+<th>맞춘 모델 수</th>
+<th>문항</th>
+<th>뜻</th>
+</tr></thead><tbody>
+<tr>
+<td>3</td>
+<td>10</td>
+<td>쉬운 질의</td>
+</tr>
+<tr>
+<td>2</td>
+<td>13</td>
+<td>대개 e5만 틀림</td>
+</tr>
+<tr>
+<td><strong>1</strong></td>
+<td><strong>3</strong></td>
+<td><strong>모델 차이가 드러난 지점</strong></td>
+</tr>
+<tr>
+<td>0</td>
+<td>13</td>
+<td>세 모델 다 실패 → 평가셋 결함 (6.3절)</td>
+</tr>
+</tbody></table>
+<p><strong><code>hit = 1</code>인 세 문항을 세 모델이 각각 하나씩 맞췄다.</strong></p>
+<table><thead><tr>
+<th>질의</th>
+<th>bge-m3</th>
+<th>KURE-v1</th>
+<th>e5-small</th>
+</tr></thead><tbody>
+<tr>
+<td>서로 돕자는 취지의 누리집 (39)</td>
+<td><strong>4위</strong></td>
+<td>6위</td>
+<td>—</td>
+</tr>
+<tr>
+<td>자료 보관하는 곳을 나중에 바꾸지 않기로 한 까닭 (42)</td>
+<td>7위</td>
+<td><strong>5위</strong></td>
+<td>10위</td>
+</tr>
+<tr>
+<td>이미 글자가 박힌 것은 다르게 다루나 (41)</td>
+<td>9위</td>
+<td>8위</td>
+<td><strong>1위</strong></td>
+</tr>
+</tbody></table>
+<h3 id="72-2차--73문항-결함-수정-후--실측">7.2 2차 — 73문항 (결함 수정 후) · 실측</h3>
+<h4 id="예측-대조">예측 대조</h4>
+<p>1차 <code>top5</code> 기록에서 결정론적으로 도출한 예측값을 미리 박아두고 실측했다.</p>
+<table><thead><tr>
+<th>모델</th>
+<th><code>no_overlap</code> R@5 예측</th>
+<th>실측</th>
+<th>일치</th>
+</tr></thead><tbody>
+<tr>
+<td>KURE-v1</td>
+<td>0.794</td>
+<td><strong>0.794</strong></td>
+<td>일치</td>
+</tr>
+<tr>
+<td>bge-m3</td>
+<td>0.765</td>
+<td><strong>0.765</strong></td>
+<td>일치</td>
+</tr>
+<tr>
+<td>e5-small-ko-v2</td>
+<td>0.412</td>
+<td><strong>0.412</strong></td>
+<td>일치</td>
+</tr>
+</tbody></table>
+<p><strong>소수 셋째 자리까지 일치했다.</strong> 하네스가 결정론적으로 동작하고,</p>
+<p>6.3절 결함 진단이 정확했음을 뜻한다.</p>
+<h4 id="검색-품질--no_overlap-34문항">검색 품질 — <code>no_overlap</code> 34문항</h4>
+<table><thead><tr>
+<th>모델</th>
+<th>차원</th>
+<th>R@1</th>
+<th>R@3</th>
+<th>R@5</th>
+<th>R@10</th>
+<th>MRR</th>
+</tr></thead><tbody>
+<tr>
+<td>KURE-v1</td>
+<td>1024</td>
+<td><strong>13 (0.382)</strong></td>
+<td><strong>22 (0.647)</strong></td>
+<td><strong>27 (0.794)</strong></td>
+<td><strong>29 (0.853)</strong></td>
+<td><strong>0.547</strong></td>
+</tr>
+<tr>
+<td>bge-m3</td>
+<td>1024</td>
+<td>12 (0.353)</td>
+<td>19 (0.559)</td>
+<td>26 (0.765)</td>
+<td>28 (0.824)</td>
+<td>0.499</td>
+</tr>
+<tr>
+<td>e5-small-ko-v2</td>
+<td>384</td>
+<td>9 (0.265)</td>
+<td>14 (0.412)</td>
+<td>14 (0.412)</td>
+<td>24 (0.706)</td>
+<td>0.358</td>
+</tr>
+</tbody></table>
+<h4 id="검색-품질--overlap-39문항">검색 품질 — <code>overlap</code> 39문항</h4>
+<table><thead><tr>
+<th>모델</th>
+<th>R@1</th>
+<th>R@3</th>
+<th>R@5</th>
+<th>R@10</th>
+<th>MRR</th>
+</tr></thead><tbody>
+<tr>
+<td>KURE-v1</td>
+<td>25 (0.641)</td>
+<td>31 (0.795)</td>
+<td>33 (0.846)</td>
+<td>36 (0.923)</td>
+<td>0.731</td>
+</tr>
+<tr>
+<td>bge-m3</td>
+<td><strong>26 (0.667)</strong></td>
+<td><strong>32 (0.821)</strong></td>
+<td>32 (0.821)</td>
+<td>34 (0.872)</td>
+<td>0.745</td>
+</tr>
+<tr>
+<td>e5-small-ko-v2</td>
+<td><strong>27 (0.692)</strong></td>
+<td><strong>35 (0.897)</strong></td>
+<td><strong>38 (0.974)</strong></td>
+<td><strong>39 (1.000)</strong></td>
+<td><strong>0.799</strong></td>
+</tr>
+</tbody></table>
+<h4 id="전체-73문항">전체 73문항</h4>
+<table><thead><tr>
+<th>모델</th>
+<th>R@5</th>
+<th>MRR</th>
+</tr></thead><tbody>
+<tr>
+<td>KURE-v1</td>
+<td><strong>60 / 73 (0.822)</strong></td>
+<td><strong>0.645</strong></td>
+</tr>
+<tr>
+<td>bge-m3</td>
+<td>58 / 73 (0.795)</td>
+<td>0.631</td>
+</tr>
+<tr>
+<td>e5-small-ko-v2</td>
+<td>52 / 73 (0.712)</td>
+<td>0.594</td>
+</tr>
+</tbody></table>
+<h4 id="실행-비용-cpu-단독--모델-캐시-적용-후">실행 비용 (CPU 단독 · 모델 캐시 적용 후)</h4>
+<table><thead><tr>
+<th>모델</th>
+<th>적재 초</th>
+<th>임베딩 초 (127청크)</th>
+<th>100청크당 초</th>
+<th>메모리 MB</th>
+</tr></thead><tbody>
+<tr>
+<td>bge-m3</td>
+<td>7.6</td>
+<td>53.7</td>
+<td>42.28</td>
+<td>1,552</td>
+</tr>
+<tr>
+<td>KURE-v1</td>
+<td>6.2</td>
+<td>45.5</td>
+<td>35.86</td>
+<td>1,545</td>
+</tr>
+<tr>
+<td>e5-small-ko-v2</td>
+<td>6.4</td>
+<td>4.4</td>
+<td><strong>3.45</strong></td>
+<td><strong>416</strong></td>
+</tr>
+</tbody></table>
+<p><strong>메모리 측정이 이번에는 정상 범위로 나왔다.</strong> 1차에서 KURE가 -490MB로</p>
+<p>나온 것은 다운로드 직후 bge의 RSS가 3,466MB까지 올라갔다가 반납되지 않아</p>
+<p><code>peak - before</code>가 음수가 된 것이었다. 캐시 적용 후에는 1024 두 모델이</p>
+<p>1,552MB와 1,545MB로 거의 같게 나왔다. <strong>같은 계열 모델이므로 일관성 있는 값이다.</strong></p>
+<h4 id="남은-흠--어휘-누출-1문항">남은 흠 — 어휘 누출 1문항</h4>
+<p><code>check_queries.py</code>가 <code>점수를 어떻게 나눠 매기나</code>(정답 4,24)를 잡아냈다.</p>
+<p><code>점수를</code>이 정답 청크 본문에 있었다. 질의를 <code>실력과 싼값 중 무엇을 더 보나</code>로</p>
+<p>고치고 3차에서 다시 측정했다.</p>
+<h3 id="73-3차--73문항--어휘-누출-제거--확정값">7.3 3차 — 73문항 · 어휘 누출 제거 · <strong>확정값</strong></h3>
+<p><code>check_queries.py</code> 가 <code>이상 없다</code> 로 통과한 상태의 측정이다.</p>
+<h4 id="no_overlap-34문항"><code>no_overlap</code> 34문항</h4>
+<table><thead><tr>
+<th>모델</th>
+<th>차원</th>
+<th>R@1</th>
+<th>R@3</th>
+<th>R@5</th>
+<th>R@10</th>
+<th>MRR</th>
+</tr></thead><tbody>
+<tr>
+<td>KURE-v1</td>
+<td>1024</td>
+<td>12 (0.353)</td>
+<td><strong>22 (0.647)</strong></td>
+<td><strong>27 (0.794)</strong></td>
+<td><strong>29 (0.853)</strong></td>
+<td><strong>0.533</strong></td>
+</tr>
+<tr>
+<td>bge-m3</td>
+<td>1024</td>
+<td>12 (0.353)</td>
+<td>19 (0.559)</td>
+<td>26 (0.765)</td>
+<td>28 (0.824)</td>
+<td>0.499</td>
+</tr>
+<tr>
+<td>e5-small-ko-v2</td>
+<td>384</td>
+<td>10 (0.294)</td>
+<td>14 (0.412)</td>
+<td>14 (0.412)</td>
+<td>24 (0.706)</td>
+<td>0.373</td>
+</tr>
+</tbody></table>
+<h4 id="overlap-39문항"><code>overlap</code> 39문항</h4>
+<table><thead><tr>
+<th>모델</th>
+<th>R@1</th>
+<th>R@3</th>
+<th>R@5</th>
+<th>R@10</th>
+<th>MRR</th>
+</tr></thead><tbody>
+<tr>
+<td>KURE-v1</td>
+<td>25 (0.641)</td>
+<td>31 (0.795)</td>
+<td>33 (0.846)</td>
+<td>36 (0.923)</td>
+<td>0.731</td>
+</tr>
+<tr>
+<td>bge-m3</td>
+<td>26 (0.667)</td>
+<td>32 (0.821)</td>
+<td>32 (0.821)</td>
+<td>34 (0.872)</td>
+<td><strong>0.745</strong></td>
+</tr>
+<tr>
+<td>e5-small-ko-v2</td>
+<td><strong>27 (0.692)</strong></td>
+<td><strong>35 (0.897)</strong></td>
+<td><strong>38 (0.974)</strong></td>
+<td><strong>39 (1.000)</strong></td>
+<td><strong>0.799</strong></td>
+</tr>
+</tbody></table>
+<h4 id="전체-73문항">전체 73문항</h4>
+<table><thead><tr>
+<th>모델</th>
+<th>R@5</th>
+<th>MRR</th>
+</tr></thead><tbody>
+<tr>
+<td>KURE-v1</td>
+<td><strong>60 / 73 (0.822)</strong></td>
+<td><strong>0.639</strong></td>
+</tr>
+<tr>
+<td>bge-m3</td>
+<td>58 / 73 (0.795)</td>
+<td>0.631</td>
+</tr>
+<tr>
+<td>e5-small-ko-v2</td>
+<td>52 / 73 (0.712)</td>
+<td>0.601</td>
+</tr>
+</tbody></table>
+<h4 id="실행-비용">실행 비용</h4>
+<table><thead><tr>
+<th>모델</th>
+<th>적재 초</th>
+<th>임베딩 초 (127청크)</th>
+<th>100청크당 초</th>
+<th>메모리 MB</th>
+</tr></thead><tbody>
+<tr>
+<td>bge-m3</td>
+<td>7.2</td>
+<td>55.2</td>
+<td>43.47</td>
+<td>1,552</td>
+</tr>
+<tr>
+<td>KURE-v1</td>
+<td>6.2</td>
+<td>58.3</td>
+<td>45.91</td>
+<td>1,544</td>
+</tr>
+<tr>
+<td>e5-small-ko-v2</td>
+<td>6.4</td>
+<td>5.2</td>
+<td><strong>4.09</strong></td>
+<td><strong>426</strong></td>
+</tr>
+</tbody></table>
+<h3 id="74-측정-3회-대조--무엇이-바뀌고-무엇이-안-바뀌었나">7.4 측정 3회 대조 — 무엇이 바뀌고 무엇이 안 바뀌었나</h3>
+<table><thead><tr>
+<th><code>no_overlap</code> R@5</th>
+<th>1차 (78문항)</th>
+<th>2차 (73문항)</th>
+<th>3차 (73문항)</th>
+</tr></thead><tbody>
+<tr>
+<td>KURE-v1</td>
+<td>24 / 39 (0.615)</td>
+<td>27 / 34 (0.794)</td>
+<td><strong>27 / 34 (0.794)</strong></td>
+</tr>
+<tr>
+<td>bge-m3</td>
+<td>23 / 39 (0.590)</td>
+<td>26 / 34 (0.765)</td>
+<td><strong>26 / 34 (0.765)</strong></td>
+</tr>
+<tr>
+<td>e5-small-ko-v2</td>
+<td>12 / 39 (0.308)</td>
+<td>14 / 34 (0.412)</td>
+<td><strong>14 / 34 (0.412)</strong></td>
+</tr>
+</tbody></table>
+<p><strong>어휘 누출을 없애도 <code>R@5</code> 는 세 모델 모두 그대로였다.</strong></p>
+<p>바뀐 질의 <code>실력과 싼값 중 무엇을 더 보나</code> 가 세 모델 모두 top5 안에 정답을</p>
+<p>넣었다 (bge 1위 · KURE 2위 · e5 1위). <strong>누출로 얻은 점수가 아니었다.</strong></p>
+<p><code>R@1</code> 만 한 칸씩 움직였다. KURE 는 13 → 12, e5 는 9 → 10 이다.</p>
+<p>그 한 질의의 순위가 KURE 에서 1위 → 2위, e5 에서 2위 → 1위로 바뀐 결과다.</p>
+<p><strong>이 문항 자체가 <code>RAG-04</code> 의 좋은 예시 사례다.</strong></p>
+<p><code>기술능력배점 90점 · 입찰가격배점 10점</code> 을 <code>실력과 싼값</code> 으로 물었는데 찾았다.</p>
+<p>발표에서 의미 검색을 보여줄 때 쓸 수 있다.</p>
+<h4 id="속도는-1024-두-모델-사이에서-비교하지-않는다">속도는 1024 두 모델 사이에서 비교하지 않는다</h4>
+<table><thead><tr>
+<th>100청크당 초</th>
+<th>2차</th>
+<th>3차</th>
+</tr></thead><tbody>
+<tr>
+<td>bge-m3</td>
+<td>42.28</td>
+<td>43.47</td>
+</tr>
+<tr>
+<td>KURE-v1</td>
+<td><strong>35.86</strong></td>
+<td><strong>45.91</strong></td>
+</tr>
+</tbody></table>
+<p><strong>같은 모델·같은 127청크인데 KURE 가 10초 흔들렸다.</strong> CPU 측정 노이즈다.</p>
+<p>두 모델은 같은 계열이므로 속도가 비슷하다고 보는 것이 맞다.</p>
+<p><strong>유의한 차이는 e5 와의 약 10배 격차뿐이다.</strong></p>
+<p>메모리는 세 회차에서 일관됐다 (1,552 / 1,544 / 426MB).</p>
+<hr>
+<h3 id="75-4차--모델-5개--차원과-계열을-분리한-측정">7.5 4차 — 모델 5개 · 차원과 계열을 분리한 측정</h3>
+<p><code>e5</code> 원본 계열의 <code>base</code>(768)와 <code>large</code>(1024)를 추가했다.</p>
+<p>목적은 <strong>차원 효과와 계열 효과를 나누는 것</strong>이다(11.3절 설계).</p>
+<h4 id="no_overlap-34문항"><code>no_overlap</code> 34문항</h4>
+<table><thead><tr>
+<th>모델</th>
+<th>차원</th>
+<th>계열</th>
+<th>R@1</th>
+<th>R@3</th>
+<th>R@5</th>
+<th>R@10</th>
+<th>MRR</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>KURE-v1</strong></td>
+<td>1024</td>
+<td>bge · <strong>한국어 특화</strong></td>
+<td>12</td>
+<td><strong>22</strong></td>
+<td><strong>27</strong></td>
+<td><strong>29</strong></td>
+<td><strong>0.533</strong></td>
+</tr>
+<tr>
+<td>bge-m3</td>
+<td>1024</td>
+<td>bge · 다국어</td>
+<td>12</td>
+<td>19</td>
+<td>26</td>
+<td>28</td>
+<td>0.499</td>
+</tr>
+<tr>
+<td><strong>e5-large</strong></td>
+<td>1024</td>
+<td>e5 · 다국어 원본</td>
+<td><strong>14</strong></td>
+<td>16</td>
+<td>23</td>
+<td>25</td>
+<td>0.492</td>
+</tr>
+<tr>
+<td>e5-small-ko-v2</td>
+<td>384</td>
+<td>e5 · <strong>한국어 튜닝</strong></td>
+<td>10</td>
+<td>14</td>
+<td>14</td>
+<td>24</td>
+<td>0.373</td>
+</tr>
+<tr>
+<td><strong>e5-base</strong></td>
+<td><strong>768</strong></td>
+<td>e5 · 다국어 원본</td>
+<td><strong>8</strong></td>
+<td><strong>12</strong></td>
+<td><strong>13</strong></td>
+<td><strong>18</strong></td>
+<td><strong>0.314</strong></td>
+</tr>
+</tbody></table>
+<h4 id="overlap-39문항"><code>overlap</code> 39문항</h4>
+<table><thead><tr>
+<th>모델</th>
+<th>R@1</th>
+<th>R@3</th>
+<th>R@5</th>
+<th>R@10</th>
+<th>MRR</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>e5-large</strong></td>
+<td><strong>29</strong></td>
+<td>32</td>
+<td>33</td>
+<td>34</td>
+<td>0.793</td>
+</tr>
+<tr>
+<td>e5-base</td>
+<td>28</td>
+<td>30</td>
+<td>32</td>
+<td>35</td>
+<td>0.766</td>
+</tr>
+<tr>
+<td>e5-small-ko-v2</td>
+<td>27</td>
+<td><strong>35</strong></td>
+<td><strong>38</strong></td>
+<td><strong>39</strong></td>
+<td><strong>0.799</strong></td>
+</tr>
+<tr>
+<td>bge-m3</td>
+<td>26</td>
+<td>32</td>
+<td>32</td>
+<td>34</td>
+<td>0.745</td>
+</tr>
+<tr>
+<td>KURE-v1</td>
+<td>25</td>
+<td>31</td>
+<td>33</td>
+<td>36</td>
+<td>0.731</td>
+</tr>
+</tbody></table>
+<h4 id="실행-비용">실행 비용</h4>
+<table><thead><tr>
+<th>모델</th>
+<th>차원</th>
+<th>100청크당 초</th>
+<th>메모리 MB</th>
+</tr></thead><tbody>
+<tr>
+<td>e5-small-ko-v2</td>
+<td>384</td>
+<td><strong>3.67</strong></td>
+<td><strong>421</strong></td>
+</tr>
+<tr>
+<td><strong>e5-base</strong></td>
+<td><strong>768</strong></td>
+<td><strong>10.97</strong></td>
+<td><strong>636</strong></td>
+</tr>
+<tr>
+<td>e5-large</td>
+<td>1024</td>
+<td>38.51</td>
+<td>1,456</td>
+</tr>
+<tr>
+<td>KURE-v1</td>
+<td>1024</td>
+<td>39.58</td>
+<td>1,534</td>
+</tr>
+<tr>
+<td>bge-m3</td>
+<td>1024</td>
+<td>40.70</td>
+<td>1,552</td>
+</tr>
+</tbody></table>
+<p><strong>768 이 속도·메모리에서 좋은 중간값이다.</strong> 384의 3배 느리지만 1024의 3.5배 빠르고</p>
+<p>메모리는 절반 이하다. <strong>성능이 따라왔다면 좋은 타협점이었을 것이다.</strong></p>
+<hr>
+<h2 id="76-5차--모델-9개--질의-133개--청크-649개--확정값">7.6 5차 — 모델 9개 · 질의 133개 · 청크 649개 · <strong>확정값</strong></h2>
+<p><strong>이 절의 수치가 이 결과서의 확정값이다.</strong> 1~4차는 이력으로 남긴다.</p>
+<p>전 지표는 <code>관리/RAG_임베딩모델_전체측정표.md</code> 에 있다.</p>
+<h3 id="검색-품질--no_overlap-64문항-판단-기준">검색 품질 — <code>no_overlap</code> 64문항 (판단 기준)</h3>
+<table><thead><tr>
+<th>모델</th>
+<th>차원</th>
+<th>계열</th>
+<th>한국어</th>
+<th>R@1</th>
+<th>R@3</th>
+<th><strong>R@5</strong></th>
+<th>R@10</th>
+<th>MRR</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>BGE-m3-ko</strong></td>
+<td>1024</td>
+<td>bge 기반</td>
+<td><strong>한국어 튜닝</strong></td>
+<td><strong>25</strong></td>
+<td><strong>37</strong></td>
+<td><strong>41</strong></td>
+<td><strong>48</strong></td>
+<td><strong>0.503</strong></td>
+</tr>
+<tr>
+<td>KURE-v1</td>
+<td>1024</td>
+<td>bge 기반</td>
+<td><strong>한국어 특화</strong></td>
+<td>22</td>
+<td>32</td>
+<td>37</td>
+<td>47</td>
+<td>0.457</td>
+</tr>
+<tr>
+<td>arctic-l-v2.0</td>
+<td>1024</td>
+<td>arctic</td>
+<td>다국어</td>
+<td>21</td>
+<td>31</td>
+<td>37</td>
+<td>43</td>
+<td>0.438</td>
+</tr>
+<tr>
+<td>bge-m3</td>
+<td>1024</td>
+<td>bge</td>
+<td>다국어</td>
+<td>20</td>
+<td>29</td>
+<td>35</td>
+<td>44</td>
+<td>0.415</td>
+</tr>
+<tr>
+<td>Qwen3-0.6B</td>
+<td>1024</td>
+<td>Qwen (디코더)</td>
+<td>다국어</td>
+<td>15</td>
+<td>22</td>
+<td>27</td>
+<td>36</td>
+<td>0.320</td>
+</tr>
+<tr>
+<td>nomic-v2-moe</td>
+<td>768</td>
+<td>nomic (MoE)</td>
+<td>다국어</td>
+<td>10</td>
+<td>21</td>
+<td>27</td>
+<td>33</td>
+<td>0.268</td>
+</tr>
+<tr>
+<td>e5-base</td>
+<td>768</td>
+<td>e5</td>
+<td>다국어 원본</td>
+<td>15</td>
+<td>18</td>
+<td>22</td>
+<td>29</td>
+<td>0.285</td>
+</tr>
+<tr>
+<td>e5-small-ko-v2</td>
+<td>384</td>
+<td>e5</td>
+<td>한국어 튜닝</td>
+<td>10</td>
+<td>15</td>
+<td>19</td>
+<td>28</td>
+<td>0.229</td>
+</tr>
+<tr>
+<td><strong>e5-large</strong></td>
+<td><strong>1024</strong></td>
+<td>e5</td>
+<td>다국어 원본</td>
+<td>12</td>
+<td>17</td>
+<td><strong>18</strong></td>
+<td><strong>21</strong></td>
+<td>0.231</td>
+</tr>
+</tbody></table>
+<h3 id="검색-품질--overlap-69문항-참고용--순위가-뒤집힌다">검색 품질 — <code>overlap</code> 69문항 (참고용 · 순위가 뒤집힌다)</h3>
+<table><thead><tr>
+<th>모델</th>
+<th>R@1</th>
+<th>R@3</th>
+<th><strong>R@5</strong></th>
+<th>R@10</th>
+<th>MRR</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>e5-small-ko-v2</strong> (384)</td>
+<td>46</td>
+<td>58</td>
+<td><strong>64</strong></td>
+<td><strong>66</strong></td>
+<td>0.770</td>
+</tr>
+<tr>
+<td>BGE-m3-ko</td>
+<td><strong>50</strong></td>
+<td><strong>59</strong></td>
+<td>61</td>
+<td>62</td>
+<td><strong>0.795</strong></td>
+</tr>
+<tr>
+<td>arctic-l-v2.0</td>
+<td>48</td>
+<td>58</td>
+<td>60</td>
+<td>61</td>
+<td>0.772</td>
+</tr>
+<tr>
+<td>nomic-v2-moe</td>
+<td>46</td>
+<td>57</td>
+<td>60</td>
+<td>64</td>
+<td>0.763</td>
+</tr>
+<tr>
+<td>KURE-v1</td>
+<td>47</td>
+<td>56</td>
+<td>58</td>
+<td>60</td>
+<td>0.754</td>
+</tr>
+<tr>
+<td>e5-base</td>
+<td>46</td>
+<td>56</td>
+<td>58</td>
+<td>60</td>
+<td>0.750</td>
+</tr>
+<tr>
+<td>Qwen3-0.6B</td>
+<td>42</td>
+<td>54</td>
+<td>58</td>
+<td>60</td>
+<td>0.698</td>
+</tr>
+<tr>
+<td>bge-m3</td>
+<td>46</td>
+<td>54</td>
+<td>55</td>
+<td>60</td>
+<td>0.734</td>
+</tr>
+<tr>
+<td>e5-large</td>
+<td>46</td>
+<td>54</td>
+<td>55</td>
+<td>56</td>
+<td>0.725</td>
+</tr>
+</tbody></table>
+<h3 id="검색-품질--전체-133문항">검색 품질 — 전체 133문항</h3>
+<table><thead><tr>
+<th>모델</th>
+<th>R@1</th>
+<th>R@3</th>
+<th><strong>R@5</strong></th>
+<th>R@10</th>
+<th>MRR</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>BGE-m3-ko</strong></td>
+<td><strong>75</strong></td>
+<td><strong>96</strong></td>
+<td><strong>102</strong></td>
+<td><strong>110</strong></td>
+<td><strong>0.655</strong></td>
+</tr>
+<tr>
+<td>arctic-l-v2.0</td>
+<td>69</td>
+<td>89</td>
+<td>97</td>
+<td>104</td>
+<td>0.612</td>
+</tr>
+<tr>
+<td>KURE-v1</td>
+<td>69</td>
+<td>88</td>
+<td>95</td>
+<td>107</td>
+<td>0.611</td>
+</tr>
+<tr>
+<td>bge-m3</td>
+<td>66</td>
+<td>83</td>
+<td>90</td>
+<td>104</td>
+<td>0.581</td>
+</tr>
+<tr>
+<td>nomic-v2-moe</td>
+<td>56</td>
+<td>78</td>
+<td>87</td>
+<td>97</td>
+<td>0.525</td>
+</tr>
+<tr>
+<td>Qwen3-0.6B</td>
+<td>57</td>
+<td>76</td>
+<td>85</td>
+<td>96</td>
+<td>0.516</td>
+</tr>
+<tr>
+<td>e5-small-ko-v2</td>
+<td>56</td>
+<td>73</td>
+<td>83</td>
+<td>94</td>
+<td>0.510</td>
+</tr>
+<tr>
+<td>e5-base</td>
+<td>61</td>
+<td>74</td>
+<td>80</td>
+<td>89</td>
+<td>0.526</td>
+</tr>
+<tr>
+<td>e5-large</td>
+<td>58</td>
+<td>71</td>
+<td>73</td>
+<td>77</td>
+<td>0.487</td>
+</tr>
+</tbody></table>
+<h3 id="개수-차이가-우연인지-검정했다">개수 차이가 우연인지 검정했다</h3>
+<p><strong>4차까지는 &quot;1문항 차이는 노이즈&quot; 라고 서술만 했다.</strong> 근거가 없었다.</p>
+<p>5차에서는 질의별 적중을 맞대어 <strong>엇갈린 질의만</strong> 세었다(McNemar).</p>
+<table><thead><tr>
+<th>대비</th>
+<th>A만 맞힘</th>
+<th>B만 맞힘</th>
+<th>엇갈림</th>
+<th>양측 p</th>
+<th>판정</th>
+</tr></thead><tbody>
+<tr>
+<td>BGE-m3-ko 대 KURE-v1 · 안겹침 64</td>
+<td>5</td>
+<td>1</td>
+<td>6</td>
+<td><strong>0.22</strong></td>
+<td>유의하지 않다</td>
+</tr>
+<tr>
+<td>BGE-m3-ko 대 KURE-v1 · 전체 133</td>
+<td>8</td>
+<td>1</td>
+<td>9</td>
+<td><strong>0.039</strong></td>
+<td><strong>유의하다</strong></td>
+</tr>
+<tr>
+<td>KURE-v1 대 bge-m3 · 안겹침 64</td>
+<td>7</td>
+<td>5</td>
+<td>12</td>
+<td><strong>0.77</strong></td>
+<td><strong>구별 불가</strong></td>
+</tr>
+</tbody></table>
+<p><strong>측정 전에 판정선을 정해 두었다.</strong> 결과를 보고 기준을 옮기지 않기 위해서다.</p>
+<table><thead><tr>
+<th>격차 (안겹침 64문항)</th>
+<th>판정</th>
+</tr></thead><tbody>
+<tr>
+<td>6문항 이상</td>
+<td>실제 차이로 본다</td>
+</tr>
+<tr>
+<td>4~5문항</td>
+<td>참고. 다른 기준과 함께 판단</td>
+</tr>
+<tr>
+<td>3문항 이하</td>
+<td>판별 불가</td>
+</tr>
+</tbody></table>
+<p><strong><code>BGE-m3-ko</code> 는 4문항 앞섰다 — 판정선을 넘지 못했다.</strong></p>
+<p>안겹침 64문항 중 <strong>6개만 엇갈렸고 58개는 <code>KURE-v1</code> 과 똑같이 움직였다.</strong></p>
+<p>그런데도 1위로 적는 근거는 **8개 지표 전부에서 1위이고 전체 질의로는 유의하기</p>
+<p>때문**이다(p=0.039).</p>
+<p><strong><code>KURE-v1</code> 과 <code>bge-m3</code> 는 구별되지 않는다(p=0.77).</strong> 37 대 35 로 벌어져 보이지만</p>
+<p>엇갈린 12문항이 7 대 5 로 거의 반반이다. **4차까지의 &quot;노이즈&quot; 판단이 맞았고,</p>
+<p>이제 근거가 있다.**</p>
+<h3 id="실행-비용--믿을-수-있는-값-3종">실행 비용 — 믿을 수 있는 값 3종</h3>
+<p><strong>모델 하나를 독립 프로세스에서 순차로 쟀다</strong>(<code>check_model_cost.py</code>).</p>
+<table><thead><tr>
+<th>모델</th>
+<th>dtype</th>
+<th>상한</th>
+<th>적재 초</th>
+<th>임베딩 초</th>
+<th><strong>100청크당 초</strong></th>
+<th>적재직후 MB</th>
+<th><strong>최고 MB</strong></th>
+</tr></thead><tbody>
+<tr>
+<td>KURE-v1</td>
+<td>float32</td>
+<td>8192</td>
+<td>6.9</td>
+<td>308.3</td>
+<td><strong>47.51</strong></td>
+<td>810</td>
+<td><strong>2,203</strong></td>
+</tr>
+<tr>
+<td><strong>BGE-m3-ko</strong></td>
+<td>float32</td>
+<td>8192</td>
+<td>7.4</td>
+<td>371.2</td>
+<td><strong>57.19</strong></td>
+<td>809</td>
+<td><strong>2,203</strong></td>
+</tr>
+<tr>
+<td>Qwen3-0.6B</td>
+<td>float32</td>
+<td>1024</td>
+<td>8.0</td>
+<td>763.9</td>
+<td><strong>117.70</strong></td>
+<td>3,951</td>
+<td><strong>4,801</strong></td>
+</tr>
+</tbody></table>
+<p><strong>이 표가 도구를 검증한다.</strong> <code>BGE-m3-ko</code> 와 <code>KURE-v1</code> 은 같은 <code>bge-m3</code> 기반으로</p>
+<p>구조가 같고, 메모리가 <strong>809 대 810 · 2,203 대 2,203</strong> 으로 일치했다.</p>
+<p><strong><code>적재직후</code> 값은 그대로 읽으면 안 된다.</strong> <code>BGE-m3-ko</code> 가 적재직후 809MB 인데</p>
+<p>가중치만 2,166MB 다. **safetensors 가 파일을 메모리에 매핑(mmap)만 해둔 상태라</p>
+<p>아직 읽지 않은 몫이 빠져 있다.** 임베딩이 시작되면 전 구간을 읽어 2,203MB 가</p>
+<p>된다. <strong>비용 근거로 쓸 값은 &quot;최고&quot; 다.</strong></p>
+<h3 id="실행-비용--참고-값-6종-신뢰도-낮음">실행 비용 — 참고 값 6종 (신뢰도 낮음)</h3>
+<p><code>run_eval.py</code> 가 잰 값이고 <strong>같은 자가 아니다.</strong></p>
+<table><thead><tr>
+<th>모델</th>
+<th>차원</th>
+<th>적재 초</th>
+<th>임베딩 초</th>
+<th>100청크당 초</th>
+<th>메모리 MB</th>
+</tr></thead><tbody>
+<tr>
+<td>bge-m3</td>
+<td>1024</td>
+<td>21.8</td>
+<td>395.1</td>
+<td>60.88</td>
+<td>1,986</td>
+</tr>
+<tr>
+<td>arctic-l-v2.0</td>
+<td>1024</td>
+<td>7.9</td>
+<td>372.6</td>
+<td>57.41</td>
+<td>1,473</td>
+</tr>
+<tr>
+<td>e5-large</td>
+<td>1024</td>
+<td>6.8</td>
+<td>374.9</td>
+<td>57.77</td>
+<td>1,481</td>
+</tr>
+<tr>
+<td>nomic-v2-moe</td>
+<td>768</td>
+<td>13.5</td>
+<td>167.7</td>
+<td>25.84</td>
+<td>2,091</td>
+</tr>
+<tr>
+<td>e5-base</td>
+<td>768</td>
+<td>7.3</td>
+<td>116.3</td>
+<td>17.92</td>
+<td>671</td>
+</tr>
+<tr>
+<td><strong>e5-small-ko-v2</strong></td>
+<td>384</td>
+<td>6.6</td>
+<td>35.1</td>
+<td><strong>5.41</strong></td>
+<td><strong>430</strong></td>
+</tr>
+</tbody></table>
+<p><strong>이 표의 메모리 열은 틀렸다.</strong> 10절에 증거를 적었다.</p>
+<p><strong>속도로 순위를 매기지 않는다.</strong> <code>KURE-v1</code> 을 세 번 재서 **47.51 · 56.11 ·</p>
+<p>77.67초**가 나왔다. 같은 모델·같은 코퍼스다. 반면 <code>BGE-m3-ko</code> 는 57.19 · 57.27 ·</p>
+<p>57.36 으로 붙어 있다. <strong>왜 한쪽만 흔들리는지 모른다.</strong></p>
+<p>확실한 것은 하나다 — <strong><code>Qwen3</code> 가 다른 1024 후보보다 약 2~2.5배 느리다.</strong></p>
+<p>이 격차는 편차를 넘는다.</p>
+<h3 id="정밀도를-놓쳐-한-모델을-잘못-판정했다">정밀도를 놓쳐 한 모델을 잘못 판정했다</h3>
+<p><strong><code>Qwen3</code> 를 처음 잴 때 <code>bfloat16</code> 으로 올라왔고 나머지는 <code>float32</code> 였다.</strong></p>
+<table><thead><tr>
+<th>관측</th>
+<th>그때 쓴 해석</th>
+</tr></thead><tbody>
+<tr>
+<td>배치 8개당 약 4분 · 649청크 추정 5시간 40분</td>
+<td>&quot;나머지보다 약 70배 느리다. CPU 배포 전제로 제외&quot;</td>
+</tr>
+</tbody></table>
+<p><strong>틀렸다.</strong> 정밀도를 맞추고 다시 재니 이렇게 나왔다.</p>
+<table><thead><tr>
+<th></th>
+<th>bfloat16</th>
+<th><strong>float32</strong></th>
+<th>배수</th>
+</tr></thead><tbody>
+<tr>
+<td>100청크당</td>
+<td>약 3,000초</td>
+<td><strong>117.70초</strong></td>
+<td><strong>약 26배</strong></td>
+</tr>
+<tr>
+<td>649청크 전체</td>
+<td>추정 5시간 40분</td>
+<td><strong>757~764초 (약 13분)</strong></td>
+<td>—</td>
+</tr>
+</tbody></table>
+<p><strong>모델을 바꾸지도, 청크를 줄이지도 않았다.</strong> 파라미터 수는 <strong>596M 대 568M</strong> 로</p>
+<p>거의 같으므로 애초에 70배가 날 이유가 없었다.</p>
+<p><code>bfloat16</code> 은 대부분의 CPU 에 하드웨어 가속이 없어 느린 대체 경로로 돈다.</p>
+<p><strong>그래서 <code>Qwen3</code> 의 탈락 사유가 바뀌었다.</strong></p>
+<table><thead><tr>
+<th></th>
+<th>처음</th>
+<th>최종</th>
+</tr></thead><tbody>
+<tr>
+<td>탈락 사유</td>
+<td>CPU 에서 측정 불가 (속도)</td>
+<td><strong>검색 품질이 낮다</strong></td>
+</tr>
+<tr>
+<td>근거</td>
+<td><code>bfloat16</code> 으로 잰 값 — <strong>무효</strong></td>
+<td>안겹침 27 대 41 · 전체 85 대 102</td>
+</tr>
+</tbody></table>
+<p><strong>처음 근거로 제출했다면 검토에서 반박당했을 것이다.</strong> &quot;정밀도를 안 맞췄는데요&quot;</p>
+<p>한 마디로 무너진다. 지금은 같은 조건에서 나온 품질 차이이므로 반박할 지점이 없다.</p>
+<h4 id="기각한-가설--산술이-맞아떨어졌는데-전제가-틀렸다">기각한 가설 — 산술이 맞아떨어졌는데 전제가 틀렸다</h4>
+<p>원인을 찾을 때 <code>max_seq_length</code> 가 32,768 이라 배치를 그 길이로 채운다고 봤다.</p>
+<p><strong>계산이 맞아떨어졌다</strong> — 관측 CPU 시간을 32,768토큰 기준으로 나누면 현실적인</p>
+<p>처리량이 나왔다. 400토큰 기준으로는 코어당 1 GFLOPS 라는 불가능한 값이었다.</p>
+<p><strong>그런데 실제 패딩 모양을 찍어보니 <code>(8, 398)</code> 이었다.</strong> 정상이다. 가설은 기각됐다.</p>
+<blockquote>
+<p><strong>계산이 맞는 것과 전제가 맞는 것은 다르다.</strong></p>
+</blockquote>
+<p>이번 시험에서 같은 방식으로 두 번 틀렸다 — 토큰 잘림 때도, 패딩 때도</p>
+<p>그럴듯한 근거를 먼저 만들고 확인을 나중에 했다.</p>
+<h3 id="재현성이-확인됐다">재현성이 확인됐다</h3>
+<p>같은 코퍼스·질의로 두 번 돌렸더니 품질 수치가 <strong>완전히 같았다.</strong></p>
+<table><thead><tr>
+<th>모델</th>
+<th>8모델 실행</th>
+<th>3모델 실행</th>
+</tr></thead><tbody>
+<tr>
+<td><code>KURE-v1</code> 안겹침 R@5</td>
+<td>0.578</td>
+<td><strong>0.578</strong></td>
+</tr>
+<tr>
+<td><code>BGE-m3-ko</code> 안겹침 R@5</td>
+<td>0.641</td>
+<td><strong>0.641</strong></td>
+</tr>
+</tbody></table>
+<p><strong>품질은 결정적이고 비용은 아니다.</strong> 모델 간 품질 격차를 실행 잡음으로 의심할</p>
+<p>필요가 없다.</p>
+<hr>
+<h2 id="8-결과가-말하는-것--주장과-근거">8. 결과가 말하는 것 — 주장과 근거</h2>
+<h3 id="81-pgvector-컬럼은-vector1024--확정">8.1 <code>pgvector</code> 컬럼은 <code>vector(1024)</code> — 확정</h3>
+<table><thead><tr>
+<th>근거</th>
+<th>수치</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>상위 4위가 모두 1024차원이다</strong></td>
+<td><strong>41 · 37 · 37 · 35</strong></td>
+</tr>
+<tr>
+<td>768 최고 · 384</td>
+<td><strong>27</strong> (<code>nomic</code>) · <strong>19</strong> (<code>e5-small-ko-v2</code>)</td>
+</tr>
+<tr>
+<td>1024 대 384 격차</td>
+<td><strong>41 대 19 — 22문항</strong></td>
+</tr>
+<tr>
+<td>저장 용량 손실</td>
+<td>청크당 2.5KB. 649청크에 약 1.6MB, 문서 100건 규모(6,500청크)에 약 16MB. 무시 가능</td>
+</tr>
+<tr>
+<td>교체 자유도</td>
+<td>1024면 <strong>다섯 모델</strong>(<code>BGE-m3-ko</code>·<code>KURE-v1</code>·<code>arctic</code>·<code>bge-m3</code>·<code>Qwen3</code>)을 재임베딩 없이 바꿔 끼운다</td>
+</tr>
+</tbody></table>
+<p><strong>이 결정으로 pgvector 마이그레이션(리비전 <code>0011</code>)을 쓸 수 있다.</strong></p>
+<h4 id="실측--차원이-높으면-성능이-높다-는-성립하지-않는다">실측 — &quot;차원이 높으면 성능이 높다&quot; 는 성립하지 않는다</h4>
+<p>같은 <code>e5</code> 계열 세 점으로 확인했다. <strong>계열을 고정하고 차원만 바꾼 비교다.</strong></p>
+<table><thead><tr>
+<th>차원</th>
+<th>모델</th>
+<th>계열</th>
+<th><code>no_overlap</code> R@5</th>
+<th>R@10</th>
+</tr></thead><tbody>
+<tr>
+<td>384</td>
+<td><code>e5-small-ko-v2</code></td>
+<td>e5 · <strong>한국어 튜닝</strong></td>
+<td>19 / 64</td>
+<td>28</td>
+</tr>
+<tr>
+<td><strong>768</strong></td>
+<td><code>e5-base</code></td>
+<td>e5 · 다국어 원본</td>
+<td><strong>22 / 64</strong></td>
+<td><strong>29</strong></td>
+</tr>
+<tr>
+<td><strong>1024</strong></td>
+<td><strong><code>e5-large</code></strong></td>
+<td>e5 · 다국어 원본</td>
+<td><strong>18 / 64</strong></td>
+<td><strong>21</strong></td>
+</tr>
+</tbody></table>
+<p><strong>차원을 768 에서 1024 로 올렸는데 점수가 내려갔다.</strong></p>
+<p><code>e5-large</code> 는 1024차원인데 <strong>9종 중 최하위</strong>이고 384차원 모델(19)보다도 낮다.</p>
+<h4 id="8월-12일-판의-서술-하나를-철회한다">8월 12일 판의 서술 하나를 철회한다</h4>
+<p><strong>&quot;768 이 384 보다 낮다&quot; 는 서술을 철회한다.</strong> 표본을 키우니 뒤집혔다.</p>
+<table><thead><tr>
+<th></th>
+<th>4차 (질의 34개)</th>
+<th><strong>5차 (질의 64개)</strong></th>
+</tr></thead><tbody>
+<tr>
+<td>384 (<code>e5-small-ko-v2</code>)</td>
+<td><strong>14</strong></td>
+<td>19</td>
+</tr>
+<tr>
+<td>768 (<code>e5-base</code>)</td>
+<td>13</td>
+<td><strong>22</strong></td>
+</tr>
+<tr>
+<td>R@10 · 384 대 768</td>
+<td><strong>24 대 18</strong> (384 우세)</td>
+<td><strong>28 대 29</strong> (768 우세)</td>
+</tr>
+<tr>
+<td>그때 쓴 결론</td>
+<td>&quot;한국어 튜닝이 차원 2배보다 크다&quot;</td>
+<td><strong>성립하지 않는다</strong></td>
+</tr>
+</tbody></table>
+<p><strong>4차에서는 1문항 차이(14 대 13)를 근거로 결론을 썼다.</strong> 그때도 &quot;노이즈 범위&quot;</p>
+<p>라고 적었으면서 &quot;차원 2배보다 크다&quot; 는 서술을 함께 넣었다. **모순이었고,</p>
+<p>표본을 키우니 반대 방향으로 3문항이 됐다.**</p>
+<p><strong>교훈은 이것이다 — 1~3문항 차이로 결론을 쓰지 않는다.</strong></p>
+<p>5차에서 판정선(6문항)을 미리 정한 이유가 여기 있다.</p>
+<h4 id="그래도-차원-단조성은-여전히-깨져-있다">그래도 차원 단조성은 여전히 깨져 있다</h4>
+<p>철회한 것은 &quot;384 &gt; 768&quot; 이고, <strong>&quot;차원이 성능을 보장한다&quot; 는 반박은 유지된다.</strong></p>
+<p>깨지는 지점만 바뀌었다.</p>
+<pre><code>4차   384(14) &gt; 768(13) &lt; 1024(23)      깨진 곳: 384~768 구간
+5차   384(19) &lt; 768(22) &gt; 1024(18)      깨진 곳: 768~1024 구간</code></pre>
+<p><strong>두 회차 모두 단조롭지 않다.</strong> 그리고 5차의 이상값 <code>e5-large</code> 는 9종 전체</p>
+<p>최하위라 4차의 1문항보다 훨씬 뚜렷하다.</p>
+<h4 id="e5-large-이상-현상--재현되지만-원인은-모른다"><code>e5-large</code> 이상 현상 — 재현되지만 원인은 모른다</h4>
+<p>545청크에서도 그랬고 649청크에서도 그렇다. 상세 결과에 단서는 있다.</p>
+<p>질의가 달라도 같은 청크 묶음이 반복해서 1위로 올라온다.</p>
+<pre><code>e5-large / 안겹침 / top5 = 374,300,273,144,186
+e5-large / 안겹침 / top5 = 374,300,186,144,408
+e5-large / 안겹침 / top5 = 300,374,273,186,144</code></pre>
+<p><strong>이것은 관찰이고 원인이 아니다.</strong> 세운 가설 둘을 모두 기각했다.</p>
+<table><thead><tr>
+<th>가설</th>
+<th>결과</th>
+</tr></thead><tbody>
+<tr>
+<td>청크가 512토큰을 넘어 조용히 잘렸다</td>
+<td><strong>기각.</strong> 512토큰 초과 청크가 0개다 (8.8절)</td>
+</tr>
+<tr>
+<td>특정 청크가 허브처럼 모든 질의를 흡수한다</td>
+<td><strong>기각.</strong> 다른 모델에서는 같은 현상이 안 나타난다</td>
+</tr>
+</tbody></table>
+<h4 id="세-요인이-섞여-있다">세 요인이 섞여 있다</h4>
+<table><thead><tr>
+<th>요인</th>
+<th>효과 크기</th>
+<th>근거</th>
+<th>숫자</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>모델과 학습</strong></td>
+<td><strong>가장 크다</strong></td>
+<td>같은 1024 안에서 갈린다</td>
+<td>18 · 35 · 37 · 37 · 41 (<strong>23문항</strong>)</td>
+</tr>
+<tr>
+<td>차원 자체</td>
+<td>있으나 단조롭지 않다</td>
+<td>상위 4위가 1024지만 최하위도 1024다</td>
+<td>768 은 27·22, 384 는 19</td>
+</tr>
+<tr>
+<td>한국어 튜닝</td>
+<td><strong>모델에 따라 다르다</strong></td>
+<td><code>BGE-m3-ko</code> 는 원본 +6, <code>KURE-v1</code> 은 구별 불가</td>
+<td>41 · 37 대 35</td>
+</tr>
+</tbody></table>
+<p><strong>차원은 상한만 정하고 실제 성능은 모델과 학습이 정한다.</strong></p>
+<blockquote>
+<p>흔히 보는 &quot;차원 표&quot;(384 경량 · 768 표준 · 1024 고성능 · 3072 최대)는
+<strong>같은 계열 안에서도 성립하지 않았다.</strong></p>
+</blockquote>
+<h4 id="그래서-컬럼-차원을-1024-로-두는-근거가-둘이다">그래서 컬럼 차원을 1024 로 두는 근거가 둘이다</h4>
+<table><thead><tr>
+<th>차원</th>
+<th>실측 최고</th>
+<th>지원 모델</th>
+</tr></thead><tbody>
+<tr>
+<td>384</td>
+<td>19 / 64</td>
+<td>로컬 소형</td>
+</tr>
+<tr>
+<td>768</td>
+<td><strong>27 / 64</strong> (<code>nomic</code>)</td>
+<td>Gemini · <code>e5-base</code> · <code>nomic</code></td>
+</tr>
+<tr>
+<td><strong>1024</strong></td>
+<td><strong>41 / 64</strong></td>
+<td><strong>로컬 한국어 5종 · Voyage · OpenAI large · Gemini(임의)</strong></td>
+</tr>
+</tbody></table>
+<p><strong>8월 12일 판은 &quot;768 은 성능이 384 보다도 낮으니 볼 이유가 없다&quot; 고 적었다.</strong></p>
+<p>그 근거는 철회한다. <strong>대신 다른 근거가 남는다</strong> — 768 최고값(27)이 1024</p>
+<p>상위권(41·37·37·35)에 크게 못 미치고, <strong>Voyage 계열에 768 이 아예 없다.</strong></p>
+<h4 id="768-을-재봐야-하는-이유--gemini-권장-차원이-768-이다">768 을 재봐야 하는 이유 — Gemini 권장 차원이 768 이다</h4>
+<p>세현이 제안한 후보다. 확인한 사양은 다음과 같다.</p>
+<table><thead><tr>
+<th>항목</th>
+<th>내용</th>
+</tr></thead><tbody>
+<tr>
+<td>모델</td>
+<td><code>gemini-embedding-2</code> (Preview) · <code>gemini-embedding-001</code> (GA)</td>
+</tr>
+<tr>
+<td>기본 차원</td>
+<td><strong>3072</strong></td>
+</tr>
+<tr>
+<td>차원 조절</td>
+<td><code>outputDimensionality</code> <strong>128~3072 임의</strong> · <strong>권장 768 · 1536 · 3072</strong></td>
+</tr>
+<tr>
+<td>입력</td>
+<td>텍스트 8,192 토큰. Embedding 2 는 이미지 · 오디오 · 비디오 · <strong>PDF</strong> 도 받는다</td>
+</tr>
+<tr>
+<td>상태</td>
+<td>Embedding 2 는 <strong>Preview</strong> · <code>001</code> 은 GA</td>
+</tr>
+<tr>
+<td>가격</td>
+<td>텍스트 100만 토큰당 약 0.15~0.20 달러</td>
+</tr>
+</tbody></table>
+<p>출처 — <a href="https://deepmind.google/models/gemini/embedding/">Gemini Embedding 2 (Google DeepMind)</a> ·</p>
+<p><a href="https://ai.google.dev/gemini-api/docs/models/gemini-embedding-2-preview">Gemini Embedding 2 Preview 모델 문서</a> ·</p>
+<p><a href="https://developers.googleblog.com/gemini-embedding-available-gemini-api/">Gemini Embedding 가격 안내</a></p>
+<p>(내용은 라이선스 준수를 위해 요약·재구성했다)</p>
+<p>**권장 차원이 768 · 1536 · 3072 다. 1024 는 권장 목록에 없다 — 다만 쓸 수는</p>
+<p>있다.** 앞선 판에서 이것을 &quot;1024 가 없다&quot; 로 잘못 적었다. 정정은 아래에 있다.</p>
+<p><code>pgvector</code> 는 차원이 정확히 일치해야 하므로 컬럼 차원과 모델이 낼 수 있는</p>
+<p>차원이 맞아야 한다.</p>
+<h4 id="후보-넷의-지원-차원을-모아보면-1024-가-가장-넓다">후보 넷의 지원 차원을 모아보면 1024 가 가장 넓다</h4>
+<p>세현이 언급한 API 모델을 확인했다. **아래는 2026-08-12 에 제공자 문서를 다시</p>
+<p>읽고 고친 판이다. 앞선 판에 두 곳 틀린 것이 있었다 — 그 정정은 표 다음에 적었다.**</p>
+<table><thead><tr>
+<th>모델</th>
+<th>지원 차원</th>
+<th>최대 입력</th>
+<th><strong>1024 되나</strong></th>
+</tr></thead><tbody>
+<tr>
+<td><code>KURE-v1</code> · <code>bge-m3</code> (로컬)</td>
+<td>1024 고정</td>
+<td>미실측</td>
+<td><strong>기본값</strong></td>
+</tr>
+<tr>
+<td><strong><code>voyage-4</code> · <code>4-lite</code> · <code>4-large</code></strong></td>
+<td>256 · 512 · <strong>1024(기본)</strong> · 2048</td>
+<td><strong>32,000 토큰</strong></td>
+<td><strong>기본값</strong></td>
+</tr>
+<tr>
+<td><strong>OpenAI <code>text-embedding-3-large</code></strong></td>
+<td>256~3072 임의 지정 (기본 3072)</td>
+<td>8,192 토큰</td>
+<td><strong>공식 지원</strong></td>
+</tr>
+<tr>
+<td>OpenAI <code>text-embedding-3-small</code></td>
+<td>512 · 1536</td>
+<td>8,192 토큰</td>
+<td>안 됨</td>
+</tr>
+<tr>
+<td><strong><code>gemini-embedding-001</code></strong></td>
+<td><strong>128~3072 임의</strong> (권장 768 · 1536 · 3072)</td>
+<td>8,192 토큰</td>
+<td><strong>된다</strong> (권장 밖)</td>
+</tr>
+<tr>
+<td><code>gemini-embedding-2</code></td>
+<td>3072 기본 · 128~3072 축소</td>
+<td>8,192 + 이미지·영상·음성</td>
+<td>된다 (권장 밖)</td>
+</tr>
+</tbody></table>
+<p>출처 — <a href="https://docs.voyageai.com/reference/embeddings-api-1">Voyage 임베딩 API</a> ·</p>
+<p><a href="https://docs.voyageai.com/docs/pricing">Voyage 가격</a> ·</p>
+<p><a href="https://developers.openai.com/api/docs/guides/embeddings">OpenAI 임베딩 가이드</a> ·</p>
+<p><a href="https://ai.google.dev/gemini-api/docs/embeddings">Gemini 임베딩</a> ·</p>
+<p><a href="https://developers.googleblog.com/gemini-embedding-available-gemini-api/">Gemini Embedding GA 공지</a></p>
+<p>(내용은 라이선스 준수를 위해 요약·재구성했다)</p>
+<p>##### 정정 둘 — 앞선 판이 틀렸다</p>
+<table><thead><tr>
+<th></th>
+<th>앞선 판</th>
+<th>확인한 사실</th>
+</tr></thead><tbody>
+<tr>
+<td>1</td>
+<td>Gemini 는 <strong>768 · 1536 · 3072 만</strong> 되고 1024 는 <strong>안 된다</strong></td>
+<td><code>outputDimensionality</code> 로 <strong>128~3072 를 임의 지정할 수 있다.</strong> 권장이 768 · 1536 · 3072 인 것이고 제약이 아니다</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Voyage-3 · 3.5 가 최신이다</td>
+<td><strong><code>voyage-4</code> 계열이 나왔다.</strong> 차원은 같고(256·512·1024·2048) 컨텍스트도 32K 다</td>
+</tr>
+</tbody></table>
+<p><strong>1번은 그냥 잘못 읽은 것이다.</strong> &quot;권장 차원&quot; 을 &quot;지원 차원&quot; 으로 읽었다.</p>
+<p>다만 <strong>1024 를 쓰려면 대가가 있다.</strong> Gemini 는 3072 벡터의 <strong>뒤를 잘라내는</strong></p>
+<p>방식이라 잘린 벡터는 <strong>길이가 1이 아니다.</strong> 코사인 유사도를 내적으로 계산하는</p>
+<p>우리 방식에서는 <strong>직접 정규화해야 점수가 맞다.</strong> 권장 차원에서는 제공자가</p>
+<p>정규화된 벡터를 준다. 이 처리는 <code>도구/embed-test/api_encoders.py</code> 에 넣어 뒀다.</p>
+<p><strong>컬럼 차원별로 쓸 수 있는 것을 세면 이렇다.</strong></p>
+<table><thead><tr>
+<th>컬럼 차원</th>
+<th>쓸 수 있는 것</th>
+<th>잃는 것</th>
+</tr></thead><tbody>
+<tr>
+<td>768</td>
+<td>Gemini(권장) · OpenAI large(임의) · <code>e5-base</code> 계열</td>
+<td><strong>Voyage 전부</strong>(768 이 없다) · <strong>로컬 한국어 1024 모델 전부</strong></td>
+</tr>
+<tr>
+<td><strong>1024</strong></td>
+<td><strong>넷 다 된다</strong> — 로컬 한국어 · Voyage(기본) · OpenAI large(임의) · Gemini(임의)</td>
+<td>없다</td>
+</tr>
+<tr>
+<td>1536</td>
+<td>Gemini(권장) · OpenAI small · OpenAI large(임의)</td>
+<td>로컬 전부 · Voyage</td>
+</tr>
+<tr>
+<td>3072</td>
+<td>Gemini(권장) · OpenAI large</td>
+<td>로컬 전부 · Voyage · 저장 3배</td>
+</tr>
+</tbody></table>
+<p><strong>정정 1번은 1024 의 근거를 약화시키지 않고 오히려 강화한다.</strong></p>
+<p>전에는 &quot;넷 중 셋을 살린다&quot; 였는데 이제 <strong>&quot;넷 다 된다&quot;</strong> 다.</p>
+<p>그리고 768 은 여전히 나쁘다 — <strong>Voyage 계열에 768 이 아예 없기 때문이다.</strong></p>
+<p><strong>앞서 &quot;768 이 더 유연할 수 있다&quot; 고 적었던 판단을 뒤집는다.</strong></p>
+<p>Gemini 만 보고 판단하고 Voyage · OpenAI 의 지원 차원을 확인하지 않은 탓이었다.</p>
+<p><strong><code>vector(1024)</code> 를 유지한다.</strong></p>
+<p>그럼에도 768 을 재는 일은 여전히 필요하다. 이유가 바뀌었다.</p>
+<table><thead><tr>
+<th></th>
+<th>전에 생각한 이유</th>
+<th>실제 이유</th>
+</tr></thead><tbody>
+<tr>
+<td>왜 재나</td>
+<td>컬럼 차원을 768 로 바꿀지 판단</td>
+<td><strong>차원과 모델 크기를 분리</strong> (위 &quot;주의&quot; 항)</td>
+</tr>
+<tr>
+<td>결과가 바꾸는 것</td>
+<td>컬럼 타입</td>
+<td><strong>&quot;차원이 원인&quot; 이라는 주장의 근거</strong></td>
+</tr>
+</tbody></table>
+<p>측정 설계는 11.3절에 있다.</p>
+<h4 id="api-모델을-쓸-때-반드시-짚어야-할-것">API 모델을 쓸 때 반드시 짚어야 할 것</h4>
+<p><strong>임베딩은 요약과 다르다. 문서의 100% 가 외부로 나간다.</strong></p>
+<table><thead><tr>
+<th></th>
+<th>요약 · 분류 (LLM)</th>
+<th>임베딩</th>
+</tr></thead><tbody>
+<tr>
+<td>외부로 보내는 것</td>
+<td>필요할 때 그 문서만</td>
+<td><strong>모든 문서의 모든 조각</strong></td>
+</tr>
+<tr>
+<td>왜</td>
+<td>사용자가 요청할 때 1회</td>
+<td>검색하려면 전부 색인해야 한다</td>
+</tr>
+</tbody></table>
+<p>우리 도메인은 공공 SI 용역이고 고객 산출내역서 · 계약서를 다룬다.</p>
+<p>나라장터 공고는 공개 정보지만 **고객 문서 전량을 외부 API 로 보내는 것은</p>
+<p>계약상 문제가 될 수 있다.** 비기능 요구에 &quot;타 프로젝트 데이터 접근 차단&quot; 이</p>
+<p>있는 것과 같은 성격의 관심사다.</p>
+<p><strong>비용은 문제가 아니다.</strong> 문서 20건 × 45,000자면 100만~135만 토큰이다.</p>
+<table><thead><tr>
+<th>제공자</th>
+<th>문서 20건</th>
+<th>문서 1,000건</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>Voyage <code>voyage-4</code> 계열</strong></td>
+<td><strong>무료</strong> — 계정당 첫 2억 토큰이 무료다</td>
+<td><strong>무료</strong> (약 1,000만 토큰)</td>
+</tr>
+<tr>
+<td>OpenAI <code>3-large</code></td>
+<td>약 0.15달러</td>
+<td>약 1.30달러</td>
+</tr>
+<tr>
+<td>Gemini</td>
+<td>약 0.2달러</td>
+<td>약 2달러</td>
+</tr>
+</tbody></table>
+<p><strong>Voyage 무료 구간은 문서 약 2만 건까지 덮는다.</strong> 우리 규모는 그 안이다.</p>
+<p><strong>판단해야 할 것은 비용이 아니라 데이터가 나가도 되는지다.</strong></p>
+<p>그리고 로컬에도 비용이 있다 — <code>torch</code> 와 모델 파일이 들어오는 배포 무게다</p>
+<p>(13.8절). 이 결과서가 정할 사항이 아니므로 13절 안건으로 올린다.</p>
+<h3 id="82-기본-모델은-bge-m3-ko--확정">8.2 기본 모델은 <code>BGE-m3-ko</code> — 확정</h3>
+<p><strong>8월 12일 판은 기본 모델을 <code>KURE-v1</code> 로 두고 &quot;확정 보류&quot; 라고 적었다.</strong></p>
+<p>보류 근거는 &quot;<code>no_overlap</code> 34문항에서 <code>bge-m3</code> 와 1문항 차이라 노이즈 범위&quot; 였고,</p>
+<p>해법으로 &quot;평가셋을 키운 뒤에 다시 볼 일&quot; 이라고 적었다. <strong>그대로 했다.</strong></p>
+<table><thead><tr>
+<th></th>
+<th>8월 12일 판</th>
+<th><strong>5차</strong></th>
+</tr></thead><tbody>
+<tr>
+<td>안겹침 질의</td>
+<td>34</td>
+<td><strong>64</strong></td>
+</tr>
+<tr>
+<td>후보</td>
+<td>5종</td>
+<td><strong>9종</strong></td>
+</tr>
+<tr>
+<td>기본 모델</td>
+<td><code>KURE-v1</code> (보류)</td>
+<td><strong><code>BGE-m3-ko</code> (확정)</strong></td>
+</tr>
+</tbody></table>
+<h4 id="5차-실측--bge-m3-ko-가-8개-지표-전부에서-1위다">5차 실측 — <code>BGE-m3-ko</code> 가 8개 지표 전부에서 1위다</h4>
+<table><thead><tr>
+<th><code>no_overlap</code> 지표</th>
+<th><strong>BGE-m3-ko</strong></th>
+<th>KURE-v1</th>
+<th>arctic</th>
+<th>bge-m3</th>
+<th>1위 격차</th>
+</tr></thead><tbody>
+<tr>
+<td>R@1</td>
+<td><strong>25</strong></td>
+<td>22</td>
+<td>21</td>
+<td>20</td>
+<td>3</td>
+</tr>
+<tr>
+<td>R@3</td>
+<td><strong>37</strong></td>
+<td>32</td>
+<td>31</td>
+<td>29</td>
+<td>5</td>
+</tr>
+<tr>
+<td><strong>R@5</strong></td>
+<td><strong>41</strong></td>
+<td>37</td>
+<td>37</td>
+<td>35</td>
+<td><strong>4</strong></td>
+</tr>
+<tr>
+<td>R@10</td>
+<td><strong>48</strong></td>
+<td>47</td>
+<td>43</td>
+<td>44</td>
+<td>1</td>
+</tr>
+<tr>
+<td>MRR</td>
+<td><strong>0.503</strong></td>
+<td>0.457</td>
+<td>0.438</td>
+<td>0.415</td>
+<td>0.046</td>
+</tr>
+</tbody></table>
+<p><code>overlap</code> 과 전체에서도 1위다.</p>
+<table><thead><tr>
+<th>지표</th>
+<th><strong>BGE-m3-ko</strong></th>
+<th>2위</th>
+</tr></thead><tbody>
+<tr>
+<td><code>overlap</code> R@1</td>
+<td><strong>50</strong></td>
+<td>arctic 48</td>
+</tr>
+<tr>
+<td><code>overlap</code> MRR</td>
+<td><strong>0.795</strong></td>
+<td>arctic 0.772</td>
+</tr>
+<tr>
+<td>전체 R@5</td>
+<td><strong>102</strong></td>
+<td>arctic 97</td>
+</tr>
+<tr>
+<td>전체 MRR</td>
+<td><strong>0.655</strong></td>
+<td>arctic 0.612</td>
+</tr>
+</tbody></table>
+<p><strong>8월 12일 판에서는 <code>KURE</code> 가 <code>overlap</code> R@1 에서 <code>bge-m3</code> 에 뒤졌다.</strong></p>
+<p>지금은 1위 모델이 모든 칸에서 1위다. **지표 역전이 없다는 것이 이번 판정의</p>
+<p>근거다.**</p>
+<h4 id="근거의-한계를-먼저-적는다">근거의 한계를 먼저 적는다</h4>
+<p><strong>미리 정해둔 판정선을 넘지 못했다.</strong> 안겹침 64문항에서 6문항 이상이면</p>
+<p>실제 차이, 3문항 이하면 판별 불가로 정해두었다.</p>
+<p><strong><code>BGE-m3-ko</code> 는 <code>KURE-v1</code> 을 4문항 앞섰다. &quot;참고&quot; 구간이다.</strong></p>
+<table><thead><tr>
+<th>대비</th>
+<th>엇갈림</th>
+<th>양측 p</th>
+<th>판정</th>
+</tr></thead><tbody>
+<tr>
+<td>안겹침 64</td>
+<td>6 (5 대 1)</td>
+<td><strong>0.22</strong></td>
+<td>유의하지 않다</td>
+</tr>
+<tr>
+<td>전체 133</td>
+<td>9 (8 대 1)</td>
+<td><strong>0.039</strong></td>
+<td><strong>유의하다</strong></td>
+</tr>
+</tbody></table>
+<p><strong>안겹침 64문항 중 6개만 엇갈렸고 58개는 <code>KURE-v1</code> 과 똑같이 움직였다.</strong></p>
+<p>그런데도 1위로 적는 근거는 **8개 지표 전부에서 1위이고 전체 질의로는 유의하기</p>
+<p>때문**이다. 한 지표만 튄 것이 아니라 한쪽으로만 쏠려 있다(8 대 1).</p>
+<h4 id="한국어-특화가-효과-있다-는-서술을-철회한다">&quot;한국어 특화가 효과 있다&quot; 는 서술을 철회한다</h4>
+<p>8월 12일 판은 이렇게 적었다.</p>
+<blockquote>
+<p>KURE 가 다국어 원본을 4문항 앞섰다. <strong>한국어 특화가 효과 있다는 것이
+실측으로 확인됐다.</strong></p>
+</blockquote>
+<p><strong>5차에서 성립하지 않았다.</strong> 차원을 1024 로 고정하고 계열만 바꿔 다시 봤다.</p>
+<table><thead><tr>
+<th>모델</th>
+<th>성격</th>
+<th>안겹침 R@5</th>
+</tr></thead><tbody>
+<tr>
+<td><strong><code>BGE-m3-ko</code></strong></td>
+<td>bge-m3 <strong>한국어 튜닝</strong></td>
+<td><strong>41</strong></td>
+</tr>
+<tr>
+<td><code>KURE-v1</code></td>
+<td>bge-m3 <strong>한국어 특화</strong></td>
+<td>37</td>
+</tr>
+<tr>
+<td><strong><code>arctic-l-v2.0</code></strong></td>
+<td><strong>다국어</strong> 최신</td>
+<td><strong>37</strong></td>
+</tr>
+<tr>
+<td><code>bge-m3</code></td>
+<td><strong>다국어</strong> 원본</td>
+<td>35</td>
+</tr>
+<tr>
+<td><code>e5-large</code></td>
+<td>다국어 원본</td>
+<td>18</td>
+</tr>
+</tbody></table>
+<p>세 가지가 그 서술을 무너뜨린다.</p>
+<table><thead><tr>
+<th></th>
+<th>관찰</th>
+</tr></thead><tbody>
+<tr>
+<td>1</td>
+<td><strong>같은 원본에서 갈라진 한국어 튜닝 둘이 41 과 37 로 다르다</strong></td>
+</tr>
+<tr>
+<td>2</td>
+<td><strong>다국어 <code>arctic</code>(37)이 한국어 특화 <code>KURE-v1</code>(37)과 동점이다</strong></td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong><code>KURE-v1</code>(37)과 다국어 원본 <code>bge-m3</code>(35)는 구별되지 않는다</strong>(p=0.77)</td>
+</tr>
+</tbody></table>
+<table><thead><tr>
+<th>말할 수 있는 것</th>
+<th>말할 수 없는 것</th>
+</tr></thead><tbody>
+<tr>
+<td><code>BGE-m3-ko</code> 의 한국어 튜닝은 원본을 <strong>6문항</strong> 앞섰다</td>
+<td>&quot;한국어 특화 모델이면 다국어보다 낫다&quot;</td>
+</tr>
+<tr>
+<td>튜닝이 효과를 낸 사례가 <strong>있다</strong></td>
+<td>그 효과가 <strong>한국어 특화라는 범주에서 온다</strong></td>
+</tr>
+</tbody></table>
+<p><strong>결론 — 범주로 고르지 말고 개별 모델을 재야 한다.</strong></p>
+<p>이름에 <code>ko</code> 가 붙었다고 나은 것이 아니고(384 한국어판이 8위다),</p>
+<p>다국어라고 못한 것도 아니다(<code>arctic</code> 이 2위다).</p>
+<p><strong>4차에서 이 서술을 쓴 것은 표본 하나(<code>e5-large</code>)에 기댄 판단이었다.</strong></p>
+<p><code>e5-large</code> 는 5차에서 9종 중 최하위로 드러났다. **가장 약한 모델 하나를 이겼다고</p>
+<p>범주 전체의 우위를 주장한 셈이다.**</p>
+<h4 id="대안-둘은-형식이-아니라-실제-대안이다">대안 둘은 형식이 아니라 실제 대안이다</h4>
+<table><thead><tr>
+<th>모델</th>
+<th>안겹침 R@5</th>
+<th>1위와의 관계</th>
+<th>라이선스</th>
+<th>Ollama</th>
+</tr></thead><tbody>
+<tr>
+<td><code>nlpai-lab/KURE-v1</code></td>
+<td>37</td>
+<td><strong>통계적으로 구별 안 됨</strong></td>
+<td>mit</td>
+<td>비공식 저장소</td>
+</tr>
+<tr>
+<td><code>Snowflake/snowflake-arctic-embed-l-v2.0</code></td>
+<td>37</td>
+<td><strong>통계적으로 구별 안 됨</strong></td>
+<td>apache-2.0</td>
+<td><strong>공식</strong></td>
+</tr>
+</tbody></table>
+<p><strong>차원이 같아 DB 를 안 건드리고 바꿔 끼울 수 있다.</strong></p>
+<p>교체 절차는 <code>관리/API_계약_RAG_검색_초안.md</code> 7-1절에 규정했다.</p>
+<p><strong><code>arctic</code> 이 특히 값을 한다.</strong> 채택 모델은 Ollama 공식이 아니라 GGUF 등록이</p>
+<p>필요한데(13.8절), <code>arctic</code> 은 <code>ollama pull</code> 한 줄로 끝난다.</p>
+<p><strong>배포 경로가 문제가 되면 성능을 거의 잃지 않고 바꿀 수 있다.</strong></p>
+<h4 id="지표를-하나만-보면-안-된다--4차의-관찰은-유지된다">지표를 하나만 보면 안 된다 — 4차의 관찰은 유지된다</h4>
+<p>4차에서 <code>e5-large</code> 가 <code>R@1</code> 1위이면서 <code>R@5</code> 최하위였다.</p>
+<p><strong>5차에서도 같은 성질이 다른 모델에서 나타난다.</strong></p>
+<pre><code>overlap R@5   e5-small-ko-v2 (384)  64 / 69   1위
+안겹침 R@5     e5-small-ko-v2 (384)  19 / 64   8위</code></pre>
+<p>우리는 <code>top-k</code> 를 5 이상으로 쓰기로 했으므로(8.9절) <strong>안겹침 <code>R@5</code> 기준이 맞다.</strong></p>
+<p>만약 1건만 보여주는 화면을 만든다면 판단이 달라질 수 있다.</p>
+<h3 id="83-e5-small-탈락--이유가-결론보다-중요하다">8.3 e5-small 탈락 — 이유가 결론보다 중요하다</h3>
+<pre><code>overlap    64 / 69   9종 중 1위
+no_overlap 19 / 64   9종 중 8위</code></pre>
+<p><strong>작은 모델은 글자가 겹칠 때만 잘한다.</strong> 그건 기존 <code>ILIKE</code> 검색이 이미 하는 일이다.</p>
+<p>의미로 건너뛰는 능력이 약하다.</p>
+<p><strong>만약 <code>overlap</code>만 재고 모델을 골랐다면 e5-small을 뽑았을 것이다.</strong></p>
+<p>그리고 뜻으로 묻는 질의의 70%를 놓쳤을 것이다.</p>
+<p><code>overlap</code> 점수가 높은 것은 임베딩을 쓸 근거가 되지 않는다.</p>
+<p><strong>같은 모델이 1위와 8위를 동시에 한다.</strong> 이 한 줄이 이 시험의 핵심 발견이고,</p>
+<p><code>RAG-05</code> 하이브리드 검색의 근거다(8.6절).</p>
+<h4 id="8월-12일-판의-재순위-논거를-철회한다">8월 12일 판의 재순위 논거를 철회한다</h4>
+<p>그때는 이렇게 적었다.</p>
+<blockquote>
+<p><code>R@5</code> 에서 <code>R@10</code> 으로 가면서 <strong>10문항이 더 잡힌다.</strong> 즉 e5 는 정답을 찾기는
+하는데 상위로 못 올린다. <strong>재순위를 붙이면 384차원도 쓸 수 있다는 뜻이다.</strong>
+(같은 구간에서 KURE는 27 → 29, bge는 26 → 28로 <strong>2문항만</strong> 늘어난다.)</p>
+</blockquote>
+<p><strong>5차에서 그 대비가 사라졌다.</strong></p>
+<table><thead><tr>
+<th>모델</th>
+<th>안겹침 R@5</th>
+<th>R@10</th>
+<th>증가</th>
+</tr></thead><tbody>
+<tr>
+<td>BGE-m3-ko</td>
+<td>41</td>
+<td>48</td>
+<td>+7</td>
+</tr>
+<tr>
+<td>KURE-v1</td>
+<td>37</td>
+<td>47</td>
+<td><strong>+10</strong></td>
+</tr>
+<tr>
+<td>bge-m3</td>
+<td>35</td>
+<td>44</td>
+<td>+9</td>
+</tr>
+<tr>
+<td><strong>e5-small-ko-v2</strong></td>
+<td>19</td>
+<td>28</td>
+<td><strong>+9</strong></td>
+</tr>
+</tbody></table>
+<p><strong>모두 7~10문항씩 늘어난다.</strong> <code>e5-small</code> 의 도약이 특별한 것이 아니었다.</p>
+<p>4차에서 <code>KURE</code> 가 2문항만 늘어난 것은 **34문항 표본에서 이미 27개를 잡아 천장에</p>
+<p>가까웠기 때문**이다. 표본을 키우니 천장이 사라졌다.</p>
+<p><strong>그리고 절대 격차가 재순위로 메울 수 있는 크기가 아니다.</strong></p>
+<p><code>e5-small</code> 의 R@10 은 <strong>28</strong> 이고 채택 모델의 R@5 는 <strong>41</strong> 이다.</p>
+<p><strong>재순위는 이미 top-10 안에 든 것을 다시 세우는 것이므로 28 이 상한이다.</strong></p>
+<p>41 을 넘을 수 없다.</p>
+<p><strong>재순위 검토는 후속 과제로 남기되, &quot;384 를 쓸 수 있다&quot; 는 근거로는 쓰지 않는다.</strong></p>
+<p>쓸 수 있는 근거는 CPU 속도(9~11배)와 메모리(430MB 대 2,203MB)뿐이고,</p>
+<p>그것으로 22문항 차이를 상계할 수는 없다.</p>
+<h3 id="84-문서-성격이-검색-난이도를-지배한다">8.4 문서 성격이 검색 난이도를 지배한다</h3>
+<table><thead><tr>
+<th>문서 성격</th>
+<th>예</th>
+<th>검색 결과</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>필드값 나열 (CSV 행)</strong></td>
+<td><code>계약명: 2024년 RHEL 라이선스 갱신 구매</code></td>
+<td>고유명사 질의는 잘 찾는다</td>
+</tr>
+<tr>
+<td><strong>조항 나열 (공고문)</strong></td>
+<td><code>8. 낙찰자 결정방법 가. 평가방법…</code></td>
+<td>실패가 몰렸다</td>
+</tr>
+<tr>
+<td><strong>서술형 (결정사항)</strong></td>
+<td><code>안건 / 결정 내용 / 결정 근거 / 대안</code></td>
+<td><strong>추상 질의를 끌어당긴다</strong></td>
+</tr>
+</tbody></table>
+<p>세 모델이 다 틀린 13문항 중 <strong>12문항이 공고문 PDF</strong>였다.</p>
+<p>반대로 다 맞춘 10문항은 대부분 CSV 행이었고, 질의에 <code>Microsoft</code> <code>RHEL</code></p>
+<p><code>AutoCAD</code> <code>항온항습기</code> <code>업무용PC</code> 같은 <strong>고유명사가 대응</strong>됐다.</p>
+<p><strong>행 단위 청크는 고유명사 질의에만 작동한다.</strong> 청크 70은</p>
+<p><code>계약명: 전자계약시스템 개선사업 감리용역</code> 한 줄이 사실상 전부여서,</p>
+<p>&quot;감리&quot;라는 단어를 모르면 도달할 방법이 없다. 문맥이 없다.</p>
+<p><strong><code>RAG-12</code>(유사 사업 단가 선례 검색)에 계약명 기준 필터가 필요하다는 근거다.</strong></p>
+<h3 id="85-rag-04-후반-조건--이번-조건에서는-측정하지-않았다">8.5 <code>RAG-04</code> 후반 조건 — 이번 조건에서는 측정하지 않았다</h3>
+<p><code>RAG-04</code> 완료 판정은 두 부분이다.</p>
+<table><thead><tr>
+<th>조건</th>
+<th>상태</th>
+</tr></thead><tbody>
+<tr>
+<td>글자가 하나도 겹치지 않는 질의로 관련 문서가 나온다</td>
+<td><strong>충족</strong> (27 / 34)</td>
+</tr>
+<tr>
+<td>다른 프로젝트 문서는 나오지 않는다</td>
+<td><strong>측정하지 않았다</strong></td>
+</tr>
+</tbody></table>
+<p><strong>후반 조건은 벡터 유사도가 담당하지 않는다.</strong> <code>documents.project_id</code> 가</p>
+<p>NOT NULL 이고 <strong>리포지토리 계층에서 스코프를 강제</strong>하는 것이 설계다</p>
+<p>(<code>PRJ-08</code> · <code>관리/데이터구조_설계.md</code> 2절). 라우터에서만 검사하면 새 API 를</p>
+<p>추가할 때 누락되므로 리포지토리에 둔 것이다.</p>
+<p>이번 실험은 문서 5건을 한 코퍼스에 넣고 <strong>필터 없이</strong> 검색했다.</p>
+<p>프로젝트 경계가 없는 조건이므로 이 항목은 애초에 재현되지 않았다.</p>
+<p><strong>&quot;미충족&quot; 이 아니라 &quot;측정 불가&quot; 다.</strong></p>
+<p>다만 실험에서 관찰한 것은 별개로 유효하다. **같은 프로젝트 안에 문서가 여럿</p>
+<p>있으면 문서 간 혼동이 생기고, 그것은 <code>project_id</code> 필터로 막히지 않는다.**</p>
+<pre><code>&quot;이 일에 잡힌 예산이 얼마인가&quot;   기초과학연구원 공고를 물었는데
+                                한국지역난방공사 준공정보를 가져왔다 (107,108,123…)
+
+&quot;두 문서가 어긋나면 어느 쪽이 이기나&quot;   공고문을 물었는데
+                                       우리 팀 결정사항을 가져왔다 (45,41,59…)</code></pre>
+<p><strong>문서 격리는 벡터 유사도로 되지 않는다.</strong> 문서 ID 또는 사업 단위 필터가</p>
+<p>검색 조건에 들어가야 한다. <code>RAG-05</code>(하이브리드 검색, P2)와 함께 설계할 일이다.</p>
+<h3 id="86-숫자코드번호-검색은-벡터가-약하다--rag-05-실측-근거">8.6 숫자·코드번호 검색은 벡터가 약하다 — <code>RAG-05</code> 실측 근거</h3>
+<p>3차 상세에서 <code>overlap</code> 실패 사례가 드러났다. **글자가 그대로 겹치는데도</p>
+<p>1024 두 모델이 10위 안에 못 넣은 질의들이다.**</p>
+<table><thead><tr>
+<th>질의</th>
+<th>정답</th>
+<th><strong>BGE-m3-ko</strong></th>
+<th>KURE-v1</th>
+<th>bge-m3</th>
+<th>e5-small</th>
+</tr></thead><tbody>
+<tr>
+<td><code>사업금액 578600000원</code></td>
+<td>7</td>
+<td><strong>실패</strong></td>
+<td><strong>실패</strong></td>
+<td><strong>실패</strong></td>
+<td>9위</td>
+</tr>
+<tr>
+<td><code>공동수급불허 협상에의한계약</code></td>
+<td>1</td>
+<td><strong>실패</strong></td>
+<td><strong>실패</strong></td>
+<td><strong>실패</strong></td>
+<td>4위</td>
+</tr>
+<tr>
+<td><code>입찰공고번호 100354-24002</code></td>
+<td>62</td>
+<td><strong>1위</strong></td>
+<td>3위</td>
+<td>2위</td>
+<td>4위</td>
+</tr>
+<tr>
+<td><code>RHEL 라이선스 갱신 구매</code></td>
+<td>96</td>
+<td>2위</td>
+<td>2위</td>
+<td>2위</td>
+<td>2위</td>
+</tr>
+</tbody></table>
+<p><code>사업금액 578600000원</code> 에 대한 <code>BGE-m3-ko</code> 의 상위 결과가</p>
+<p><code>520,527,530,498,516</code> 이다. <strong>전부 다른 문서의 금액 청크다.</strong></p>
+<p>숫자를 물었는데 다른 숫자로 끌려간다.</p>
+<p><strong>청크를 5배로 늘리자 더 나빠졌다.</strong> 8월 12일 판(127청크)에서는 384 모델이</p>
+<p><code>사업금액</code> 을 4위로 잡았는데 지금은 9위이고, 1024 모델 셋은 여전히 못 잡는다.</p>
+<p><strong>방해할 숫자가 늘어난 만큼 정확히 나빠진다.</strong></p>
+<p>기능명세서 <code>RAG-05</code> 완료 판정이 이것을 예상하고 있었다.</p>
+<table><thead><tr>
+<th>ID</th>
+<th>우선</th>
+<th>완료 판정 기준</th>
+<th>비고</th>
+</tr></thead><tbody>
+<tr>
+<td><code>RAG-05</code></td>
+<td>P2</td>
+<td><strong>고유명사 · 코드번호 검색에서 벡터 단독보다 정확하다</strong></td>
+<td><strong><code>VIS-06</code> FTS 와 결합</strong></td>
+</tr>
+</tbody></table>
+<p><strong>이번 측정이 그 근거를 실측으로 채웠다.</strong> 공고번호·계약번호·금액이 많은</p>
+<p>도메인이라 <code>RAG-05</code> 를 P2 로 둔 판단이 맞다. 벡터 단독으로는 코드번호를</p>
+<p>1위로 못 올린다.</p>
+<p><strong>키워드 쪽은 새로 만들지 않는다.</strong> 비고가 <code>VIS-06</code> FTS 와 결합하라고 지정한다.</p>
+<p><code>VIS-06</code>(통합 검색 · PostgreSQL FTS · P2 · 보현)이 이미 계획에 있으므로</p>
+<p>별도 검색 엔진을 도입하지 않고 같은 DB 안에서 합친다.</p>
+<table><thead><tr>
+<th>구성 요소</th>
+<th>무엇으로</th>
+<th>근거</th>
+</tr></thead><tbody>
+<tr>
+<td>벡터 쪽</td>
+<td>pgvector + KURE-v1 (1024)</td>
+<td>이 문서 8.1 · 8.2절</td>
+</tr>
+<tr>
+<td>키워드 쪽</td>
+<td><strong>PostgreSQL FTS</strong> (<code>VIS-06</code>)</td>
+<td><code>RAG-05</code> 비고</td>
+</tr>
+<tr>
+<td>스코프</td>
+<td><code>project_id</code> 리포지토리 강제</td>
+<td><code>PRJ-08</code> · 8.5절</td>
+</tr>
+</tbody></table>
+<p>그리고 <strong>e5-small 이 이 구간에서 가장 강하다.</strong> <code>overlap R@10 = 39 / 39</code> 다.</p>
+<p>작은 모델이 어휘 매칭에 강하다는 뜻이며, 이는 8.3절의 <code>no_overlap</code> 최하위와</p>
+<p>같은 성질의 다른 얼굴이다. **하이브리드 검색을 만들 때 키워드 쪽 후보로</p>
+<p>e5 를 쓰는 구성도 검토할 값이 있다.**</p>
+<h3 id="87-큰-청크는-overlap-질의로도-못-찾는다--rag-01-근거">8.7 큰 청크는 <code>overlap</code> 질의로도 못 찾는다 — <code>RAG-01</code> 근거</h3>
+<p>실패한 <code>overlap</code> 질의의 정답 청크 크기를 보면 원인이 보인다.</p>
+<table><thead><tr>
+<th>정답 청크</th>
+<th>글자</th>
+<th>무엇이 들어 있나</th>
+</tr></thead><tbody>
+<tr>
+<td>1</td>
+<td>438</td>
+<td>나라장터 화면 덤프. <strong>필드 20여 개가 한 덩어리</strong></td>
+</tr>
+<tr>
+<td>4</td>
+<td>533</td>
+<td>입찰진행 주의 · 보증금 · 발표순서 · 평가기관 · 평가비율 · 가격</td>
+</tr>
+<tr>
+<td>7</td>
+<td>448</td>
+<td>입찰 주의 · 공고명 · 사업내용 · 사업기간 · 계약방법 · 사업금액</td>
+</tr>
+</tbody></table>
+<p><strong>청크 1 을 정답으로 둔 <code>overlap</code> 질의 두 개가 모두 실패했다.</strong></p>
+<p><code>공동수급불허 협상에의한계약</code> 과 <code>회계법인 업종을 등록한 업체</code> 다.</p>
+<p>글자가 그대로 있는데도 못 찾는다. 필드 20여 개를 벡터 하나가 대표하니</p>
+<p>특정 필드의 신호가 묻힌다.</p>
+<p><strong><code>RAG-01</code> 이 <code>element_type</code> 단위로 단락을 묶는 이유가 여기서 확인된다.</strong></p>
+<p>화면 덤프를 글자 수로 자르면 이런 덩어리가 생긴다.</p>
+<p><code>ocr_elements</code> 의 구조 정보를 쓰면 필드 단위로 끊을 수 있다.</p>
+<h3 id="88-긴-표는-조용히-잘릴-수-있다--아직-안-터진-위험">8.8 긴 표는 조용히 잘릴 수 있다 — 아직 안 터진 위험</h3>
+<p><strong>이번 코퍼스에서는 발생하지 않았지만 본구현에서는 발생한다.</strong></p>
+<p>조각 자르기 도구(<code>make_chunks.py</code>)에 규칙이 하나 있다.</p>
+<pre><code>--max 1200   이 길이를 넘는 덩어리는 쪼개지 않고 그대로 둔다
+
+if block_len &gt;= hard_max:
+    flush()
+    chunks.append(block)      # 상한을 지키지 않고 통째로 넣는다</code></pre>
+<p><strong>표를 중간에서 자르면 항목과 금액이 분리되어 뜻이 사라지기 때문에 넣은 규칙이다.</strong></p>
+<p>의도는 맞다. 그런데 부작용이 있다.</p>
+<table><thead><tr>
+<th>단계</th>
+<th>무슨 일이 일어나나</th>
+</tr></thead><tbody>
+<tr>
+<td>1</td>
+<td>산출내역서처럼 표가 긴 문서가 들어온다</td>
+</tr>
+<tr>
+<td>2</td>
+<td>표 하나가 2,000자, 5,000자짜리 조각이 된다</td>
+</tr>
+<tr>
+<td>3</td>
+<td>임베딩 모델에 그대로 들어간다</td>
+</tr>
+<tr>
+<td>4</td>
+<td><strong>모델의 최대 입력 길이를 넘으면 뒷부분이 잘린다</strong></td>
+</tr>
+<tr>
+<td>5</td>
+<td><strong>경고가 없다.</strong> 앞부분만으로 만든 벡터가 저장된다</td>
+</tr>
+<tr>
+<td>6</td>
+<td>표 뒷부분의 항목은 <strong>검색으로 절대 찾을 수 없다</strong></td>
+</tr>
+</tbody></table>
+<p>이번에는 최장 조각이 567자여서 안 터졌다. 상한 1200에 닿은 조각이 하나도 없었다.</p>
+<p><strong>표가 짧은 코퍼스였을 뿐이다.</strong></p>
+<h4 id="방지-방법--네-가지를-겹쳐-쓴다">방지 방법 — 네 가지를 겹쳐 쓴다</h4>
+<table><thead><tr>
+<th></th>
+<th>방법</th>
+<th>효과</th>
+<th>비용</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>1</strong></td>
+<td><strong>표를 행 단위로 자르고 머리행을 각 조각에 복제한다</strong></td>
+<td><strong>근본 해결.</strong> 뜻이 보존되면서 길이도 제어된다</td>
+<td>구현 필요</td>
+</tr>
+<tr>
+<td><strong>2</strong></td>
+<td>조각을 만든 뒤 <strong>토크나이저로 토큰 수를 실측</strong>하고 한계 초과분을 다시 자른다</td>
+<td>잘림을 사전에 차단</td>
+<td>토크나이저 호출</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>document_chunks</code> 에 <code>token_count</code> 를 저장하고 <strong>한계 초과면 색인을 실패시킨다</strong></td>
+<td>조용히 넘어가지 않는다</td>
+<td>컬럼 하나</td>
+</tr>
+<tr>
+<td>4</td>
+<td>모델의 <code>max_seq_length</code> 를 설정에서 읽어 상한을 <strong>계산</strong>한다</td>
+<td>모델 교체 시 자동 대응</td>
+<td>적재 시 1회</td>
+</tr>
+</tbody></table>
+<p><strong>1번이 핵심이다.</strong> 그리고 이미 같은 발상이 코드에 있다.</p>
+<p>원본 변환기(<code>convert_inputs.py</code>)의 CSV 처리가 행마다 <code>&quot;열이름: 값&quot;</code> 블록으로</p>
+<p>푸는 방식이 그것이다.</p>
+<pre><code>## 1~1행
+사업명: ○○기관 정보화 통합유지관리
+계약방법: 제한경쟁
+낙찰금액: 123,000,000</code></pre>
+<p><strong>표를 &quot;자르지 않는다&quot; 가 아니라 &quot;행 단위로 자르고 머리행을 복제한다&quot; 가 맞다.</strong></p>
+<p>그러면 항목과 금액이 붙어 있으면서 조각 길이도 짧아진다.</p>
+<p>유사 사업 단가 선례 검색(<code>RAG-12</code>)이 행 단위 검색이므로 목적에도 맞다.</p>
+<p>문서를 조각으로 자르기(<code>RAG-01</code>) 완료 판정이 <strong>&quot;표는 행 단위로 유지된다&quot;</strong> 인데,</p>
+<p>이것을 <strong>&quot;표는 행 단위로 자른다&quot;</strong> 로 읽는 것이 안전하다.</p>
+<p><code>ocr_elements</code> 에 표 구조 정보가 들어오면 행 경계를 알 수 있다.</p>
+<p><strong>2번도 필요하다.</strong> 1번을 해도 한 행이 매우 긴 표가 있을 수 있다.</p>
+<p><code>token_count</code> 를 세는 것은 어차피 토큰 수 기준으로 자르려면 해야 하는 일이다.</p>
+<h4 id="5차에서-실측했다--잘림은-없었다">5차에서 실측했다 — <strong>잘림은 없었다</strong></h4>
+<p>8월 12일 판은 세 가지를 &quot;확인하지 못한 것&quot; 으로 남겼다. <strong>셋 다 쟀다.</strong></p>
+<p><strong>① 모델의 최대 입력 길이</strong></p>
+<table><thead><tr>
+<th>모델</th>
+<th><code>max_seq_length</code></th>
+</tr></thead><tbody>
+<tr>
+<td><code>BGE-m3-ko</code> · <code>KURE-v1</code> · <code>bge-m3</code> · <code>arctic-l-v2.0</code></td>
+<td><strong>8192</strong></td>
+</tr>
+<tr>
+<td><code>e5</code> 3종 · <code>nomic-v2-moe</code></td>
+<td><strong>512</strong></td>
+</tr>
+<tr>
+<td><code>Qwen3-Embedding-0.6B</code></td>
+<td><strong>32768</strong></td>
+</tr>
+</tbody></table>
+<p><strong>&quot;512 로 내려가는 경우가 있다&quot; 는 우려가 실제였다.</strong> 네 모델이 512다.</p>
+<p><code>e5-large</code> 는 1024차원인데 입력 상한이 512다 — <strong>차원과 입력 길이는 다른 값이다.</strong></p>
+<p><strong>② 우리 청크의 실제 토큰 수</strong></p>
+<table><thead><tr>
+<th>항목</th>
+<th>값</th>
+</tr></thead><tbody>
+<tr>
+<td>전체 청크</td>
+<td>649개</td>
+</tr>
+<tr>
+<td>가장 긴 청크</td>
+<td>697자</td>
+</tr>
+<tr>
+<td><strong>512토큰 초과 청크</strong> (XLM-R 계열)</td>
+<td><strong>0개</strong></td>
+</tr>
+<tr>
+<td>정답 청크</td>
+<td>62개 · <strong>최대 306토큰</strong> (상한 512의 60%)</td>
+</tr>
+<tr>
+<td>참고: Qwen3 토크나이저 최대</td>
+<td>620토큰</td>
+</tr>
+</tbody></table>
+<p><strong>③ 잘림이 실제로 있었나 — 없었다</strong></p>
+<p><strong>상한이 512인 네 모델도 이번 측정에서 잘림이 발생하지 않았다.</strong></p>
+<p><code>--max 700</code> 으로 청킹 상한을 낮춘 것이 결과적으로 안전선 안에 들어왔다.</p>
+<p><strong>토크나이저가 다르면 토큰 수가 다르다.</strong> 같은 청크가 XLM-R 로는 512 이하인데</p>
+<p><code>Qwen3</code> 로는 620토큰까지 나온다. **&quot;몇 토큰인가&quot; 는 모델마다 다른 값이므로</p>
+<p>모델별로 세야 한다.**</p>
+<h4 id="한-번-잘못-짚었다">한 번 잘못 짚었다</h4>
+<p><strong><code>e5-large</code> 점수가 크게 떨어진 것을 토큰 잘림으로 단정했는데 틀렸다.</strong></p>
+<p>잘린 청크가 애초에 없었다. 원인은 아직 모른다(8.1절).</p>
+<p><strong>글자 수로 토큰 수를 추정하면 안 된다.</strong> &quot;정답 청크 최대 533자면 512토큰 안에</p>
+<p>들어갈 가능성이 높다&quot; 고 적었는데, 그건 추정이었다. 실제로 재니 306토큰이었다.</p>
+<p>맞는 방향이었지만 <strong>근거가 추정이었으므로 결론으로 쓸 수 없었다.</strong></p>
+<p>확인 명령은 이것이다.</p>
+<pre><code>from sentence_transformers import SentenceTransformer
+m = SentenceTransformer(&quot;dragonkue/BGE-m3-ko&quot;)
+print(m.max_seq_length)                              # 상한
+print(len(m.tokenizer(가장_긴_청크)[&quot;input_ids&quot;]))     # 실제 토큰 수</code></pre>
+<h3 id="89-top-k는-5-이상이어야-한다">8.9 <code>top-k</code>는 5 이상이어야 한다</h3>
+<p><code>no_overlap</code> <code>R@1</code> 이 최고 <strong>25 / 64 (39%)</strong> 다. <strong>1위로 맞추는 것은 세 번에 한 번</strong></p>
+<p>을 조금 넘는다. <code>R@5</code> 에서 <strong>41개 (64%)</strong> 로 오른다.</p>
+<table><thead><tr>
+<th>채택 모델 (<code>BGE-m3-ko</code>) 안겹침</th>
+<th>값</th>
+<th>비율</th>
+</tr></thead><tbody>
+<tr>
+<td>R@1</td>
+<td>25 / 64</td>
+<td>39%</td>
+</tr>
+<tr>
+<td>R@3</td>
+<td>37 / 64</td>
+<td>58%</td>
+</tr>
+<tr>
+<td><strong>R@5</strong></td>
+<td><strong>41 / 64</strong></td>
+<td><strong>64%</strong></td>
+</tr>
+<tr>
+<td>R@10</td>
+<td>48 / 64</td>
+<td>75%</td>
+</tr>
+</tbody></table>
+<p><strong>본구현에서 <code>top-1</code> 만 쓰면 의미 검색의 40%를 버린다.</strong></p>
+<p><code>R@3</code> 에서 이미 58% 이므로 화면에 3~5개를 보여주는 설계가 맞다.</p>
+<hr>
+<h2 id="9-색인-규모-실측-환산">9. 색인 규모 실측 환산</h2>
+<p>이번 실측 속도로 실제 규모를 환산했다.</p>
+<pre><code>평균 청크 크기      305자        (210,078자 ÷ 649청크, 실측)
+문서 1건 상한       45,000자     (MAX_EXTRACTED_CHARS)
+문서 1건 청크 수    약 148개</code></pre>
+<table><thead><tr>
+<th>대상</th>
+<th>청크</th>
+<th><strong>BGE-m3-ko</strong> (CPU)</th>
+<th>KURE-v1 (CPU)</th>
+<th>e5-small (CPU)</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>이번 코퍼스 (실측)</strong></td>
+<td><strong>649</strong></td>
+<td><strong>371초 (6분 11초)</strong></td>
+<td><strong>308초 (5분 8초)</strong></td>
+<td>35초</td>
+</tr>
+<tr>
+<td>문서 1건 (45,000자)</td>
+<td>약 148</td>
+<td>85초</td>
+<td>70초</td>
+<td>8초</td>
+</tr>
+<tr>
+<td><code>PER-01</code> 기준 10페이지 (추정 18,750자)</td>
+<td>약 61</td>
+<td><strong>35초</strong></td>
+<td>29초</td>
+<td>3초</td>
+</tr>
+<tr>
+<td>데모용 20건</td>
+<td>약 2,960</td>
+<td>28분</td>
+<td>23분</td>
+<td>2.7분</td>
+</tr>
+</tbody></table>
+<p><strong>649청크 6분 11초가 실측값이고 나머지는 그것에서 환산한 값이다.</strong></p>
+<p>100청크당 초(5.7 · 47.5 · 57.2)를 곱한 것이다.</p>
+<blockquote>
+<p><strong>채택 모델이 대안보다 느리다.</strong> 57.19 대 47.51초다. 다만 <code>KURE-v1</code> 의 속도가
+실행마다 47.5~77.7초로 흩어져 <strong>순위를 매길 수 없다</strong>(7.6절). 구조가 같은
+모델이므로 속도도 같다고 보는 것이 타당하다.</p>
+</blockquote>
+<p><strong>10페이지를 18,750자로 잡은 근거는 약하다.</strong> 중앙보훈병원 공고문 13,121자가</p>
+<p>PDF 7장에 걸쳐 있어 장당 1,875자로 환산한 값이다. 원문 인쇄 페이지 번호는</p>
+<p>13까지 나오므로 <strong>장과 페이지가 일치하지 않는다.</strong> 실제 페이지당 글자 수는</p>
+<p>문서 종류마다 다르므로 이 행은 자릿수 감각으로만 쓴다.</p>
+<h3 id="91-per-01-60초--worker-는-아직-코드에-없다">9.1 <code>PER-01</code> 60초 — Worker 는 아직 코드에 없다</h3>
+<p><code>Tasqra/DEVELOPMENT_GUIDE.md</code> 4.2절이 요청 내부 동기 처리를 폐기하기로 했다.</p>
+<pre><code>업로드 요청 -&gt; 문서·작업 생성 -&gt; 큐 등록 -&gt; 즉시 응답
+                                        └-&gt; Worker 처리</code></pre>
+<blockquote>
+<p>오래 걸리는 OCR, 문서 추출, LLM 분석, 일괄 처리는 Worker 에서 실행한다.</p>
+</blockquote>
+<p><strong>그런데 이것은 지향점이고 코드에는 없다.</strong> Tasqra <code>backend/</code> 를 확인한 결과다.</p>
+<table><thead><tr>
+<th>확인한 것</th>
+<th>결과</th>
+</tr></thead><tbody>
+<tr>
+<td>코드에서 <code>celery</code> · <code>redis</code> · <code>BackgroundTasks</code> 검색</td>
+<td><strong>0건</strong></td>
+</tr>
+<tr>
+<td><code>requirements.txt</code></td>
+<td>celery · redis <strong>없음</strong></td>
+</tr>
+<tr>
+<td><code>docker-compose.yml</code> 서비스</td>
+<td><code>db</code> · <code>api</code> · <code>frontend</code> <strong>3개뿐</strong> (redis · worker 없음)</td>
+</tr>
+<tr>
+<td><code>upload_router.py</code></td>
+<td>파일을 읽고 <strong>곧바로</strong> <code>service.upload_and_extract(...)</code> 호출 후 응답</td>
+</tr>
+<tr>
+<td>작업 상태 · 진행률 테이블</td>
+<td><code>tasks</code> · <code>jobs</code> <strong>없음</strong> (0001~0007 전체 확인)</td>
+</tr>
+<tr>
+<td><code>DEVELOPMENT_GUIDE</code> 체크리스트</td>
+<td><code>[ ] Celery·Redis Worker 구성</code> — <strong>미완료 표시</strong></td>
+</tr>
+</tbody></table>
+<p><code>SYS-02</code>(Celery + Redis)가 <strong>P0 인데 미착수</strong>다. 담당은 재정이다.</p>
+<p><strong>그래서 지금 임베딩을 Worker 로 돌릴 수 없다.</strong> 두 갈래가 된다.</p>
+<table><thead><tr>
+<th>선택</th>
+<th>내용</th>
+<th>문제</th>
+</tr></thead><tbody>
+<tr>
+<td>A</td>
+<td><code>SYS-02</code> 완료를 기다린다</td>
+<td>재정 담당 P0 에 블로킹된다</td>
+</tr>
+<tr>
+<td>B</td>
+<td><strong>기존 관례대로 동기로 만든다</strong></td>
+<td>업로드·분석이 이미 동기라 일관된다. 대신 응답이 늘어진다</td>
+</tr>
+</tbody></table>
+<p><strong>B 가 현재 코드와 일관된다.</strong> 업로드와 분석이 모두 동기이므로 임베딩만</p>
+<p>비동기로 만들면 구조가 어긋난다. <code>SYS-02</code> 가 들어오면 셋을 함께 옮기면 된다.</p>
+<p><code>PER-01</code> 의 60초는 <strong>현재 코드 기준으로는 응답 지연 그 자체다.</strong></p>
+<p>Worker 가 생긴 뒤에야 처리 완료 시간이 된다.</p>
+<p>그럼에도 예산은 여전히 빡빡하다. CPU 에서 임베딩만 33초면 OCR 과 LLM 분석이</p>
+<p>쓸 시간이 27초 남는다. 스캔 PDF 10페이지 OCR 이 그 안에 끝나지 않는다.</p>
+<p><strong>GPU 실행이 사실상 전제다.</strong></p>
+<table><thead><tr>
+<th>항목</th>
+<th>값</th>
+</tr></thead><tbody>
+<tr>
+<td>임베딩 (<code>BGE-m3-ko</code> · CPU · 약 61청크)</td>
+<td><strong>35초</strong></td>
+</tr>
+<tr>
+<td>남는 예산</td>
+<td><strong>25초</strong></td>
+</tr>
+<tr>
+<td>미니 프로젝트 실측 OCR (PaddleOCR)</td>
+<td><strong>15,541ms = 15.5초</strong> (문서 1건 기준)</td>
+</tr>
+<tr>
+<td>미니 프로젝트 실측 요약 · 분류</td>
+<td>3.2초 + 1.6초</td>
+</tr>
+</tbody></table>
+<p>미니 프로젝트 수치는 문서 1건 기준이고 10페이지 스캔 PDF 는 더 든다.</p>
+<p><strong>임베딩을 GPU 로 옮기거나 Worker 병렬화가 필요하다.</strong></p>
+<p>또한 <strong>작업 멱등성</strong>을 고려해야 한다(같은 4.2절). <code>RAG-09</code> 검수 확정 시</p>
+<p>재임베딩이 두 번 돌아도 청크가 중복 저장되지 않아야 한다.</p>
+<h3 id="92-질의-쪽은-문제가-없다">9.2 질의 쪽은 문제가 없다</h3>
+<p>질의 임베딩은 한 건씩이라 검색 응답에는 영향이 거의 없다.</p>
+<p>무거운 것은 색인 한 번뿐이다. **다만 모델 교체나 차원 변경으로 전체 재색인이</p>
+<p>필요한 상황은 CPU에서 반나절 작업이다. 차원을 지금 확정하는 것이 그래서 중요하다.**</p>
+<hr>
+<h2 id="10-한계">10. 한계</h2>
+<table><thead><tr>
+<th></th>
+<th>한계</th>
+<th>영향</th>
+</tr></thead><tbody>
+<tr>
+<td>1</td>
+<td><strong>정답 표시가 아직 좁은 문항이 남아 있다</strong></td>
+<td><code>공동수급불허 협상에의한계약</code>(정답 1)을 1024 모델 셋이 모두 놓친다. 넓히면 점수가 오르겠으나 <strong>여기서 멈춘다.</strong> 정답을 계속 넓히면 측정이 느슨해지고, 결정(차원·모델)은 이미 22문항 격차로 확정됐다</td>
+</tr>
+<tr>
+<td>2</td>
+<td>표본 133문항. 정답 청크 <strong>62개 / 649개</strong></td>
+<td>코퍼스 커버리지가 <strong>9.6%</strong> 다. 8월 12일 판(32/127 = 25%)보다 낮아졌다 — 청크를 5배 늘리고 정답은 2배만 늘렸기 때문이다</td>
+</tr>
+<tr>
+<td>3</td>
+<td>코퍼스 10건</td>
+<td>실제 서비스 규모가 아니다</td>
+</tr>
+<tr>
+<td>4</td>
+<td><strong><code>run_eval.py</code> 의 메모리 측정이 틀렸다</strong></td>
+<td>8월 12일 판은 &quot;2차에서 정상 측정됐다&quot; 고 적었으나 <strong>틀렸다.</strong> <code>BGE-m3-ko</code> 에 <strong>-359MB</strong> 를 찍었고, 다른 실행에서는 <strong>1,494MB</strong> 로 찍었는데 <strong>가중치만 2,166MB</strong> 다. <strong>모델이 자기 가중치보다 적게 쓸 수 없다.</strong> 별도 도구로 3종만 다시 쟀다 (7.6절)</td>
+</tr>
+<tr>
+<td>5</td>
+<td><strong>속도를 한 번씩만 쟀다</strong></td>
+<td><code>KURE-v1</code> 이 <strong>47.5 · 56.1 · 77.7초</strong>로 흩어졌다. 순위를 매기려면 여러 번 재서 중앙값을 써야 한다</td>
+</tr>
+<tr>
+<td>6</td>
+<td>나머지 6종의 믿을 수 있는 비용이 없다</td>
+<td><code>check_model_cost.py</code> 로 3종만 쟀다</td>
+</tr>
+<tr>
+<td>7</td>
+<td>CPU 단독 측정</td>
+<td>GPU 성능은 미측정</td>
+</tr>
+<tr>
+<td>8</td>
+<td>~~라이선스 미확인~~ <strong>해소</strong></td>
+<td><strong>후보 9종 전부 확인</strong> — apache-2.0 넷 · mit 다섯 (13.8절)</td>
+</tr>
+<tr>
+<td>9</td>
+<td><strong>채택 모델이 Ollama 공식 라이브러리에 없다</strong></td>
+<td>GGUF + <code>Modelfile</code> 등록이 필요하다. <strong>GGUF 는 양자화본이라 우리가 잰 fp32 점수와 다를 수 있다</strong> (13.8절)</td>
+</tr>
+<tr>
+<td>10</td>
+<td><strong>fp32 로 재고 양자화본으로 배포할 예정이다</strong></td>
+<td>그 차이를 안 쟀다. <strong>후보 전부에 걸린다</strong></td>
+</tr>
+<tr>
+<td>11</td>
+<td>미니플젝_결정사항 31건 중 4건만 평가셋에 반영</td>
+<td>우리 팀 문서 비중이 낮다</td>
+</tr>
+<tr>
+<td>12</td>
+<td><code>run_eval.py</code> 의 <code>note</code> 필터</td>
+<td><code>note</code>에 &quot;예시&quot;가 들어가면 질의가 경고 없이 빠진다. 코드는 그대로 두고 README에 기록했다</td>
+</tr>
+<tr>
+<td>13</td>
+<td><strong><code>--self-test</code> 가 <code>results.csv</code> 를 덮어쓴다</strong></td>
+<td>가짜 결과가 진짜 파일을 지운다. <strong>실제로 한 회차를 잃었다.</strong> <code>results_selftest.csv</code> 로 분리해야 한다</td>
+</tr>
+<tr>
+<td>14</td>
+<td><strong><code>e5-large</code> 이상 현상의 원인을 모른다</strong></td>
+<td>1024인데 9종 중 최하위다. 가설 둘을 기각했다 (8.1절)</td>
+</tr>
+<tr>
+<td>15</td>
+<td>필터 없이 전량 검색했다</td>
+<td>실사용은 <code>project_id</code> 로 좁혀져 더 쉬워진다 (8.5절)</td>
+</tr>
+<tr>
+<td>16</td>
+<td><strong>Gemini 무료 등급은 우리 문서를 학습·제품 개선에 쓸 수 있다</strong></td>
+<td>13.9절. <strong>시험조차 무료 키로 하면 안 된다</strong></td>
+</tr>
+<tr>
+<td>17</td>
+<td><strong>Voyage 무료 토큰 범위를 확인하지 못했다</strong></td>
+<td>문서는 <code>voyage-4</code> 계열 2억 토큰 무료라 하는데 <strong>실제 API 응답은 &quot;series 3&quot;</strong> 라고 답했다. 13.9절</td>
+</tr>
+<tr>
+<td>18</td>
+<td>API 실측을 아직 못 했다</td>
+<td>카드 미등록 한도(3 RPM · 10K TPM)에 걸려 1차 시도가 실패했다. 한도 대응은 넣어 뒀다</td>
+</tr>
+</tbody></table>
+<h3 id="101-8월-12일-판에서-한계가-늘어난-이유">10.1 8월 12일 판에서 한계가 늘어난 이유</h3>
+<p><strong>항목이 11개에서 18개로 늘었다.</strong> 측정을 더 해서 문제를 더 찾았기 때문이다.</p>
+<table><thead><tr>
+<th>새로 드러난 한계</th>
+<th>어떻게 드러났나</th>
+</tr></thead><tbody>
+<tr>
+<td>4. 메모리 측정이 틀렸다</td>
+<td><strong>&quot;2차에서 정상&quot; 이라고 적었던 것이 오판이었다.</strong> 가중치와 대조해 보니 불가능한 값이었다</td>
+</tr>
+<tr>
+<td>5. 속도 편차</td>
+<td>같은 모델을 세 번 재보니 47.5~77.7초로 흩어졌다</td>
+</tr>
+<tr>
+<td>9. Ollama 공식 아님</td>
+<td><strong>채택을 결정한 뒤에 알았다.</strong> 배포 경로를 미리 확인하지 않았다</td>
+</tr>
+<tr>
+<td>13. <code>--self-test</code> 가 결과를 지운다</td>
+<td><strong>실제로 한 회차를 잃고 나서 알았다</strong></td>
+</tr>
+<tr>
+<td>14. <code>e5-large</code> 원인 미상</td>
+<td>두 회차에서 재현되는데 가설 둘이 기각됐다</td>
+</tr>
+</tbody></table>
+<p><strong>한계가 늘어난 것은 나빠진 것이 아니다.</strong> 8월 12일 판은 이 문제들을 **모르는</p>
+<p>상태로 &quot;정상&quot; 이라고 적고 있었다.**</p>
+<hr>
+<h2 id="11-후속-과제">11. 후속 과제</h2>
+<h3 id="완료된-것">완료된 것</h3>
+<table><thead><tr>
+<th></th>
+<th>과제</th>
+<th>결과</th>
+</tr></thead><tbody>
+<tr>
+<td>1</td>
+<td>3차 측정</td>
+<td><strong>완료.</strong> 5차가 확정값이다 (7.6절)</td>
+</tr>
+<tr>
+<td>2</td>
+<td>768 차원 측정</td>
+<td><strong>완료.</strong> 다만 결론을 철회했다 — 768 이 384 보다 <strong>높았다</strong> (8.1절)</td>
+</tr>
+<tr>
+<td>3</td>
+<td>모델 <code>max_seq_length</code> 확인</td>
+<td><strong>완료.</strong> 8192 넷 · 512 넷 · 32768 하나 (8.8절)</td>
+</tr>
+<tr>
+<td>4</td>
+<td><strong>청크가 조용히 잘리는지 확인</strong></td>
+<td><strong>완료.</strong> 512토큰 초과 청크 <strong>0개</strong> — 잘림 없음 (8.8절)</td>
+</tr>
+<tr>
+<td>5</td>
+<td>라이선스 확인</td>
+<td><strong>완료.</strong> 9종 전부 — apache-2.0 넷 · mit 다섯 (13.8절)</td>
+</tr>
+<tr>
+<td>6</td>
+<td>평가셋 확장</td>
+<td><strong>완료.</strong> 안겹침 34 → <strong>64문항</strong> (6.5절)</td>
+</tr>
+<tr>
+<td>7</td>
+<td>메모리 재측정</td>
+<td><strong>완료.</strong> 별도 도구로 3종 — 1024 계열 <strong>2,203MB</strong> (7.6절)</td>
+</tr>
+<tr>
+<td>8</td>
+<td><code>RAG-04</code> API 계약 초안</td>
+<td><strong>완료.</strong> <code>관리/API_계약_RAG_검색_초안.md</code></td>
+</tr>
+<tr>
+<td>9</td>
+<td><strong>모델 교체 가능성 설계</strong></td>
+<td><strong>완료.</strong> <code>embedding_model</code> 컬럼 · 검색 시 모델 필터 · 접두어 설정 분리 (같은 문서 7-1절)</td>
+</tr>
+</tbody></table>
+<h3 id="남은-것">남은 것</h3>
+<table><thead><tr>
+<th></th>
+<th>과제</th>
+<th>연결 기능</th>
+<th>근거</th>
+</tr></thead><tbody>
+<tr>
+<td>1</td>
+<td>리비전 <code>0011</code> — pgvector + <code>document_chunks</code> <code>vector(1024)</code> + <code>embedding_model</code></td>
+<td><code>RAG-02</code> · <code>RAG-03</code></td>
+<td>8.1절 · <strong>11.0 · 11.1절 주의</strong></td>
+</tr>
+<tr>
+<td>2</td>
+<td><strong>채택 모델 Ollama 등록</strong> — GGUF 내려받기 → <code>ollama create</code></td>
+<td><code>RAG-02</code></td>
+<td><strong>13.8절.</strong> 선행 조건 없음</td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong>GGUF(양자화)본 점수 측정</strong> — 배포본이 fp32 와 다를 수 있다</td>
+<td><code>RAG-10</code></td>
+<td>10절 9·10번</td>
+</tr>
+<tr>
+<td>4</td>
+<td><strong>청킹은 <code>ocr_elements</code> 를 받아 만든다</strong> — 재정 담당 OCR 산출물에 의존</td>
+<td><code>RAG-01</code></td>
+<td>5.2 · 8.7절</td>
+</tr>
+<tr>
+<td>5</td>
+<td><strong>긴 표 잘림 방지</strong> — 표를 행 단위로 자르고 머리행 복제</td>
+<td><code>RAG-01</code></td>
+<td><strong>8.8절</strong></td>
+</tr>
+<tr>
+<td>6</td>
+<td><strong>PDF 추출 공백 소실</strong> — 본구현도 PyMuPDF 를 쓴다</td>
+<td>—</td>
+<td><strong>5.2절 · <code>산출물_변경대기_목록.md</code> A-5</strong></td>
+</tr>
+<tr>
+<td>7</td>
+<td>쪽 표시를 청크 본문에서 빼기</td>
+<td><code>RAG-01</code></td>
+<td>5.2 · 6.5절</td>
+</tr>
+<tr>
+<td>8</td>
+<td><strong>하이브리드 검색</strong> — 숫자·코드번호는 벡터 단독으로 못 잡는다</td>
+<td><code>RAG-05</code></td>
+<td><strong>8.6절 실측</strong></td>
+</tr>
+<tr>
+<td>9</td>
+<td>문서 단위 필터를 검색 조건에 추가</td>
+<td><code>RAG-04</code> · <code>RAG-05</code></td>
+<td>8.5절</td>
+</tr>
+<tr>
+<td>10</td>
+<td>계약명 기준 필터 (행 단위 청크 대응)</td>
+<td><code>RAG-12</code></td>
+<td>8.4절</td>
+</tr>
+<tr>
+<td>11</td>
+<td><code>top-k</code> 기본값 5 이상으로 설정</td>
+<td><code>RAG-04</code></td>
+<td>8.9절</td>
+</tr>
+<tr>
+<td>12</td>
+<td><strong>속도 여러 번 측정 중앙값</strong></td>
+<td>—</td>
+<td>10절 5번</td>
+</tr>
+<tr>
+<td>13</td>
+<td>나머지 6종의 믿을 수 있는 비용</td>
+<td>—</td>
+<td>10절 6번</td>
+</tr>
+<tr>
+<td>14</td>
+<td><code>e5-large</code> 이상 현상 원인</td>
+<td>—</td>
+<td>8.1절</td>
+</tr>
+<tr>
+<td>15</td>
+<td>재순위 검토 — <strong>다만 &quot;384 를 쓸 수 있다&quot; 근거로는 못 쓴다</strong></td>
+<td><code>RAG-06</code></td>
+<td><strong>8.3절 (논거 철회)</strong></td>
+</tr>
+<tr>
+<td>16</td>
+<td><code>--self-test</code> 를 <code>results_selftest.csv</code> 로 분리</td>
+<td>—</td>
+<td>10절 13번</td>
+</tr>
+<tr>
+<td>17</td>
+<td>API 모델 실측 (2라운드)</td>
+<td><code>RAG-02</code></td>
+<td><strong>13.6절 (배제 근거가 약해졌다)</strong></td>
+</tr>
+<tr>
+<td>18</td>
+<td>CLOVA Studio 비교 (2라운드)</td>
+<td><code>RAG-02</code></td>
+<td>4.3절</td>
+</tr>
+</tbody></table>
+<h3 id="110-리비전-0011-보다-먼저-해야-할-것--pgvector-가-설치되어-있지-않다">11.0 리비전 <code>0011</code> 보다 먼저 해야 할 것 — pgvector 가 설치되어 있지 않다</h3>
+<p><strong>DB 이미지에 pgvector 가 없다.</strong> <code>CREATE EXTENSION vector</code> 를 넣어도 실패한다.</p>
+<table><thead><tr>
+<th>확인한 것</th>
+<th>결과</th>
+</tr></thead><tbody>
+<tr>
+<td><code>docker-compose.yml</code> DB 이미지</td>
+<td><strong><code>postgres:16-alpine</code></strong> — pgvector 미포함</td>
+</tr>
+<tr>
+<td>마이그레이션에 <code>CREATE EXTENSION vector</code></td>
+<td><strong>없다</strong> (<code>0001</code>~<code>0009</code> 전체 확인)</td>
+</tr>
+<tr>
+<td><code>requirements.txt</code> 에 <code>pgvector</code> 패키지</td>
+<td><strong>없다</strong></td>
+</tr>
+</tbody></table>
+<p>세 가지가 선행되어야 <code>0011</code> 이 돌아간다.</p>
+<table><thead><tr>
+<th></th>
+<th>할 일</th>
+<th>주의</th>
+</tr></thead><tbody>
+<tr>
+<td>1</td>
+<td>DB 이미지를 <strong><code>pgvector/pgvector:pg16</code></strong> 등으로 교체</td>
+<td><strong><code>docker-compose.yml</code> 은 팀 공유 파일이다. 혼자 바꾸지 않는다</strong></td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>requirements.txt</code> 에 <code>pgvector</code> 추가</td>
+<td>SQLAlchemy 에서 <code>Vector</code> 타입을 쓰려면 필요하다</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>0011</code> 에서 <code>op.execute(&quot;CREATE EXTENSION IF NOT EXISTS vector&quot;)</code></td>
+<td>확장 생성이 테이블보다 먼저다</td>
+</tr>
+</tbody></table>
+<p><strong>1번이 팀 합의 사항이다.</strong> 작업 규칙에 &quot;<code>.yml</code> 처럼 팀 전체가 공유하는 파일은</p>
+<p>혼자 바꾸지 않는다&quot; 가 있다. 이미지를 바꾸면 세 사람 모두 컨테이너를 다시</p>
+<p>만들어야 하므로 미리 알려야 한다.</p>
+<p><strong>이미지 교체와 리비전 추가가 같이 오면 다른 사람 환경이 두 번 깨진다.</strong></p>
+<p>이미지 교체를 먼저 공지하고, 모두가 컨테이너를 다시 만든 뒤에 리비전을 올린다.</p>
+<h3 id="111-리비전-번호--versions-폴더로-확인한-값">11.1 리비전 번호 — <code>versions/</code> 폴더로 확인한 값</h3>
+<p><strong><code>관리/</code> 문서가 아니라 Tasqra 의 <code>backend/migrations/versions/</code> 가 정본이다.</strong></p>
+<p><code>origin/main</code> 의 실제 파일 목록이다. 체인은 선형이고 <strong>head 는 <code>20260812_0009</code></strong> 다.</p>
+<table><thead><tr>
+<th>리비전</th>
+<th>내용</th>
+<th>상태</th>
+</tr></thead><tbody>
+<tr>
+<td><code>0001</code>~<code>0007</code></td>
+<td><code>core</code> ~ <code>analysis_artifacts</code></td>
+<td>main 머지됨</td>
+</tr>
+<tr>
+<td><code>0008</code></td>
+<td><code>ocr_exclusion</code> (<code>ocr_elements.is_excluded</code>)</td>
+<td><strong>재정 · main 머지됨</strong></td>
+</tr>
+<tr>
+<td><strong><code>0009</code></strong></td>
+<td><strong><code>extracted_char_sources</code></strong> (<code>text_char_count</code> · <code>ocr_char_count</code>)</td>
+<td><strong>재정 · main 머지됨 · head</strong></td>
+</tr>
+<tr>
+<td><strong><code>0010</code></strong></td>
+<td><code>amount_items.unit_price</code> · <code>category</code> · <code>documents.document_type</code> CHECK 9종</td>
+<td><strong>보현 예정</strong></td>
+</tr>
+<tr>
+<td><strong><code>0011</code></strong></td>
+<td><strong>pgvector · <code>document_chunks</code> <code>vector(1024)</code></strong></td>
+<td><strong>이 문서로 착수 가능</strong></td>
+</tr>
+</tbody></table>
+<p><code>down_revision</code> 은 착수 순서에 따라 이렇게 정한다.</p>
+<table><thead><tr>
+<th>무엇을 먼저 만드나</th>
+<th><code>down_revision</code></th>
+</tr></thead><tbody>
+<tr>
+<td>CHECK(<code>0010</code>) 를 먼저 만들면</td>
+<td><strong><code>20260812_0009</code></strong></td>
+</tr>
+<tr>
+<td>이어서 pgvector(<code>0011</code>) 를 만들면</td>
+<td><code>20260812_0010</code></td>
+</tr>
+<tr>
+<td>pgvector 를 먼저 만들면 (CHECK 를 뒤로)</td>
+<td><strong><code>20260812_0009</code></strong> 로 두고 pgvector 가 <code>0010</code> 이 된다</td>
+</tr>
+</tbody></table>
+<p>**<code>down_revision</code> 을 <code>20260811_0007</code> 이나 <code>20260812_0008</code> 로 두면 head 가 둘이</p>
+<p>되어 <code>alembic upgrade head</code> 가 실패한다.** 컨테이너 기동 명령이 그것이라 앱이</p>
+<p>아예 뜨지 않는다. 4회 충돌 때와 같은 실패 방식이다.</p>
+<h4 id="재정님-0009-가-남긴-것-둘">재정님 <code>0009</code> 가 남긴 것 둘</h4>
+<p><strong>첫째, CHECK 제약 명명 선례가 생겼다.</strong> 보현님 <code>0010</code> 이 CHECK 9종을 넣을</p>
+<p>예정인데, 이미 팀에 쓰인 형태를 따르는 것이 맞다.</p>
+<pre><code>op.create_check_constraint(&quot;ck_extracted_text_char_count&quot;,
+                           &quot;extracted_texts&quot;, &quot;text_char_count &gt;= 0&quot;)</code></pre>
+<p><strong><code>ck_{테이블단수}_{컬럼}</code> 형태다.</strong> <code>0010</code> 도 <code>ck_amount_item_unit_price</code> 처럼</p>
+<p>맞춘다. 이름을 안 주면 Postgres 가 자동 생성해서 <code>downgrade</code> 에서 지울 수 없다.</p>
+<p><strong>둘째, 청크의 출처를 구분할 근거가 생겼다.</strong></p>
+<table><thead><tr>
+<th>컬럼</th>
+<th>뜻</th>
+</tr></thead><tbody>
+<tr>
+<td><code>extracted_texts.text_char_count</code></td>
+<td>원본에 이미 글자로 박혀 있던 분량</td>
+</tr>
+<tr>
+<td><code>extracted_texts.ocr_char_count</code></td>
+<td>OCR 로 읽어낸 분량</td>
+</tr>
+</tbody></table>
+<p>**검색 결과 스니펫(<code>RAG-08</code> 근거 표시)에 &quot;이 근거는 OCR 결과다&quot; 를 붙일 수</p>
+<p>있다.** OCR 은 오독 가능성이 있으니 사용자가 원문을 확인할 판단 근거가 된다.</p>
+<p>이번 시험 범위는 아니지만 <code>document_chunks</code> 설계에 반영할 값이 있다 — 13.7절.</p>
+<h3 id="112-다른-문서-갱신--완료">11.2 다른 문서 갱신 — <strong>완료</strong></h3>
+<p>재정님 <code>0008</code>·<code>0009</code> 두 개가 머지되면서 아래가 <strong>두 칸씩</strong> 어긋났고 고쳤다.</p>
+<table><thead><tr>
+<th>문서</th>
+<th>위치</th>
+<th>적혀 있던 값</th>
+<th>고친 값</th>
+</tr></thead><tbody>
+<tr>
+<td><code>관리/산출물_변경대기_목록.md</code></td>
+<td>D절 제목</td>
+<td>리비전 <code>0008</code></td>
+<td><strong><code>0010</code></strong></td>
+</tr>
+<tr>
+<td><code>관리/산출물_변경대기_목록.md</code></td>
+<td>B-3</td>
+<td>리비전 <code>0009</code></td>
+<td><strong><code>0011</code></strong></td>
+</tr>
+<tr>
+<td><code>관리/기능명세서.md</code></td>
+<td><code>RAG-03</code></td>
+<td>리비전 <code>0009</code></td>
+<td><strong><code>0011</code></strong></td>
+</tr>
+<tr>
+<td><code>관리/DocFlow_DB.dbml</code></td>
+<td>마이그레이션 순서</td>
+<td>예정 <code>0008</code></td>
+<td><strong><code>0010</code> · <code>0011</code> 분리</strong></td>
+</tr>
+<tr>
+<td><code>관리/산출물_변경대기_목록.md</code></td>
+<td>기준 커밋</td>
+<td><code>cbabdaa</code> (<code>0007</code>)</td>
+<td><strong><code>d273807</code> (<code>0009</code>)</strong></td>
+</tr>
+</tbody></table>
+<p><strong>이 결과서 작성 중 같은 실수를 두 번 했다.</strong></p>
+<p>처음에는 이전 논의의 번호를 그대로 옮겨 적었고, 다음에는 커밋된 <code>관리/</code> 문서만</p>
+<p>보고 <code>versions/</code> 를 확인하지 않았다. 세 번째에 실제 파일을 열어 확인했다.</p>
+<p><strong>교훈은 리포에 이미 적혀 있던 것과 같다</strong> — 브랜치를 딸 때 다른 브랜치의</p>
+<p><code>versions/</code> 를 보지 않으면 git 이 충돌로 잡지 않는다. <code>관리/</code> 문서도 낡을 수 있으므로</p>
+<p>번호는 항상 <code>versions/</code> 로 확인한다.</p>
+<h3 id="113-768-차원-측정--완료-결과는-75--81절">11.3 768 차원 측정 — <strong>완료</strong> (결과는 7.5 · 8.1절)</h3>
+<p><strong>앞서 &quot;모델을 더 추가하지 마라&quot; 고 적었으나(8.2절) 그것과 다른 일이다.</strong></p>
+<table><thead><tr>
+<th></th>
+<th>8.2절에서 하지 말라고 한 것</th>
+<th>여기서 하자는 것</th>
+</tr></thead><tbody>
+<tr>
+<td>무엇</td>
+<td>같은 1024 차원 모델을 더 넣기</td>
+<td><strong>비어 있는 차원 점 하나를 찍기</strong></td>
+</tr>
+<tr>
+<td>왜 안 되나 / 되나</td>
+<td>차이가 1문항이라 잡음만 늘어난다</td>
+<td><strong>384 와 1024 사이가 비어 있다</strong></td>
+</tr>
+<tr>
+<td>목적</td>
+<td>모델 순위</td>
+<td><strong>컬럼 차원 결정</strong></td>
+</tr>
+</tbody></table>
+<h4 id="두-개를-넣었다--하나로는-못-나눈다">두 개를 넣었다 — 하나로는 못 나눈다</h4>
+<p><code>MODELS</code> 에 이미 추가해뒀다. <strong><code>e5</code> 원본 계열의 <code>base</code>(768)와 <code>large</code>(1024)</strong> 다.</p>
+<pre><code>{ &quot;name&quot;: &quot;intfloat/multilingual-e5-base&quot;,  &quot;query_prefix&quot;: &quot;query: &quot;, … },   # 768
+{ &quot;name&quot;: &quot;intfloat/multilingual-e5-large&quot;, &quot;query_prefix&quot;: &quot;query: &quot;, … },   # 1024</code></pre>
+<p><strong>왜 <code>large</code>(1024)까지 넣나</strong> — <code>base</code> 하나만 넣으면 비교 상대가 <code>KURE-v1</code> 인데,</p>
+<p>그건 계열이 다르다(<code>bge</code> 기반 · 한국어 특화). 차원도 다르고 학습도 다르니</p>
+<p>차이가 무엇 때문인지 또 모르게 된다.</p>
+<p>같은 계열 안에서 두 점을 잡으면 변수가 하나만 남는다.</p>
+<table><thead><tr>
+<th>비교</th>
+<th>무엇이 같나</th>
+<th>무엇이 다르나</th>
+<th>알 수 있는 것</th>
+</tr></thead><tbody>
+<tr>
+<td><strong><code>e5-base</code> 대 <code>e5-large</code></strong></td>
+<td>계열 · 학습 · 접두어</td>
+<td><strong>차원(768 대 1024)과 크기</strong></td>
+<td><strong>차원·크기를 키운 순수 효과</strong></td>
+</tr>
+<tr>
+<td><strong><code>e5-large</code> 대 <code>KURE-v1</code></strong></td>
+<td><strong>차원(둘 다 1024)</strong></td>
+<td>계열 · 한국어 특화 여부</td>
+<td><strong>한국어 특화 효과</strong></td>
+</tr>
+<tr>
+<td><code>e5-small-ko-v2</code> 대 <code>e5-base</code></td>
+<td>e5 계열</td>
+<td>크기 · 한국어 튜닝 여부</td>
+<td>참고</td>
+</tr>
+</tbody></table>
+<p><strong>두 번째 비교가 8.2절의 KURE 우위를 검증한다.</strong> 지금은 <code>bge-m3</code> 와만 비교해</p>
+<p>1문항 차이였는데, <code>e5-large</code>(같은 1024 · 다른 계열)와 비교하면 한국어 특화가</p>
+<p>정말 효과가 있는지 다시 볼 수 있다.</p>
+<p>접두어는 <code>e5</code> 계열이라 둘 다 <code>query: </code> / <code>passage: </code> 를 넣었다.</p>
+<p>빼면 억울하게 진다(5.5절).</p>
+<h4 id="실행">실행</h4>
+<pre><code>cd C:\dev\embed-test
+python run_eval.py                      # 5개 전부. 비교표가 한 번에 나온다</code></pre>
+<p>두 모델을 새로 내려받으므로 시간이 든다. 나눠 돌려도 된다.</p>
+<pre><code>python run_eval.py --only e5-base --only e5-large</code></pre>
+<p><strong><code>--only</code> 는 <code>MODELS</code> 에 등록된 것 중에서 이름으로 고르는 옵션이다.</strong></p>
+<p>목록에 없는 이름을 주면 <code>--only 조건에 맞는 모델이 없다</code> 로 끝난다.</p>
+<h4 id="판단-기준">판단 기준</h4>
+<table><thead><tr>
+<th><code>e5-base</code>(768) 대 <code>e5-large</code>(1024)</th>
+<th>뜻</th>
+</tr></thead><tbody>
+<tr>
+<td>차이가 3문항 이하</td>
+<td><strong>차원을 키운 효과가 작다.</strong> 성능은 계열·학습이 정한다</td>
+</tr>
+<tr>
+<td>차이가 5문항 이상</td>
+<td>차원·크기가 실제로 영향을 준다</td>
+</tr>
+</tbody></table>
+<table><thead><tr>
+<th><code>e5-large</code>(1024) 대 <code>KURE-v1</code>(1024)</th>
+<th>뜻</th>
+</tr></thead><tbody>
+<tr>
+<td>KURE 가 크게 앞선다</td>
+<td><strong>한국어 특화가 효과 있다.</strong> 8.2절 결론이 강해진다</td>
+</tr>
+<tr>
+<td>비슷하다</td>
+<td>한국어 특화 효과가 작다. 다국어 원본으로도 충분하다</td>
+</tr>
+<tr>
+<td><code>e5-large</code> 가 앞선다</td>
+<td><strong>KURE 를 기본값으로 둔 판단을 다시 봐야 한다</strong></td>
+</tr>
+</tbody></table>
+<p><strong>컬럼 차원은 이 측정과 무관하게 1024 로 확정됐다</strong>(8.1절 지원 차원 표).</p>
+<p>이 측정은 <strong>&quot;차원이 원인&quot; 이라는 주장을 검증하는 것</strong>이지 컬럼을 바꾸려는 것이 아니다.</p>
+<hr>
+<h2 id="12-llm-모델-비교와의-경계--판단은-세현-재는-자는-보현">12. LLM 모델 비교와의 경계 — 판단은 세현, 재는 자는 보현</h2>
+<p><strong>이 문서는 임베딩 모델만 다룬다.</strong> LLM 모델 선정 판단은 별도 문서로 분리한다.</p>
+<p><strong>다만 측정 도구는 이 문서의 담당 영역이다.</strong></p>
+<table><thead><tr>
+<th></th>
+<th>담당</th>
+<th>상태</th>
+</tr></thead><tbody>
+<tr>
+<td>임베딩 모델 선정</td>
+<td>보현</td>
+<td><strong>이 문서</strong></td>
+</tr>
+<tr>
+<td>LLM 모델 선정 판단</td>
+<td>세현</td>
+<td>진행 중 (HyperCLOVA X 2종 · 데이터 주입 전)</td>
+</tr>
+<tr>
+<td><strong><code>ANL-17</code> 평가셋 기반 정확도 측정 자동화</strong></td>
+<td><strong>보현</strong></td>
+<td><strong>이번 하네스가 원형</strong></td>
+</tr>
+</tbody></table>
+<h3 id="120-anl-17--이번-도구가-그-원형이다">12.0 <code>ANL-17</code> — 이번 도구가 그 원형이다</h3>
+<p>기능명세서 8절이 <code>ANL-16</code>·<code>ANL-17</code> 담당을 보현으로 지정하고 있다.</p>
+<blockquote>
+<p><code>ANL-17</code> 평가셋 기반 정확도 측정 자동화 — P1
+정답 데이터와 대조해 정확도가 수치로 나온다.
+<strong>모델·프롬프트를 바꿔도 같은 자로 잰다. 세현님 모델 비교에 직접 쓰인다</strong></p>
+</blockquote>
+<p>이번에 만든 세 파일이 그 골격이다.</p>
+<table><thead><tr>
+<th>이번에 만든 것</th>
+<th><code>ANL-17</code> 에서 하는 일</th>
+<th>바뀌는 부분</th>
+</tr></thead><tbody>
+<tr>
+<td><code>queries.csv</code> (질의 · 정답 · 종류)</td>
+<td>평가셋 형식</td>
+<td>정답이 청크 번호 → <strong>기대 출력값</strong></td>
+</tr>
+<tr>
+<td><code>check_queries.py</code></td>
+<td><strong>채점 전 평가셋 검증</strong></td>
+<td>그대로 쓸 수 있는 발상</td>
+</tr>
+<tr>
+<td><code>run_eval.py</code></td>
+<td>채점과 지표 산출</td>
+<td>지표가 <code>R@k</code> → 정확도 · 일치율</td>
+</tr>
+</tbody></table>
+<p><strong><code>ANL-17</code> 이 P1 이고 <code>RAG-10</code> 이 P2 다.</strong> 즉 <strong>재는 자를 먼저 만든다.</strong></p>
+<p>같은 자로 재지 않으면 모델을 바꿨을 때 좋아진 것인지 알 수 없다.</p>
+<p>특히 <code>check_queries.py</code> 의 발상이 그대로 옮겨간다. **<code>run_eval.py</code> 가 못 쓰는</p>
+<p>행을 조용히 건너뛴 것처럼, 정확도 측정도 잘못된 정답 데이터를 조용히 넘기면</p>
+<p>숫자가 오염된다.** 이번에 78문항 중 5문항이 측정 불가였고 3문항이 라벨 위반이었다.</p>
+<p>그것을 사람 눈으로는 못 찾았다.</p>
+<p><strong>세현님 시험에 이 도구를 쓰려면 다음이 필요하다.</strong></p>
+<table><thead><tr>
+<th></th>
+<th>필요한 것</th>
+<th>왜</th>
+</tr></thead><tbody>
+<tr>
+<td>1</td>
+<td>정답 데이터 형식 합의</td>
+<td>요약은 정답이 하나가 아니다. 무엇을 일치로 볼지 정해야 한다</td>
+</tr>
+<tr>
+<td>2</td>
+<td>분류는 그대로 쓸 수 있다</td>
+<td>7종 중 하나이므로 정답이 명확하다 (<code>ANL-02</code>)</td>
+</tr>
+<tr>
+<td>3</td>
+<td>요약은 지표를 따로 정해야 한다</td>
+<td>사람 판정이 필요하다. 16절 비기능 요구가 <code>USER_CORRECTED</code> 비율을 쓰기로 했다</td>
+</tr>
+</tbody></table>
+<p><strong>요약 정확도를 재는 방식이 이미 정해져 있다는 점을 짚어둔다.</strong></p>
+<p>기능명세서 16절이 &quot;별도 정답 데이터를 만드는 대신 **사람이 AI 판별을 고친</p>
+<p>비율**을 쓴다&quot; 고 했다. 즉 분류는 <code>document_type_source=USER_CORRECTED</code> 비율로</p>
+<p>잰다. 요약은 그 방식이 없으므로 세현님과 합의가 필요하다.</p>
+<h3 id="121-왜-분리하는가">12.1 왜 분리하는가</h3>
+<p>선택 기준이 겹치지 않는다. 한 문서에 넣으면 &quot;무엇을 왜 골랐나&quot;가 흐려진다.</p>
+<table><thead><tr>
+<th></th>
+<th>임베딩 모델</th>
+<th>LLM</th>
+</tr></thead><tbody>
+<tr>
+<td>핵심 지표</td>
+<td><code>R@5</code> · <code>MRR</code> (기계 채점)</td>
+<td>출력 품질 (<strong>사람 판정 필요</strong>)</td>
+</tr>
+<tr>
+<td>결정에 묶이는 것</td>
+<td><strong>DB 컬럼 차원</strong></td>
+<td>프롬프트 · 토큰 예산</td>
+</tr>
+<tr>
+<td>비용 구조</td>
+<td>색인 1회</td>
+<td><strong>호출마다 과금</strong></td>
+</tr>
+<tr>
+<td>되돌리기 비용</td>
+<td>재임베딩 반나절</td>
+<td>설정 한 줄</td>
+</tr>
+<tr>
+<td>평가셋 성격</td>
+<td>질의와 정답 청크</td>
+<td>입력 문서와 기대 출력</td>
+</tr>
+</tbody></table>
+<h3 id="122-임베딩을-먼저-확정하는-것이-llm-시험의-전제다">12.2 임베딩을 먼저 확정하는 것이 LLM 시험의 전제다</h3>
+<p>RAG 파이프라인에서 검색과 생성은 다른 단계다.</p>
+<pre><code>질의 -&gt; [임베딩 검색] -&gt; 청크 k개 -&gt; [LLM 생성] -&gt; 답변
+         이 문서가 정한 것            세현 담당</code></pre>
+<p>**임베딩을 하나로 고정해두면 LLM 시험에서 들어가는 청크가 같아지므로</p>
+<p>LLM 차이만 깨끗하게 측정된다.** 변수 통제다.</p>
+<p>반대로 임베딩과 LLM을 같이 바꾸면 출력이 나빠졌을 때 검색이 잘못 가져온</p>
+<p>것인지 생성이 잘못한 것인지 가릴 수 없다. <strong>그래서 순서가 임베딩 먼저다.</strong></p>
+<p><strong>그리고 임베딩은 검색 전용이 아니다.</strong> 기능명세서 14절 도입부에 이렇게 적혀 있다.</p>
+<blockquote>
+<p>임베딩은 금액 전용이 아니다. 요약·분류·검색이 같은 파이프라인을 쓴다.
+특히 45,000자 문서를 요약할 때 무엇을 프롬프트에 넣을지 고르는 데 쓰인다.</p>
+</blockquote>
+<p><code>RAG-07</code>(프롬프트 컨텍스트 조립)이 토큰 예산 안에서 청크를 고르는데,</p>
+<p>그 고르는 근거가 임베딩이다. <strong>즉 임베딩 품질이 요약 품질의 상한을 정한다.</strong></p>
+<p>LLM 이 아무리 좋아도 엉뚱한 청크가 들어가면 요약이 틀린다.</p>
+<p>두 시험은 독립적으로 진행하되 <strong>종속 관계는 한 방향이다.</strong></p>
+<pre><code>임베딩 품질  -&gt;  RAG-07 이 고른 청크  -&gt;  LLM 요약 품질</code></pre>
+<h3 id="123-llm-결과서에-담겨야-할-것">12.3 LLM 결과서에 담겨야 할 것</h3>
+<table><thead><tr>
+<th></th>
+<th>항목</th>
+<th>왜 필요한가</th>
+</tr></thead><tbody>
+<tr>
+<td>1</td>
+<td>모델명 · 버전 · <strong>학습 여부와 학습 데이터</strong></td>
+<td>학습시킨 모델은 데이터가 변수다. 명시해야 재현된다</td>
+</tr>
+<tr>
+<td>2</td>
+<td>어느 작업에 썼나 (요약 · 분류 · 금액 추출)</td>
+<td>작업마다 기준이 다르다</td>
+</tr>
+<tr>
+<td>3</td>
+<td>평가 방법 (사람 판정 · 정답셋 · 지표)</td>
+<td>근거의 강도를 정한다</td>
+</tr>
+<tr>
+<td>4</td>
+<td>수치 (정확도 · 응답시간 · 토큰 · 비용)</td>
+<td>비교 표를 만든다</td>
+</tr>
+<tr>
+<td>5</td>
+<td>실패 사례</td>
+<td>한계를 적는다</td>
+</tr>
+<tr>
+<td>6</td>
+<td>실행 환경 (<strong>GPU 사양</strong>)</td>
+<td><code>PER-01</code> 판단에 필요 (9절)</td>
+</tr>
+<tr>
+<td>7</td>
+<td>선정 · 탈락 결론과 이유</td>
+<td>결정 기록</td>
+</tr>
+</tbody></table>
+<p><strong>1번을 특히 주의한다.</strong> 같은 모델을 서로 다른 데이터로 학습시켜 비교하면</p>
+<p>모델 차이가 아니라 학습 데이터 차이를 재는 것이 된다. 두 조건 중 하나만</p>
+<p>바꿔야 인과가 성립한다.</p>
+<p><strong>6번은 이 문서 9절과 직결된다.</strong> GPU 사양을 알면 <code>PER-01</code> 10페이지 60초가</p>
+<p>가능한지 계산할 수 있다. 현재 CPU 기준으로는 임베딩만 33초다.</p>
+<hr>
+<h2 id="13-팀-확인-필요-사항">13. 팀 확인 필요 사항</h2>
+<p>GPU가 없다는 것은 임베딩만의 문제가 아니다.</p>
+<table><thead><tr>
+<th></th>
+<th>확인할 것</th>
+<th>왜</th>
+</tr></thead><tbody>
+<tr>
+<td>1</td>
+<td>세현 장비 GPU 사양</td>
+<td>없으면 LLM도 CPU. <code>PER-01</code> 60초가 위험하다</td>
+</tr>
+<tr>
+<td>2</td>
+<td>모델을 각자 PC에서 돌리나, 공용 장비인가</td>
+<td>각자면 영상 촬영을 누구 PC로 하나</td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong>임베딩을 어디서 돌리나</strong></td>
+<td>시험자 PC에 GPU가 없다. 최종 색인 장비를 정해야 한다</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>PER-01</code> 60초가 임베딩까지 포함하는가</td>
+<td>9절 판단이 달라진다</td>
+</tr>
+<tr>
+<td>5</td>
+<td><strong>HyperCLOVA X &quot;학습&quot; 이 파인튜닝인가</strong></td>
+<td>기능명세서 17절과 충돌 가능 (아래)</td>
+</tr>
+<tr>
+<td>6</td>
+<td>HyperCLOVA X 를 상용 API 로 쓰나 로컬로 띄우나</td>
+<td>18절 25번 결정과 관계</td>
+</tr>
+</tbody></table>
+<p><strong>3번이 8.1절 결정의 전제다.</strong> 공용 GPU 장비가 있으면 1024차원 운용에</p>
+<p>문제가 없다. 없으면 색인 시간을 일정에 반영해야 한다.</p>
+<h3 id="131-파인튜닝--기능명세서와-어긋날-수-있다">13.1 파인튜닝 — 기능명세서와 어긋날 수 있다</h3>
+<p>기능명세서 <strong>17절 &quot;하지 않을 것&quot;</strong> 에 이렇게 적혀 있다.</p>
+<table><thead><tr>
+<th>안 함</th>
+<th>이유</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>파인튜닝</strong></td>
+<td>20일에 자리가 없다. 프롬프트 + 구조화 출력으로 목표 달성 가능</td>
+</tr>
+</tbody></table>
+<p>그런데 LLM 시험이 &quot;HyperCLOVA X 두 종을 학습시켜서 비교&quot; 로 진행되고 있다.</p>
+<p><strong>그 &quot;학습&quot; 이 파인튜닝이면 17절 결정과 충돌한다.</strong></p>
+<table><thead><tr>
+<th>무엇인가</th>
+<th>17절과의 관계</th>
+</tr></thead><tbody>
+<tr>
+<td>파인튜닝 (가중치 갱신)</td>
+<td><strong>충돌.</strong> 17절을 고치거나 시험 범위를 조정해야 한다</td>
+</tr>
+<tr>
+<td>프롬프트 · 예시 주입 (few-shot)</td>
+<td>충돌 없음. 17절이 권하는 방식이다</td>
+</tr>
+<tr>
+<td>RAG 로 문서를 넣어주는 것</td>
+<td>충돌 없음. 그게 <code>RAG-07</code> 이다</td>
+</tr>
+</tbody></table>
+<p><strong>어느 쪽인지 확인해야 한다.</strong> 파인튜닝이라면 일정(구현 20일)과 재현성 양쪽에</p>
+<p>영향이 있다. 또한 기능명세서 18절 25번이 <strong>&quot;상용 API 유지 권장&quot;</strong> 으로</p>
+<p>정리되어 있는데(1조가 Gemma 1B 에서 언어 쏠림을 겪은 사례), 로컬 학습 모델을</p>
+<p>쓰는 방향이면 그 결정도 다시 봐야 한다.</p>
+<p><strong>이 결과서가 판단할 사항은 아니다. 팀 안건으로 올린다.</strong></p>
+<h3 id="132-이-결과서-판단의-상한--v03-기획안을-보지-못했다">13.2 이 결과서 판단의 상한 — v0.3 기획안을 보지 못했다</h3>
+<p><code>Tasqra/DEVELOPMENT_GUIDE.md</code> 1절이 기준의 우선순위를 정하고 있다.</p>
+<pre><code>DocFlow 통합 기획안 v0.3
+  -&gt; 개발 가이드
+  -&gt; API·DB 계약
+  -&gt; 구현 코드와 주석
+
+규칙이 서로 충돌하면 위에 있는 기준을 따른다.</code></pre>
+<p><strong>최상위 기준인 v0.3 기획안 파일이 두 레포 어디에도 없다.</strong></p>
+<p><code>관리/</code> 문서 다섯 개가 v0.3 을 인용하고 있을 뿐이다.</p>
+<p>따라서 이 결과서는 <strong>2순위 이하 문서만 근거로 삼았다.</strong> v0.3 에 다른 지시가</p>
+<p>있으면 그쪽이 이긴다.</p>
+<h3 id="133-확인-필요--검색의-구현-계층">13.3 확인 필요 — 검색의 구현 계층</h3>
+<p><code>DEVELOPMENT_GUIDE.md</code> 2절이 기능을 4계층으로 나누고 있다.</p>
+<table><thead><tr>
+<th>계층</th>
+<th>내용</th>
+</tr></thead><tbody>
+<tr>
+<td>1</td>
+<td>공통 기반 — 인증 · 프로젝트 스코프 · 비동기 큐 · OCR 요소 저장</td>
+</tr>
+<tr>
+<td>2A</td>
+<td>액션아이템 추출과 태스크 자동화</td>
+</tr>
+<tr>
+<td>2B</td>
+<td>OCR 박스 검수와 확정 텍스트</td>
+</tr>
+<tr>
+<td><strong>4</strong></td>
+<td><strong>확장 기능 — 대시보드 · 검색 · 일괄 처리 · 리포트 · 폴더 감시</strong></td>
+</tr>
+</tbody></table>
+<blockquote>
+<p>현재 개발 범위가 어느 계층인지 먼저 확인하고, <strong>다음 계층 기능을 섞어
+구현하지 않는다.</strong></p>
+</blockquote>
+<p>**검색이 4계층(확장)에 있는데 기능명세서는 <code>RAG-01</code>·<code>02</code>·<code>03</code>·<code>04</code>·<code>07</code>·<code>08</code>·</p>
+<p><code>09</code> 를 P1 로 둔다.** 두 기준이 어긋난다.</p>
+<table><thead><tr>
+<th>기준</th>
+<th>검색의 위치</th>
+</tr></thead><tbody>
+<tr>
+<td><code>DEVELOPMENT_GUIDE</code> 2절</td>
+<td>4계층 확장 기능</td>
+</tr>
+<tr>
+<td><code>기능명세서</code> 14절</td>
+<td><strong>P1 — 차별화 핵심</strong></td>
+</tr>
+</tbody></table>
+<p>우선순위 규칙상 <code>DEVELOPMENT_GUIDE</code> 가 기능명세서보다 위이므로</p>
+<p><strong>문서만 보면 검색을 나중에 해야 한다.</strong> 다만 기능명세서 14절이 도메인을</p>
+<p>공공 SI 로 좁힌 뒤 근거가 바뀌었다고 명시하고 있어, **개발 가이드 쪽이 낡은</p>
+<p>것일 가능성이 크다.**</p>
+<p><strong>어느 쪽이 맞는지 확인해야 한다.</strong> 이 결정이 <code>0011</code> 착수 시점을 정한다.</p>
+<h3 id="134-vis-07-과-rag-04-가-같은-기능을-두-번-정의한다">13.4 <code>VIS-07</code> 과 <code>RAG-04</code> 가 같은 기능을 두 번 정의한다</h3>
+<table><thead><tr>
+<th>ID</th>
+<th>기능</th>
+<th>우선</th>
+<th>담당</th>
+<th>선행</th>
+</tr></thead><tbody>
+<tr>
+<td><code>VIS-07</code></td>
+<td>시맨틱 검색 (pgvector)</td>
+<td><strong>P3</strong></td>
+<td>보현</td>
+<td><code>VIS-06</code></td>
+</tr>
+<tr>
+<td><code>RAG-04</code></td>
+<td>의미 검색</td>
+<td><strong>P1</strong></td>
+<td>보현</td>
+<td><code>RAG-03</code></td>
+</tr>
+</tbody></table>
+<p><strong>같은 것이다.</strong> 그런데 우선순위가 P3 과 P1 로 다르고, <code>VIS-07</code> 은 완료 판정</p>
+<p>기준이 비어 있다.</p>
+<p><code>RAG</code> 영역이 신규로 추가되면서(기능명세서 14절 — &quot;도메인을 공공 SI·용역으로</p>
+<p>좁힌 뒤 정식 범위가 됐다&quot;) <strong><code>VIS-07</code> 이 정리되지 않고 남은 것으로 보인다.</strong></p>
+<p>15절 폐기 목록에도 없다.</p>
+<p>기능명세서 머리에 규칙이 있다.</p>
+<blockquote>
+<p>ID 는 확정 후 변경하지 않는다. 폐기된 기능도 번호를 재사용하지 않고 <code>폐기</code> 로 남긴다.</p>
+</blockquote>
+<p><strong>따라서 <code>VIS-07</code> 을 지우지 않고 <code>폐기</code> 로 표시하거나, 성격을 바꿔야 한다.</strong></p>
+<p><code>VIS-06</code> 을 선행으로 두고 있으니 <strong>&quot;검색 화면에 시맨틱 결과를 얹는 UI&quot;</strong> 로</p>
+<p>성격을 바꾸는 쪽이 자연스럽다. <code>RAG-04</code> 는 검색 자체이고 <code>VIS-07</code> 은 화면이다.</p>
+<p>15절에 이미 &quot;폐기하지 않고 성격만 바꾼 것&quot; 표가 있으므로 거기에 한 줄 추가하면 된다.</p>
+<h3 id="135-api-계약서에-검색-엔드포인트가-없다">13.5 API 계약서에 검색 엔드포인트가 없다</h3>
+<p>엔드포인트 50개를 확인했는데 <code>RAG</code> 영역에 대응하는 것이 하나뿐이다.</p>
+<table><thead><tr>
+<th>기능</th>
+<th>우선</th>
+<th>대응 엔드포인트</th>
+</tr></thead><tbody>
+<tr>
+<td><code>VIS-06</code> 통합 검색</td>
+<td>P2</td>
+<td><code>GET /api/projects/{pid}/search</code></td>
+</tr>
+<tr>
+<td><strong><code>RAG-04</code> 의미 검색</strong></td>
+<td><strong>P1</strong></td>
+<td><strong>없음</strong></td>
+</tr>
+<tr>
+<td><strong><code>RAG-08</code> 근거 스니펫 연결</strong></td>
+<td><strong>P1</strong></td>
+<td><strong>없음</strong></td>
+</tr>
+<tr>
+<td><strong><code>RAG-12</code> 유사 사업 단가 선례 검색</strong></td>
+<td>P2</td>
+<td><strong>없음</strong></td>
+</tr>
+<tr>
+<td><code>RAG-01</code>·<code>02</code>·<code>03</code>·<code>07</code>·<code>09</code></td>
+<td>P1</td>
+<td>내부 로직이라 불필요 (정상)</td>
+</tr>
+</tbody></table>
+<p><strong><code>RAG-04</code> 가 P1 인데 API 계약이 없다.</strong> <code>RAG-08</code> 도 같다.</p>
+<p><code>0011</code> 을 만든 직후 구현할 대상인데 계약이 비어 있으면 프런트와 맞출 수 없다.</p>
+<p><code>VIS-06</code> 의 <code>search</code> 에 파라미터를 얹는 방식(<code>?mode=semantic</code>)과 별도 경로를</p>
+<p>두는 방식(<code>/search/semantic</code>) 중 하나를 골라야 한다. <code>RAG-05</code> 가 둘을 결합하는</p>
+<p>것이므로 <strong>하나의 엔드포인트에 모드를 두는 쪽이 나중에 합치기 쉽다.</strong></p>
+<p><strong>초안을 만들어 올릴 수 있다. 지시해주면 쓰겠다.</strong></p>
+<h4 id="덧붙여--계약서에-중복-기재가-있다">덧붙여 — 계약서에 중복 기재가 있다</h4>
+<p><code>31</code>~<code>34</code> 번(<code>batch-jobs</code> 4건)이 <strong>두 번 적혀 있다.</strong> 번호도 31~34 로 같다.</p>
+<p>복사 중 생긴 것으로 보이며 실제 엔드포인트는 50개가 아니라 46개다.</p>
+<h3 id="136-api-를-배제할-근거가-약해졌다--8월-12일-판의-논거를-철회한다">13.6 API 를 배제할 근거가 <strong>약해졌다</strong> — 8월 12일 판의 논거를 철회한다</h3>
+<p>8월 12일 판은 이 절 제목을 <strong>&quot;API 모델을 볼 필요가 줄었다&quot;</strong> 로 달고 이렇게</p>
+<p>적었다.</p>
+<blockquote>
+<p>한국어 특화가 효과 있다는 것이 확인됐다. 같은 1024 차원에서 한국어 특화
+<code>KURE-v1</code>(27)이 다국어 원본 <code>e5-large</code>(23)를 4문항 앞섰다.
+후보 API 모델 셋은 <strong>모두 다국어 모델</strong>이다.
+<strong>다국어 모델이 한국어 특화를 이기지 못한 사례를 우리가 직접 만들었으므로,
+데이터를 외부로 보내면서까지 API 로 갈 근거가 약해졌다.</strong></p>
+</blockquote>
+<p><strong>5차에서 이 논거가 무너졌다.</strong></p>
+<table><thead><tr>
+<th>모델</th>
+<th>성격</th>
+<th>안겹침 R@5</th>
+</tr></thead><tbody>
+<tr>
+<td><code>BGE-m3-ko</code></td>
+<td>한국어 튜닝</td>
+<td>41</td>
+</tr>
+<tr>
+<td><code>KURE-v1</code></td>
+<td><strong>한국어 특화</strong></td>
+<td><strong>37</strong></td>
+</tr>
+<tr>
+<td><strong><code>arctic-l-v2.0</code></strong></td>
+<td><strong>다국어 최신</strong></td>
+<td><strong>37</strong></td>
+</tr>
+<tr>
+<td><code>bge-m3</code></td>
+<td>다국어 원본</td>
+<td>35</td>
+</tr>
+</tbody></table>
+<p><strong>다국어 최신 모델 <code>arctic</code> 이 한국어 특화 <code>KURE-v1</code> 과 동점이다.</strong></p>
+<p>그리고 <code>KURE-v1</code>(37)과 다국어 원본 <code>bge-m3</code>(35)는 검정에서 구별되지 않는다(p=0.77).</p>
+<p><strong>&quot;다국어라서 불리하다&quot; 는 논거를 더 쓸 수 없다.</strong></p>
+<h4 id="왜-틀렸나--표본-하나에-기댔다">왜 틀렸나 — 표본 하나에 기댔다</h4>
+<p>8월 12일 판의 근거는 <strong><code>e5-large</code> 하나</strong>였다. 그 모델은 5차에서 **9종 중</p>
+<p>최하위**로 드러났다.</p>
+<blockquote>
+<p><strong>가장 약한 모델 하나를 이겼다고 범주 전체의 우위를 주장한 셈이다.</strong></p>
+</blockquote>
+<p><code>arctic</code> 은 <code>e5-large</code> 와 같은 &quot;다국어&quot; 범주인데 37 대 18 이다.</p>
+<p><strong>범주 안의 격차가 범주 간 격차보다 크다.</strong></p>
+<h4 id="그래서-남은-api-쟁점은-하나다">그래서 남은 API 쟁점은 하나다</h4>
+<table><thead><tr>
+<th>쟁점</th>
+<th>상태</th>
+</tr></thead><tbody>
+<tr>
+<td>~~한국어 성능이 떨어질 것이다~~</td>
+<td><strong>철회.</strong> 다국어 <code>arctic</code> 이 2위다</td>
+</tr>
+<tr>
+<td>비용</td>
+<td><strong>쟁점 아니다.</strong> Voyage 는 첫 2억 토큰 무료</td>
+</tr>
+<tr>
+<td>배포 무게</td>
+<td><strong>API 가 유리하다.</strong> 로컬은 <code>torch</code> 나 GGUF 등록이 붙는다</td>
+</tr>
+<tr>
+<td><strong>문서가 외부로 나간다</strong></td>
+<td><strong>이것만 남았다.</strong> 성능과 무관한 판단이다</td>
+</tr>
+</tbody></table>
+<p>후보로 언급된 API 모델 셋은 여전히 <strong>한국어 성능이 미확인</strong>이다.</p>
+<table><thead><tr>
+<th>모델</th>
+<th>한국어 특화</th>
+<th>우리 실측과의 관계</th>
+</tr></thead><tbody>
+<tr>
+<td><code>voyage-4</code> 계열</td>
+<td>아니다 (다국어)</td>
+<td><strong>한국어 성능 미확인</strong></td>
+</tr>
+<tr>
+<td>OpenAI <code>text-embedding-3-large</code></td>
+<td>아니다 (다국어)</td>
+<td><strong>한국어 성능 미확인</strong></td>
+</tr>
+<tr>
+<td><code>gemini-embedding-001</code> · <code>2</code></td>
+<td>아니다 (다국어)</td>
+<td><strong>한국어 성능 미확인</strong></td>
+</tr>
+</tbody></table>
+<p><strong>미확인이라는 사실은 배제 근거가 아니다.</strong> 재봐야 안다. 그리고 재기 전에</p>
+<p>데이터 유출 허용 여부를 팀이 정해야 한다 — 그것이 성능보다 앞선 판단이다.</p>
+<p>정리하면 이렇다.</p>
+<table><thead><tr>
+<th></th>
+<th>판단</th>
+</tr></thead><tbody>
+<tr>
+<td>지금</td>
+<td><strong>1라운드(로컬)로 확정하고 진행한다.</strong> 한국어 특화가 앞선다는 실측이 있다</td>
+</tr>
+<tr>
+<td>나중</td>
+<td>시간이 남고 데이터 유출이 허용되면 2라운드로 API 하나를 재본다</td>
+</tr>
+<tr>
+<td>순서</td>
+<td><code>voyage-4</code> 가 1024 기본이라 <strong>컬럼을 안 바꾸고 비교할 수 있다.</strong> 첫 2억 토큰이 무료라 돈도 안 든다. 첫 후보로 적합하다</td>
+</tr>
+<tr>
+<td>도구</td>
+<td><strong>하네스에 붙여 뒀다</strong> — <code>run_eval.py --api-only</code>. 요청 형식은 <code>check_api_encoders.py</code> 로 키 없이 검사된다</td>
+</tr>
+</tbody></table>
+<h4 id="그래도-gemini-를-볼-때-판단할-것-셋">그래도 Gemini 를 볼 때 판단할 것 셋</h4>
+<p>세현이 제안한 후보다. 사양은 8.1절에 정리했다. <strong>비용은 쟁점이 아니다</strong></p>
+<p>(Voyage 는 첫 2억 토큰 무료 · Gemini 는 문서 20건에 0.2달러 수준).</p>
+<p>판단해야 할 것은 다른 셋이다.</p>
+<table><thead><tr>
+<th></th>
+<th>안건</th>
+<th>왜 팀이 정해야 하나</th>
+</tr></thead><tbody>
+<tr>
+<td>1</td>
+<td><strong>고객 문서 전량을 외부 API 로 보내도 되는가</strong></td>
+<td>임베딩은 요약과 달리 <strong>모든 문서의 모든 조각</strong>을 보낸다. 색인해야 검색되므로 100% 다</td>
+</tr>
+<tr>
+<td>2</td>
+<td><strong>Preview 모델을 발표에 쓸 것인가</strong></td>
+<td><code>gemini-embedding-2</code> 는 Preview 다. 사양·가격·가용성이 바뀔 수 있다. GA 인 <code>gemini-embedding-001</code> 을 먼저 본다</td>
+</tr>
+<tr>
+<td>3</td>
+<td>권장 차원이 아닌 1024 를 쓸 것인가</td>
+<td>3072 벡터를 잘라 쓰는 것이라 <strong>직접 정규화해야 한다.</strong> 권장 768 과 비교해 손실이 얼마인지 봐야 한다</td>
+</tr>
+</tbody></table>
+<p><strong>3번은 앞선 판에서 &quot;1024 컬럼에는 안 들어간다&quot; 고 적었던 것을 고친 것이다.</strong></p>
+<p>들어간다. 8.1절의 정정을 본다. 따라서 **Gemini 때문에 컬럼을 768 로 낮출</p>
+<p>이유는 없다.** 대신 잘린 벡터의 품질을 재봐야 한다는 문제로 바뀌었다.</p>
+<h4 id="덧붙여--멀티모달이라는-점이-우리-파이프라인과-겹칠-수-있다">덧붙여 — 멀티모달이라는 점이 우리 파이프라인과 겹칠 수 있다</h4>
+<p>Gemini Embedding 2 는 <strong>PDF·이미지를 직접 받는다.</strong> 우리는 OCR 로 글자를 뽑아</p>
+<p>텍스트를 임베딩하는 구조인데, 이 모델은 그 단계를 건너뛸 수 있다.</p>
+<p><strong>다만 그러면 OCR 검수 기능(<code>REV-*</code> · 재정 담당)의 의미가 약해진다.</strong></p>
+<p>우리 제품의 차별점 2B 가 &quot;OCR 박스 검수와 확정 텍스트&quot; 이고,</p>
+<p>검수 확정 시 재임베딩(<code>RAG-09</code>)이 그 사슬의 끝이다.</p>
+<p><strong>PDF 를 그대로 임베딩하면 사람이 고친 텍스트가 반영되지 않는다.</strong></p>
+<p>그러므로 멀티모달 입력은 <strong>쓰지 않고 텍스트 입력만 쓰는 것</strong>이 제품 방향에 맞다.</p>
+<p>이 점을 계약·설계에 못박아두지 않으면 나중에 편의상 PDF 를 직접 넣게 된다.</p>
+<hr>
+<h3 id="137-청크에-ocr-출처를-남길지--재정님-0009-가-준-선택지">13.7 청크에 OCR 출처를 남길지 — 재정님 <code>0009</code> 가 준 선택지</h3>
+<p>머지된 <code>0009</code> 가 <code>extracted_texts</code> 에 두 컬럼을 넣었다.</p>
+<table><thead><tr>
+<th>컬럼</th>
+<th>뜻</th>
+</tr></thead><tbody>
+<tr>
+<td><code>text_char_count</code></td>
+<td>원본에 이미 글자로 박혀 있던 분량</td>
+</tr>
+<tr>
+<td><code>ocr_char_count</code></td>
+<td>OCR 로 읽어낸 분량</td>
+</tr>
+</tbody></table>
+<p><strong>이 값이 있으면 검색 결과 스니펫에 &quot;이 근거는 OCR 결과다&quot; 를 붙일 수 있다.</strong></p>
+<p>OCR 은 오독 가능성이 있으므로 사용자가 원문을 확인할 판단 근거가 된다.</p>
+<p><code>RAG-08</code>(근거 스니펫 표시)의 신뢰도를 높이는 값이다.</p>
+<p>다만 <strong>두 컬럼은 문서 단위 합계이고 청크 단위가 아니다.</strong></p>
+<p>문서 하나에 원본 텍스트와 OCR 이 섞여 있으면 특정 청크가 어느 쪽에서 왔는지</p>
+<p>이 값만으로는 알 수 없다.</p>
+<table><thead><tr>
+<th>방법</th>
+<th>어떻게</th>
+<th>정확도</th>
+<th>비용</th>
+</tr></thead><tbody>
+<tr>
+<td>A. 문서 단위 표시</td>
+<td><code>ocr_char_count &gt; 0</code> 이면 그 문서의 모든 청크에 표시</td>
+<td><strong>낮다.</strong> 섞인 문서에서 원본 텍스트 청크도 OCR 로 표시된다</td>
+<td>없음. 조회만</td>
+</tr>
+<tr>
+<td>B. 청크 단위 기록</td>
+<td>청킹할 때 <code>document_chunks</code> 에 출처 컬럼을 둔다</td>
+<td>정확하다</td>
+<td>청킹 로직이 출처를 알아야 한다</td>
+</tr>
+<tr>
+<td>C. 표시하지 않는다</td>
+<td>지금처럼 둔다</td>
+<td>—</td>
+<td>없음</td>
+</tr>
+</tbody></table>
+<p><strong>판단하지 않는다.</strong> 이번 시험 범위는 임베딩 모델 선정이고, 이것은 청킹 구현</p>
+<p>담당이 정할 사항이다. **다만 B 를 고르려면 <code>0011</code> 에 컬럼이 들어가야 하므로</p>
+<p>그 전에 결정해야 한다.** 나중에 추가하면 마이그레이션이 한 번 더 필요하다.</p>
+<p><code>RAG-09</code>(검수 반영 재임베딩)와 성격이 같다 — **사람이 고친 결과가 검색에</p>
+<p>제대로 반영되는지**의 문제다.</p>
+<h3 id="138-라이선스와-배포-무게--허깅페이스가-왜-나오나">13.8 라이선스와 배포 무게 — 허깅페이스가 왜 나오나</h3>
+<h4 id="라이선스--후보-9종-전부-확인했다">라이선스 — 후보 9종 전부 확인했다</h4>
+<p><strong>허브 모델 카드의 <code>license</code> 필드를 직접 읽었다.</strong> 8월 12일 판은 GitHub 원본</p>
+<p>저장소를 봤는데(허깅페이스 접속이 막혀서), **모델 카드와 저장소의 라이선스가</p>
+<p>다를 수 있다**는 한계를 그때 스스로 적어 두었다. 그 한계를 해소했다.</p>
+<pre><code>from huggingface_hub import HfApi
+api = HfApi()
+api.model_info(&quot;dragonkue/BGE-m3-ko&quot;).cardData.get(&quot;license&quot;)   # -&gt; apache-2.0</code></pre>
+<table><thead><tr>
+<th>모델</th>
+<th>라이선스</th>
+<th>상업적 사용</th>
+</tr></thead><tbody>
+<tr>
+<td><strong><code>dragonkue/BGE-m3-ko</code></strong> (채택)</td>
+<td><strong>apache-2.0</strong></td>
+<td><strong>가능</strong></td>
+</tr>
+<tr>
+<td><code>Snowflake/snowflake-arctic-embed-l-v2.0</code></td>
+<td>apache-2.0</td>
+<td>가능</td>
+</tr>
+<tr>
+<td><code>nomic-ai/nomic-embed-text-v2-moe</code></td>
+<td>apache-2.0</td>
+<td>가능</td>
+</tr>
+<tr>
+<td><code>Qwen/Qwen3-Embedding-0.6B</code></td>
+<td>apache-2.0</td>
+<td>가능</td>
+</tr>
+<tr>
+<td><code>nlpai-lab/KURE-v1</code></td>
+<td><strong>mit</strong></td>
+<td>가능</td>
+</tr>
+<tr>
+<td><code>BAAI/bge-m3</code></td>
+<td><strong>mit</strong></td>
+<td>가능</td>
+</tr>
+<tr>
+<td><code>intfloat/multilingual-e5</code> (base · large)</td>
+<td>mit</td>
+<td>가능</td>
+</tr>
+<tr>
+<td><code>dragonkue/multilingual-e5-small-ko-v2</code></td>
+<td>mit</td>
+<td>가능</td>
+</tr>
+</tbody></table>
+<p><strong>라이선스로 걸러지는 후보는 없다.</strong> 이 기준은 결과적으로 판별력이 없었다.</p>
+<p>다만 확인하지 않고 넘어갔다면 채택 모델이 비상업 라이선스일 위험을 안고</p>
+<p>제출했을 것이므로 확인 자체는 필요한 절차였다.</p>
+<p><strong>확인이 필요했던 이유가 있다.</strong> 같은 고려대 NLP&amp;AI 연구실의 <code>KULLM3</code> 는</p>
+<p><strong>CC-BY-NC</strong>(비상업)다. 연구실이 같으니 <code>KURE</code> 도 그럴 수 있었다.</p>
+<p><strong>아니었다 — <code>KURE</code> 는 MIT 다.</strong></p>
+<h4 id="검토-때-나올-질문-하나">검토 때 나올 질문 하나</h4>
+<blockquote>
+<p>원본 <code>bge-m3</code> 가 MIT 인데 파생본 <code>BGE-m3-ko</code> 가 apache-2.0 인 것이 맞나?</p>
+</blockquote>
+<p><strong>맞다.</strong> MIT 는 재라이선싱을 막지 않는다. MIT 저작물을 수정해 더 엄격한(하지만</p>
+<p>여전히 허용적인) Apache-2.0 으로 배포할 수 있고, 원본 MIT 고지만 유지하면 된다.</p>
+<table><thead><tr>
+<th></th>
+<th>MIT</th>
+<th>Apache-2.0</th>
+</tr></thead><tbody>
+<tr>
+<td>상업 이용·수정·재배포</td>
+<td>가능</td>
+<td>가능</td>
+</tr>
+<tr>
+<td>의무</td>
+<td>저작권 표시</td>
+<td>저작권 표시 + <strong>변경 사실 고지</strong> + <code>NOTICE</code> 보존</td>
+</tr>
+</tbody></table>
+<p>**모델 가중치를 우리 저장소에 담지 않고 허브·Ollama 에서 받아 쓰므로 실무</p>
+<p>부담은 출처·라이선스 표기뿐이다.**</p>
+<h4 id="채택-모델은-ollama-공식-라이브러리에-없다--배포-작업이-하나-붙는다">채택 모델은 Ollama 공식 라이브러리에 없다 — 배포 작업이 하나 붙는다</h4>
+<p><strong><code>BGE-m3-ko</code> 는 허깅페이스 전용 모델이다.</strong> Ollama 로 올리려면</p>
+<p><strong>GGUF 파일을 내려받아 <code>Modelfile</code> 로 직접 등록</strong>해야 한다.</p>
+<table><thead><tr>
+<th>후보</th>
+<th>Ollama 경로</th>
+<th>배포 작업</th>
+</tr></thead><tbody>
+<tr>
+<td><code>bge-m3</code> · <code>arctic-l-v2.0</code> · <code>nomic-v2-moe</code> · <code>Qwen3</code></td>
+<td><strong>공식</strong></td>
+<td><code>ollama pull</code> 한 줄</td>
+</tr>
+<tr>
+<td><strong><code>BGE-m3-ko</code></strong> (채택)</td>
+<td><strong>공식 없음</strong></td>
+<td>GGUF 내려받기 → <code>ollama create</code> → 태그 관리</td>
+</tr>
+<tr>
+<td><code>KURE-v1</code></td>
+<td>비공식 저장소</td>
+<td><code>ollama pull daynice/kure-v1</code></td>
+</tr>
+</tbody></table>
+<p><strong>채택을 뒤집는 사유는 아니다.</strong> 품질이 41 대 37 로 앞서고 한 번 등록해 두면</p>
+<p>이후는 같다. 다만 **임베딩 생성·저장(<code>RAG-02</code>)에 &quot;모델 등록&quot; 작업이 하나</p>
+<p>늘어난다.** 그것을 모르고 일정을 잡으면 막힌다.</p>
+<p><strong>여기서 대안이 값을 한다.</strong> 공식 경로가 꼭 필요하면 <code>arctic-embed-l-v2.0</code> 이</p>
+<p><code>ollama pull</code> 한 줄로 끝난다. 안겹침 37문항으로 채택 모델과 4문항 차이고</p>
+<p><strong>통계적으로 구별되지 않는다</strong>(8.2절). 차원이 같아 DB 도 안 건드린다.</p>
+<p><strong>GGUF 는 양자화본이라 우리가 잰 fp32 점수와 다를 수 있다. 그건 안 쟀다</strong></p>
+<p>(10절 9·10번).</p>
+<p><strong>이것을 채택 결정 뒤에 알았다.</strong> 배포 경로를 미리 확인하지 않은 것이</p>
+<p>이번 시험의 절차 결함이다. 그래서 3절 고려사항에 <strong>11. Ollama 지원</strong> 을 추가했다.</p>
+<h4 id="허깅페이스-얘기가-나오는-이유--코드로-확인했다">허깅페이스 얘기가 나오는 이유 — 코드로 확인했다</h4>
+<p>세현이 API 쪽을 선호하며 허깅페이스를 언급했다. <strong>그 실체를 코드로 확인했다.</strong></p>
+<table><thead><tr>
+<th>확인 대상</th>
+<th>결과</th>
+</tr></thead><tbody>
+<tr>
+<td>우리 시험 도구가 무엇을 쓰나</td>
+<td><code>sentence-transformers</code>. <strong><code>SentenceTransformer(&quot;nlpai-lab/KURE-v1&quot;)</code> 의 그 문자열이 허깅페이스 저장소 경로다.</strong> 모델 5개 전부 허깅페이스에서 받았다</td>
+</tr>
+<tr>
+<td>Tasqra 본코드에 허깅페이스가 있나</td>
+<td><strong>없다.</strong> <code>transformers</code> · <code>sentence-transformers</code> · <code>torch</code> 가 <code>requirements.txt</code> 에 하나도 없다. AI 의존은 <code>openai</code> <strong>한 줄뿐</strong>이다</td>
+</tr>
+<tr>
+<td>로컬 LLM 은 허깅페이스를 쓰나</td>
+<td><strong>아니다.</strong> <code>app/ai/local_client.py</code> 는 <strong>Ollama</strong> 의 OpenAI 호환 엔드포인트를 부른다</td>
+</tr>
+</tbody></table>
+<p><strong>그러므로 &quot;로컬 임베딩&quot; 은 곧 &quot;허깅페이스 의존을 새로 들이는 것&quot; 이다.</strong></p>
+<p>이것이 API 를 선호할 실질적 근거가 된다. <strong>이 결과서가 그동안 빠뜨린 논점이다.</strong></p>
+<p>&quot;로컬은 0원&quot; 이라고 적었지만 그것은 <strong>호출 비용</strong>만의 이야기였다.</p>
+<h4 id="로컬을-택하면-새로-들어오는-것">로컬을 택하면 새로 들어오는 것</h4>
+<table><thead><tr>
+<th>항목</th>
+<th>무엇이</th>
+<th>왜 부담인가</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>패키지</strong></td>
+<td><code>sentence-transformers</code> → <code>torch</code> · <code>transformers</code> · <code>tokenizers</code> 등</td>
+<td><code>torch</code> 는 파이썬 패키지 중 가장 무거운 축이다. 이미지가 커지고 빌드가 느려진다</td>
+</tr>
+<tr>
+<td><strong>모델 파일</strong></td>
+<td><code>BGE-m3-ko</code> 는 XLM-R large 계열 (<strong>568M 파라미터 · 가중치 2,166MB</strong>)</td>
+<td>이미지에 넣으면 이미지가 커지고, 런타임에 받으면 <strong>허깅페이스가 죽으면 앱이 못 뜬다</strong></td>
+</tr>
+<tr>
+<td>메모리</td>
+<td><strong>실측 최고 2,203MB</strong></td>
+<td>컨테이너 메모리 상한을 올려야 한다</td>
+</tr>
+<tr>
+<td>기동 시간</td>
+<td><strong>실측 적재 7.4초</strong> (캐시가 있는 상태)</td>
+<td>캐시가 없으면 내려받는 시간이 더 붙는다</td>
+</tr>
+<tr>
+<td><strong>모델 등록</strong></td>
+<td>Ollama 공식이 아니라 GGUF 등록이 필요하다</td>
+<td>위에 적었다</td>
+</tr>
+</tbody></table>
+<p><strong>메모리 수치가 8월 12일 판(1,534MB)과 다르다.</strong> 그 값은 틀렸다 —</p>
+<p>현재 사용량을 모델 전후로 재서 뺀 값이라 가중치(2,166MB)보다 작게 나왔다.</p>
+<p><strong>모델이 자기 가중치보다 적게 쓸 수는 없다.</strong> 별도 도구로 최고 사용량을 재니</p>
+<p>2,203MB 였다(7.6절).</p>
+<p><strong>패키지 용량은 재지 않았다.</strong> 추측하지 않는다.</p>
+<h4 id="부담을-줄이는-방법--로컬로-가더라도">부담을 줄이는 방법 — 로컬로 가더라도</h4>
+<table><thead><tr>
+<th>방법</th>
+<th>내용</th>
+<th>대가</th>
+</tr></thead><tbody>
+<tr>
+<td>모델을 이미지에 미리 넣는다</td>
+<td>빌드 때 받아 굽는다. 런타임에 허깅페이스를 안 부른다</td>
+<td>이미지가 커진다. 모델을 바꾸면 다시 빌드</td>
+</tr>
+<tr>
+<td>볼륨에 캐시를 마운트한다</td>
+<td><code>HF_HOME</code> 을 볼륨으로 두면 컨테이너를 다시 만들어도 유지된다</td>
+<td>볼륨을 팀원마다 채워야 한다</td>
+</tr>
+<tr>
+<td><strong>임베딩만 별 컨테이너로 뺀다</strong></td>
+<td>본 API 는 가볍게 두고 임베딩 서버에 HTTP 로 부른다. <strong>Ollama 를 쓰는 지금 구조와 같은 모양이다</strong></td>
+<td>컨테이너가 하나 늘고 관리 대상이 된다</td>
+</tr>
+<tr>
+<td>ONNX 로 바꿔 <code>torch</code> 를 뺀다</td>
+<td><code>onnxruntime</code> 만 두면 <code>torch</code> 를 안 넣어도 된다</td>
+<td>변환 작업이 붙고 정확도를 다시 확인해야 한다</td>
+</tr>
+</tbody></table>
+<p><strong>판단하지 않는다.</strong> 배포는 이 시험의 범위가 아니고 팀 결정이다.</p>
+<p>다만 <strong>로컬이 0원이라는 말이 배포 무게까지 0이라는 뜻은 아니다.</strong></p>
+<h4 id="api-쪽-비용도-다시-봤다--우리-규모에서는-무료다">API 쪽 비용도 다시 봤다 — 우리 규모에서는 무료다</h4>
+<table><thead><tr>
+<th></th>
+<th>확인한 사실</th>
+</tr></thead><tbody>
+<tr>
+<td>Voyage</td>
+<td><strong><code>voyage-4</code> 계열은 계정당 첫 2억 토큰이 무료다</strong></td>
+</tr>
+<tr>
+<td>우리 규모</td>
+<td>청크 649개 = 약 15만 토큰. <strong>문서 약 1.3만 건까지 무료 구간 안이다</strong></td>
+</tr>
+<tr>
+<td>OpenAI</td>
+<td>무료 구간 없음. 문서 1,000건에 약 $1.95</td>
+</tr>
+</tbody></table>
+<p><strong>비용은 어느 쪽에서도 쟁점이 아니다.</strong> 그러므로 판단은 세 가지로 좁혀진다 —</p>
+<p><strong>데이터 유출 · 검색 시 외부 의존 · 배포 무게.</strong> 앞의 둘은 로컬이 유리하고</p>
+<p>마지막 하나는 API 가 유리하다.</p>
+<hr>
+<h3 id="139-api-실측을-시도하다-나온-것--무료-등급의-함정-둘">13.9 API 실측을 시도하다 나온 것 — 무료 등급의 함정 둘</h3>
+<p>2라운드를 실행해 보려고 키를 발급받아 돌렸다. **재보기 전에 알 수 없었던 것이</p>
+<p>둘 나왔다.** 둘 다 문서만 읽고는 알 수 없는 종류다.</p>
+<h4 id="함정-1--gemini-무료-등급은-우리-문서를-제품-개선에-쓸-수-있다">함정 1 — Gemini 무료 등급은 우리 문서를 제품 개선에 쓸 수 있다</h4>
+<p>Google 공식 문서에 이렇게 적혀 있다.</p>
+<blockquote>
+<p>결제 계정을 연결해 유료 등급으로 올리면 <strong>프롬프트와 응답이 Google 제품
+개선에 쓰이지 않도록</strong> 보장할 수 있다
+— <a href="https://ai.google.dev/gemini-api/docs/billing">Gemini API 결제 문서</a></p>
+</blockquote>
+<p>Google 개발자 포럼의 정리도 같다 — &quot;제품 개선에 사용&quot; 항목이</p>
+<p><strong>무료 등급은 예 · 유료 등급은 아니오</strong>다.</p>
+<p><strong>즉 무료 키로 시험하는 것 자체가 데이터 유출이다.</strong> 이것을 몰랐다면</p>
+<p>&quot;공짜니까 일단 재보자&quot; 로 문서를 보냈을 것이다. 임베딩은 요약과 달리</p>
+<p>문서 전량이 나가므로 피해 범위가 넓다.</p>
+<p><strong>우리 코퍼스로 따지면 이렇다.</strong></p>
+<table><thead><tr>
+<th>문서</th>
+<th>출처</th>
+<th>무료 등급으로 보내도 되나</th>
+</tr></thead><tbody>
+<tr>
+<td>중앙보훈병원 입찰공고문</td>
+<td>나라장터 <strong>공개</strong></td>
+<td>괜찮다</td>
+</tr>
+<tr>
+<td>지역난방공사 준공정보</td>
+<td>공공데이터 <strong>공개</strong></td>
+<td>괜찮다</td>
+</tr>
+<tr>
+<td>지역난방공사 낙찰현황</td>
+<td>공공데이터 <strong>공개</strong></td>
+<td>괜찮다</td>
+</tr>
+<tr>
+<td>기초과학연구원 공고</td>
+<td>나라장터 <strong>공개</strong></td>
+<td>괜찮다</td>
+</tr>
+<tr>
+<td><strong>미니플젝_결정사항</strong></td>
+<td><strong>우리 팀 내부 문서</strong></td>
+<td><strong>판단이 필요하다</strong></td>
+</tr>
+</tbody></table>
+<p>5건 중 4건은 이미 공개된 문서라 문제가 없다. 하나가 걸린다.</p>
+<p><strong>결론 — Gemini 는 무료 등급으로 재지 않는다.</strong> 유료 등급으로 올린 뒤에</p>
+<p>재거나, 내부 문서를 뺀 코퍼스로 재야 한다. 다만 코퍼스를 바꾸면 <code>gold_chunk_ids</code></p>
+<p>가 어긋나 로컬 실측과 비교할 수 없다. <strong>그러므로 순서는 유료 등급이 먼저다.</strong></p>
+<p><strong>본구현에서는 어느 쪽이든 무료 등급을 쓰면 안 된다.</strong> 고객 문서가 들어온다.</p>
+<h4 id="함정-2--voyage-무료-토큰-범위가-문서와-응답에서-다르다">함정 2 — Voyage 무료 토큰 범위가 문서와 응답에서 다르다</h4>
+<p>문서에는 <code>voyage-4</code> 계열에 첫 2억 토큰이 무료라고 적혀 있다(8.1절 출처).</p>
+<p>그런데 <strong>429 응답 본문은 이렇게 답했다.</strong></p>
+<pre><code>the free tokens (200M tokens for Voyage series 3)</code></pre>
+<p><strong>series 3 이라고 한다.</strong> <code>voyage-4</code> 가 무료 범위에 드는지 확인하지 못했다.</p>
+<p>대시보드 billing 화면에 모델 이름이 나오지 않아 거기서도 확인이 안 됐다.</p>
+<p><strong>지금은 문제가 되지 않는다.</strong> 결제 수단을 등록하지 않으면 과금 자체가</p>
+<p>불가능하다. <strong>카드를 넣을 때만 확인이 필요하다.</strong></p>
+<p><strong>만약 series 3 만 무료라면 <code>voyage-3.5</code> 로 재도 비교는 유효하다.</strong></p>
+<p>차원이 1024 로 같고, 우리가 확인하려는 것은 &quot;다국어 API 가 한국어 특화를</p>
+<p>이기는가&quot; 다. 세대 차이는 그다음 문제다.</p>
+<h4 id="함정-3--카드를-등록하지-않으면-한도가-매우-낮다">함정 3 — 카드를 등록하지 않으면 한도가 매우 낮다</h4>
+<p>Voyage 는 결제 수단이 없으면 <strong>3 RPM · 10K TPM</strong> 이다.</p>
+<table><thead><tr>
+<th></th>
+<th>우리 작업량</th>
+<th>한도</th>
+</tr></thead><tbody>
+<tr>
+<td>요청 수</td>
+<td>배치 64 로 4회</td>
+<td><strong>분당 3회</strong></td>
+</tr>
+<tr>
+<td>토큰</td>
+<td>29,996자 ≈ 3~5만 토큰</td>
+<td><strong>분당 1만</strong></td>
+</tr>
+</tbody></table>
+<p><strong>배치를 64로 잡아 둔 것이 이 한도를 전혀 고려하지 않았다.</strong> 첫 시도가</p>
+<p>429 로 실패했다.</p>
+<p>카드 등록을 요구하지 않는 쪽으로 도구를 고쳤다. 주소를 영어로 채워야 하고,</p>
+<p><strong>팀원이 각자 카드를 넣어야 재현할 수 있다면 그것은 도구가 아니다.</strong></p>
+<table><thead><tr>
+<th>붙인 것</th>
+<th>내용</th>
+</tr></thead><tbody>
+<tr>
+<td><code>RateLimit</code></td>
+<td>최근 60초의 요청·토큰을 들고 있다가 한도를 넘으면 창이 빌 때까지 잔다</td>
+</tr>
+<tr>
+<td>토큰 추정 보정</td>
+<td>한국어는 글자당 토큰이 토크나이저마다 다르다. 처음엔 1.6 으로 넉넉히 잡고 <strong>응답의 실제 토큰 수로 고쳐 쓴다</strong></td>
+</tr>
+<tr>
+<td>배치 이중 상한</td>
+<td>개수와 글자 수 둘로 자른다. 글자 상한은 TPM 의 절반이다</td>
+</tr>
+<tr>
+<td>429 후퇴 시간</td>
+<td>3 RPM 이면 창이 비는 데 20초다. 2·4·8초씩 물러나는 것은 의미가 없었다</td>
+</tr>
+<tr>
+<td><code>--voyage-free</code></td>
+<td><code>--rpm 3 --tpm 10000</code> 을 한 번에 준다</td>
+</tr>
+</tbody></table>
+<p><strong>이 대기가 검색 품질을 흐리지 않는다.</strong> 임베딩은 텍스트마다 독립이라</p>
+<p>배치 크기를 바꿔도 같은 청크는 같은 벡터가 나온다. 흐려지는 것은 속도</p>
+<p>지표뿐이고, 그것은 애초에 로컬 CPU 시간과 같은 자로 비교할 수 없는 값이다.</p>
+<p><code>results.csv</code> 의 <code>wait_sec</code> 에 잔 시간을 따로 남겨 둔다.</p>
+<p><strong>예외가 하나 있다.</strong> <code>voyage-context-4</code> 처럼 같은 문서의 다른 청크를</p>
+<p>참고해 벡터를 만드는 모델은 배치 구성이 결과를 바꾼다. 우리가 쓰는</p>
+<p><code>voyage-4</code> 는 아니다. 그 계열을 후보에 넣게 되면 이 판단을 다시 해야 한다.</p>
+<h4 id="이-절이-말하는-것">이 절이 말하는 것</h4>
+<p><strong>&quot;API 를 재본다&quot; 는 키만 발급받으면 되는 일이 아니었다.</strong></p>
+<p>무료 등급의 데이터 이용 조항과 호출 한도가 먼저였다. 둘 다 성능과 무관한데</p>
+<p>성능 측정을 막는다. **1라운드를 로컬로 확정하고 진행한 판단이 결과적으로</p>
+<p>옳았다** — API 를 먼저 골랐다면 여기서 일정이 멈췄을 것이다.</p>
+<hr>
+<h2 id="부록-재현-방법">부록. 재현 방법</h2>
+<pre><code>cd C:\dev\embed-test
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+
+python convert_inputs.py --clean                       # input/ -&gt; corpus/
+python make_chunks.py --max-per-doc 300 --max 700      # corpus/ -&gt; chunks.csv
+python check_queries.py                                # 평가셋 검증 (모델 불필요)
+python run_eval.py                                     # 9모델 비교
+python check_model_cost.py dragonkue/BGE-m3-ko         # 비용만 · 독립 프로세스</code></pre>
+<p><strong><code>--self-test</code> 는 쓰지 않는다.</strong> <code>results.csv</code> 를 가짜 결과로 덮어쓴다</p>
+<p>(10절 13번). 하네스 점검이 필요하면 결과를 먼저 백업한다.</p>
+<p><strong><code>requirements.txt</code> 에 <code>einops</code> 와 <code>pdfplumber</code> 가 있어야 재현된다.</strong></p>
+<p><code>nomic</code> 적재에 <code>einops</code> 가, <code>13_</code> 고시 PDF 변환에 <code>pdfplumber</code> 가 필요하다.</p>
+<table><thead><tr>
+<th>파일</th>
+<th>내용</th>
+</tr></thead><tbody>
+<tr>
+<td><code>queries.csv</code></td>
+<td>평가셋 <strong>133문항</strong> (커밋 대상)</td>
+</tr>
+<tr>
+<td><code>queries_13.csv</code></td>
+<td>고시 조문 질의 60개. <code>make_queries_13.py</code> 가 생성</td>
+</tr>
+<tr>
+<td><code>chunks.csv</code></td>
+<td>청킹 결과 (생성물, 커밋 안 함)</td>
+</tr>
+<tr>
+<td><code>results.csv</code></td>
+<td>모델별 요약</td>
+</tr>
+<tr>
+<td><code>results_detail.csv</code></td>
+<td>질의별 상세. <strong>틀린 질의를 여기서 확인한다.</strong> 짝지은 검정도 이 파일로 한다</td>
+</tr>
+<tr>
+<td><code>make_queries_13.py</code></td>
+<td>앵커 문구로 정답 청크 번호를 찾아 질의를 만든다 (6.5절)</td>
+</tr>
+<tr>
+<td><code>check_model_cost.py</code></td>
+<td>모델 하나의 비용을 독립 프로세스에서 잰다 (7.6절)</td>
+</tr>
+<tr>
+<td><code>check_encoding.py</code></td>
+<td>입력 CSV 의 인코딩·컬럼·개인정보 의심 컬럼을 점검한다</td>
+</tr>
+</tbody></table>
+<p><strong><code>gold_chunk_ids</code>는 그때의 청킹 결과에 묶여 있다.</strong></p>
+<p><code>make_chunks.py</code>를 다른 옵션으로 다시 돌리면 번호가 어긋난다.</p>
+<p><code>check_queries.py</code>가 어긋난 곳을 잡아준다.</p>
+<div class="doc-foot">PDF Brief AI · 김보현 · 브라우저에서 Ctrl+P → &#x27;PDF로 저장&#x27;</div>
+</body>
+</html>

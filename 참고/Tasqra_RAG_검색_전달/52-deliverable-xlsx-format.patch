@@ -1,0 +1,392 @@
+diff --git a/backend/app/api/routes/deliverable_router.py b/backend/app/api/routes/deliverable_router.py
+index 41aabe6..3d23041 100644
+--- a/backend/app/api/routes/deliverable_router.py
++++ b/backend/app/api/routes/deliverable_router.py
+@@ -277,7 +277,10 @@ def preview_deliverable_content(
+     deliverable_format: str = Query(
+         "HTML",
+         alias="format",
+-        description="MD · HTML. XLSX·PDF 는 아직 501 이다(만들기와 같다)",
++        description=(
++            "MD · HTML. XLSX 는 만들 수 있지만 이 본문 미리보기 응답에는 담을 수"
++            " 없다(바이너리) — 501. PDF 는 아직 501 이다(만들기와 같다)"
++        ),
+     ),
+     access: ProjectAccess = Depends(get_project_access),
+     service: DeliverableService = Depends(get_deliverable_service),
+@@ -307,12 +310,16 @@ def preview_deliverable_content(
+ 
+     ### 형식 검사가 만들기와 같습니다
+ 
+-    없는 형식은 `422 INVALID_DOCUMENT_TYPE`, 아직 못 만드는 형식은
+-    `501 DELIVERABLE_FORMAT_NOT_READY` 입니다. **미리보기만 되고 만들기는 안 되는
+-    형식을 두지 않습니다** — 미리 본 뒤 만들기에서 처음 막히면 헛수고입니다.
++    없는 형식은 `422 INVALID_DOCUMENT_TYPE`, 이 응답에 담을 수 없는 형식은
++    `501 DELIVERABLE_FORMAT_NOT_READY` 입니다.
+ 
+-    `XLSX`·`PDF` 가 준비되면 이 엔드포인트는 **고칠 것 없이** 그 형식을 돌려줍니다.
+-    형식별 생성기를 `RENDERERS` 에서 고르는 구조입니다.
++    `XLSX` 는 **만들기(`POST /deliverables`)는 되지만 이 엔드포인트는 501 입니다** —
++    `DeliverableContentResponse.body` 가 `str` 인데 XLSX 는 바이너리라 이 응답에
++    담을 수 없습니다(`app.schemas.deliverable.TEXT_PREVIEW_FORMATS`). 파일로
++    받으려면 먼저 만들고(`POST`) `GET .../file` 로 받으세요.
++
++    `PDF` 가 준비되면 만들기·이 엔드포인트 모두 **고칠 것 없이** 그 형식을
++    돌려줍니다. 형식별 생성기를 `RENDERERS` 에서 고르는 구조입니다.
+ 
+     ### 화면이 HTML 을 안전하게 그리는 방법
+ 
+@@ -331,7 +338,7 @@ def preview_deliverable_content(
+       `422 DELIVERABLE_EMPTY`              담을 것이 없다
+       `422 INVALID_DOCUMENT_TYPE`          없는 유형 · 없는 형식
+       `422 PERIOD_REQUIRED`                주간 보고서인데 기간이 없다
+-      `501 DELIVERABLE_FORMAT_NOT_READY`   XLSX·PDF — 만들기와 같다
++      `501 DELIVERABLE_FORMAT_NOT_READY`   XLSX(이 응답만)·PDF
+       `404`                                내가 멤버가 아닌 프로젝트
+     """
+     return service.preview_content(
+diff --git a/backend/app/schemas/deliverable.py b/backend/app/schemas/deliverable.py
+index 1ef7272..82cda8a 100644
+--- a/backend/app/schemas/deliverable.py
++++ b/backend/app/schemas/deliverable.py
+@@ -28,7 +28,9 @@ __all__ = [
+     "FORMAT_FILE_TYPES",
+     "PERIOD_REQUIRED_KINDS",
+     "SUPPORTED_DELIVERABLE_FORMATS",
++    "TEXT_PREVIEW_FORMATS",
+     "DeliverableCreateRequest",
++    "DeliverableContentResponse",
+     "DeliverablePreviewResponse",
+     "DeliverableResponse",
+     "PreviewCounts",
+@@ -45,16 +47,26 @@ DELIVERABLE_FORMATS = ("XLSX", "HTML", "MD", "PDF")
+ # 만드는 코드는 아직 둘이다. 나머지는 501 로 분명히 알린다. 값이 틀린 것(400)과
+ # 서버가 아직 못 하는 것(501)은 다른 상황이다.
+ #
+-# XLSX·PDF 를 아직 안 한 이유는 **새 라이브러리가 필요해서**다. MD·HTML 은
+-# 문자열만 만들면 되고 의존성이 0 이다. 팀 이미지가 이미 11.1GB 라 라이브러리를
+-# 더 얹는 판단은 따로 받는 편이 낫다.
+-SUPPORTED_DELIVERABLE_FORMATS = ("MD", "HTML")
++# PDF 를 아직 안 한 이유는 한글 폰트까지 붙어야 해서 XLSX 와 다른 방에서
++# 한다(2026-08-25 판단). XLSX 는 openpyxl 로 만든다(requirements.txt 추가).
++SUPPORTED_DELIVERABLE_FORMATS = ("MD", "HTML", "XLSX")
++
++# 본문을 **문자열로 돌려주는** 형식. `DeliverableContentResponse.body` 가 `str`
++# 이라 XLSX(바이너리) 는 여기 없다 — `preview_deliverable_content` 가 이 상수로
++# 막는다. `SUPPORTED_DELIVERABLE_FORMATS` 와 다른 이유: XLSX 는 **만들 수는
++# 있지만**(생성·다운로드는 파일이라 바이너리를 그대로 쓴다) 이 텍스트 미리보기
++# 응답에는 담을 수 없다 — "아직 못 만든다" 와는 다른 제약이다.
++TEXT_PREVIEW_FORMATS = ("MD", "HTML")
+ 
+ # 형식별 파일 확장자와 MIME 타입. 저장(서비스)과 내려보내기(라우터)가 같은 값을
+ # 봐야 해서 한 곳에 둔다 — 갈리면 .md 파일을 text/html 로 주는 일이 생긴다.
+ FORMAT_FILE_TYPES = {
+     "MD": ("md", "text/markdown; charset=utf-8"),
+     "HTML": ("html", "text/html; charset=utf-8"),
++    "XLSX": (
++        "xlsx",
++        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
++    ),
+ }
+ 
+ # 제목에 쓰는 사람이 읽는 이름. 화면의 KINDS 목록과 문구를 맞춘다.
+@@ -156,7 +168,7 @@ class DeliverableCreateRequest(BaseModel):
+     )
+     format: str = Field(
+         min_length=1,
+-        description="XLSX · HTML · MD · PDF. 지금 만들 수 있는 것은 MD · HTML 이다",
++        description="XLSX · HTML · MD · PDF. 지금 만들 수 있는 것은 MD · HTML · XLSX 다",
+     )
+     period_from: date | None = None
+     period_to: date | None = None
+diff --git a/backend/app/services/deliverable_service.py b/backend/app/services/deliverable_service.py
+index 121599a..04c3014 100644
+--- a/backend/app/services/deliverable_service.py
++++ b/backend/app/services/deliverable_service.py
+@@ -55,6 +55,7 @@ from app.schemas.deliverable import (
+     FORMAT_FILE_TYPES,
+     PERIOD_REQUIRED_KINDS,
+     SUPPORTED_DELIVERABLE_FORMATS,
++    TEXT_PREVIEW_FORMATS,
+     DeliverableContentResponse,
+     DeliverablePreviewResponse,
+     PreviewCounts,
+@@ -65,13 +66,17 @@ from app.services.deliverable_markdown import (
+     build_title,
+     render_markdown,
+ )
++from app.services.deliverable_xlsx import render_xlsx
+ 
+ # 형식별 본문 생성 함수. 형식을 늘릴 때 **여기와 SUPPORTED_DELIVERABLE_FORMATS**
+ # 두 곳만 고치면 된다. if 문으로 늘리면 형식이 늘 때마다 분기가 깊어진다.
+ # Spring 비교: Map<String, Renderer> 로 전략을 주입하는 것과 같다.
++#
++# ⚠ MD·HTML 은 str 을, XLSX 는 bytes 를 돌려준다. _write_file 이 둘 다 받는다.
+ RENDERERS = {
+     "MD": render_markdown,
+     "HTML": render_html,
++    "XLSX": render_xlsx,
+ }
+ 
+ logger = logging.getLogger(__name__)
+@@ -287,9 +292,15 @@ class DeliverableService:
+         `DELIVERABLE_FORMAT_NOT_READY`(501) 다. **미리보기만 되고 만들기는 안 되는
+         형식을 만들지 않는다** — 미리 본 뒤 만들기를 눌렀을 때 처음 막히면 헛수고다.
+ 
+-        `XLSX`·`PDF` 가 준비되면 이 메서드는 **그대로** 그 형식을 돌려준다. 형식별
++        `PDF` 가 준비되면 이 메서드는 **그대로** 그 형식을 돌려준다. 형식별
+         생성기를 `RENDERERS` 에서 고르는 구조라 여기 고칠 것이 없다.
+ 
++        `XLSX` 는 예외다 — **만들 수는 있지만 이 응답에는 담을 수 없다.**
++        `DeliverableContentResponse.body` 가 `str` 인데 XLSX 는 바이너리다.
++        그래서 `SUPPORTED_DELIVERABLE_FORMATS` 가 아니라 `TEXT_PREVIEW_FORMATS`
++        (`MD`·`HTML`) 로 막는다 — "아직 못 만든다"(`generate` 의 제약)와 "이
++        응답에 못 담는다"(이 메서드만의 제약)는 다른 판정이다.
++
+         ### 화면이 HTML 을 어떻게 안전하게 그리나
+ 
+         `dangerouslySetInnerHTML` 로 심지 않고 **`<iframe sandbox>` 안에서** 그린다.
+@@ -309,12 +320,12 @@ class DeliverableService:
+                 ErrorCode.INVALID_DOCUMENT_TYPE,
+                 detail=f"출력 형식은 {' · '.join(DELIVERABLE_FORMATS)} 중 하나여야 합니다.",
+             )
+-        if deliverable_format not in SUPPORTED_DELIVERABLE_FORMATS:
++        if deliverable_format not in TEXT_PREVIEW_FORMATS:
+             raise BusinessError(
+                 ErrorCode.DELIVERABLE_FORMAT_NOT_READY,
+                 detail=(
+                     f"{deliverable_format} 형식은 아직 미리 볼 수 없습니다. "
+-                    f"지금 가능한 형식은 {' · '.join(SUPPORTED_DELIVERABLE_FORMATS)} 입니다."
++                    f"지금 가능한 형식은 {' · '.join(TEXT_PREVIEW_FORMATS)} 입니다."
+                 ),
+             )
+ 
+@@ -467,18 +478,26 @@ class DeliverableService:
+         )
+ 
+     @staticmethod
+-    def _write_file(project_id: int, body: str, extension: str) -> str:
++    def _write_file(project_id: int, body: str | bytes, extension: str) -> str:
+         """산출물 파일을 저장하고 경로를 돌려준다.
+ 
+         프로젝트별 폴더에 uuid 이름으로 둔다. 제목을 파일명에 쓰지 않는 이유는
+         제목에 한글·공백·특수문자가 들어가고 같은 제목이 여러 번 생기기 때문이다.
+         사용자가 받을 때의 이름은 다운로드 응답에서 따로 정한다.
++
++        `body` 는 `str`(MD·HTML) 이거나 `bytes`(XLSX) 다. XLSX 는 zip 컨테이너라
++        텍스트로 쓰면 인코딩이 깨진다 — `bytes` 면 `"wb"` 로, `str` 이면 지금까지의
++        `"w", encoding="utf-8"` 로 쓴다.
+         """
+         directory = os.path.join(settings.UPLOAD_DIR, "deliverables", str(project_id))
+         os.makedirs(directory, exist_ok=True)
+         path = os.path.join(directory, f"{uuid.uuid4().hex}.{extension}")
+-        with open(path, "w", encoding="utf-8") as file:
+-            file.write(body)
++        if isinstance(body, bytes):
++            with open(path, "wb") as file:
++                file.write(body)
++        else:
++            with open(path, "w", encoding="utf-8") as file:
++                file.write(body)
+         return path
+ 
+     @staticmethod
+diff --git a/backend/app/services/deliverable_xlsx.py b/backend/app/services/deliverable_xlsx.py
+new file mode 100644
+index 0000000..57bc43f
+--- /dev/null
++++ b/backend/app/services/deliverable_xlsx.py
+@@ -0,0 +1,124 @@
++# =============================================================================
++# 이 파일의 책임: 산출물 문서 구조(DeliverableDocument)를 XLSX 바이트로 바꾼다.
++#   절을 고르는 규칙은 여기 없다 — deliverable_markdown.build_document 가 정한다.
++#   MD·HTML 과 달리 이 파일은 **파일 객체가 아니라 bytes 를 돌려준다** — XLSX 는
++#   zip 컨테이너라 텍스트로 다룰 수 없다(deliverable_service._write_file 참고).
++#
++# 다른 파일과의 관계
++#   services/deliverable_markdown.py  문서 구조(DeliverableDocument)와 그 빌더
++#   services/deliverable_service.py   RENDERERS["XLSX"] 로 이 함수를 부른다
++#   schemas/deliverable.py            FORMAT_FILE_TYPES["XLSX"] 의 확장자·MIME
++#
++# Spring 비교: 같은 모델을 뷰로 그리는 것은 HTML 과 같다. 다만 Apache POI 의
++#   Workbook 처럼 openpyxl 의 Workbook 이 파일 전체를 메모리에 들고 있다가
++#   save() 에서 한 번에 바이트로 굳는다 — ByteArrayOutputStream 에 쓰는 것과 같다.
++#
++# ⚠ 값을 escape 하지 않는다 — XLSX 에는 그 문제가 없다
++#   Markdown 은 `|` 가 표를 깨고 HTML 은 `<` 가 태그가 된다. XLSX 는 셀 값이
++#   문자열로 그대로 들어가고 브라우저에서 실행되지 않으므로 이 형식만의 escape
++#   규칙이 없다. 그래도 `openpyxl` 이 문자열이 아닌 값(`Decimal` 등)을 거부할 수
++#   있어 `deliverable_markdown.clean()` 이 만든 문자열을 그대로 쓴다 — 세 형식이
++#   같은 문자열을 보게 하는 것이 목적이다(머리말 "한쪽에만 절을 더하는 실수"와
++#   같은 이유).
++#
++# ⚠ 색을 쓰지 않는다 — deliverable_html.py 와 같은 판단
++#   강조는 헤더 행 배경(회색)과 굵은 글씨 하나로만 한다.
++# =============================================================================
++
++from __future__ import annotations
++
++from io import BytesIO
++from typing import Any
++
++from openpyxl import Workbook
++from openpyxl.styles import Alignment, Font, PatternFill
++from openpyxl.utils import get_column_letter
++from openpyxl.worksheet.worksheet import Worksheet
++
++from app.services.deliverable_markdown import DeliverableDocument, build_document
++
++__all__ = ["render_xlsx", "to_xlsx"]
++
++# 시트 이름에 못 쓰는 문자(엑셀 규칙: \ / ? * [ ] :)와 31자 길이 제한이 있다.
++_SHEET_NAME_LIMIT = 31
++_INVALID_SHEET_CHARS = str.maketrans({c: " " for c in "\\/?*[]:"})
++
++_HEADER_FILL = PatternFill(fill_type="solid", start_color="F2F2F2", end_color="F2F2F2")
++_HEADER_FONT = Font(bold=True)
++_WRAP = Alignment(wrap_text=True, vertical="top")
++
++
++def render_xlsx(**kwargs: Any) -> bytes:
++    """산출물 본문을 XLSX 바이트로. 인자는 build_document 와 같다."""
++    return to_xlsx(build_document(**kwargs))
++
++
++def to_xlsx(document: DeliverableDocument) -> bytes:
++    """문서 구조를 워크북으로 바꾸고 바이트로 굳힌다.
++
++    표가 있는 절은 시트 하나, 표가 없는 절(개요 등)은 "안내" 시트에 문단으로
++    모은다. 절마다 시트를 만들지 않는 이유는 표 없는 절이 늘어날 때 빈 시트가
++    쌓이는 것을 막기 위해서다 — 지금은 개요 하나뿐이라 차이가 작지만, 규칙은
++    "표가 있어야 시트가 된다" 로 단순하게 둔다.
++    """
++    workbook = Workbook()
++    # 기본으로 생성되는 빈 시트("Sheet")를 먼저 요약 시트로 바꿔 쓴다.
++    summary = workbook.active
++    summary.title = "요약"
++    _write_summary(summary, document)
++
++    notes: list[str] = []
++    for section in document.sections:
++        if section.header and section.rows:
++            sheet = workbook.create_sheet(_sheet_name(section.title, workbook))
++            _write_table(sheet, section.header, section.rows)
++        elif section.note:
++            notes.append(f"[{section.title}] {section.note}")
++
++    if notes:
++        note_sheet = workbook.create_sheet("안내")
++        for row_index, text in enumerate(notes, start=1):
++            note_sheet.cell(row=row_index, column=1, value=text)
++        note_sheet.column_dimensions["A"].width = 80
++
++    buffer = BytesIO()
++    workbook.save(buffer)
++    return buffer.getvalue()
++
++
++def _write_summary(sheet: Worksheet, document: DeliverableDocument) -> None:
++    sheet.cell(row=1, column=1, value=document.title).font = Font(bold=True, size=14)
++    for offset, line in enumerate(document.meta, start=2):
++        sheet.cell(row=offset, column=1, value=line)
++    sheet.column_dimensions["A"].width = 60
++
++
++def _write_table(sheet: Worksheet, header: list[str], rows: list[list[str]]) -> None:
++    for col_index, name in enumerate(header, start=1):
++        cell = sheet.cell(row=1, column=col_index, value=name)
++        cell.font = _HEADER_FONT
++        cell.fill = _HEADER_FILL
++    for row_index, row in enumerate(rows, start=2):
++        for col_index, value in enumerate(row, start=1):
++            cell = sheet.cell(row=row_index, column=col_index, value=value)
++            cell.alignment = _WRAP
++    for col_index in range(1, len(header) + 1):
++        sheet.column_dimensions[get_column_letter(col_index)].width = 22
++
++
++def _sheet_name(title: str, workbook: Workbook) -> str:
++    """시트 이름을 엑셀 규칙에 맞춘다.
++
++    31자를 넘거나 같은 이름이 이미 있으면 잘라내고 번호를 붙인다. 지금 절 이름
++    (문서·완료한 태스크·결정사항·일정·기한·금액)은 다 짧고 서로 달라 번호가
++    붙을 일은 없지만, 규칙은 지켜 둔다.
++    """
++    cleaned = title.translate(_INVALID_SHEET_CHARS).strip() or "절"
++    name = cleaned[:_SHEET_NAME_LIMIT]
++    if name not in workbook.sheetnames:
++        return name
++    for suffix in range(2, 100):
++        candidate = f"{cleaned[: _SHEET_NAME_LIMIT - 3]}_{suffix}"
++        if candidate not in workbook.sheetnames:
++            return candidate
++    return cleaned[:_SHEET_NAME_LIMIT]
+diff --git a/backend/requirements.txt b/backend/requirements.txt
+index cdd8a42..f119144 100644
+--- a/backend/requirements.txt
++++ b/backend/requirements.txt
+@@ -25,6 +25,9 @@ email-validator==2.3.0
+ pymupdf
+ python-docx
+ 
++# --- 산출물 XLSX 출력 (DLV-002-1) ---
++openpyxl==3.1.5
++
+ # --- AI ---
+ openai
+ 
+diff --git a/backend/tests/test_deliverable_generate.py b/backend/tests/test_deliverable_generate.py
+index a81f7dc..a1a23c3 100644
+--- a/backend/tests/test_deliverable_generate.py
++++ b/backend/tests/test_deliverable_generate.py
+@@ -150,8 +150,11 @@ def test_period_required_is_checked_before_writing():
+ 
+ 
+ def test_unsupported_format_is_not_ready_not_invalid():
+-    """DB 가 허용하는 값이다. 값이 틀린 것과 서버가 아직 못 하는 것을 구분한다."""
+-    for unsupported in ("XLSX", "PDF"):
++    """DB 가 허용하는 값이다. 값이 틀린 것과 서버가 아직 못 하는 것을 구분한다.
++
++    XLSX 는 2026-08-26 부터 만들 수 있어 여기서 뺐다 — 501 은 이제 PDF 만.
++    """
++    for unsupported in ("PDF",):
+         service, repo = _service(documents=3)
+         with pytest.raises(BusinessError) as err:
+             service.generate(
+diff --git a/frontend/src/features/deliverables/DeliverablesView.jsx b/frontend/src/features/deliverables/DeliverablesView.jsx
+index e27a569..8bb8653 100644
+--- a/frontend/src/features/deliverables/DeliverablesView.jsx
++++ b/frontend/src/features/deliverables/DeliverablesView.jsx
+@@ -64,8 +64,8 @@ const KINDS = [
+ // 버튼이 비활성화된다" 이므로, 사용자가 한 번 명시적으로 골라야 한다.
+ //
+ // 네 번째 칸(ready)은 **지금 실제로 만들 수 있는지**다. 서버의
+-// SUPPORTED_DELIVERABLE_FORMATS 가 MD·HTML 둘뿐이고 나머지는
+-// 501 DELIVERABLE_FORMAT_NOT_READY 로 답한다.
++// SUPPORTED_DELIVERABLE_FORMATS 가 MD·HTML·XLSX 셋이고(2026-08-26 XLSX 추가)
++// 나머지(PDF)는 501 DELIVERABLE_FORMAT_NOT_READY 로 답한다.
+ //
+ // 숨기지 않고 고를 수 없게만 두는 이유
+ //   숨기면 DB·명세에 있는 형식이 화면에서 사라져 "안 되는 것" 인지 "없는 것" 인지
+@@ -73,7 +73,7 @@ const KINDS = [
+ //   사용자에게는 그것이 **고장으로 읽힌다.** 그래서 **누르기 전에** 준비 중임이
+ //   보이게 한다. 서버의 501 은 그대로 남는다 — 화면을 우회해도 막힌다.
+ const FORMATS = [
+-  ['XLSX', 'XLSX', '표 계산과 편집에 적합', false],
++  ['XLSX', 'XLSX', '표 계산과 편집에 적합', true],
+   ['HTML', 'HTML', '브라우저에서 바로 확인', true],
+   ['MD', 'Markdown', '텍스트 기반 기록과 공유', true],
+   ['PDF', 'PDF', '그대로 인쇄하고 공유', false],
+@@ -367,8 +367,10 @@ function GeneratePanel({ preview, loading, format, generating, onGenerate, conte
+ // 두는 이유: HTML 은 결과를 보여주지만 MD 는 **어떤 표가 어떻게 적히는지**를 보여준다.
+ // 산출물을 다른 문서에 붙여 쓸 사람에게는 뒤쪽이 필요하다.
+ //
+-// XLSX·PDF 는 서버가 501 로 막으므로 여기 두지 않는다 — 고를 수 있게 해 두면
+-// 미리보기만 되고 만들기는 안 되는 것처럼 보인다.
++// PDF 는 만들기도 501 이라 여기 없다. XLSX 는 **만들기는 되지만**(2026-08-26)
++// 이 본문 미리보기 엔드포인트만 501 이다 — 응답이 문자열(body: str)인데 XLSX 는
++// 바이너리라 담을 수 없다(app.schemas.deliverable.TEXT_PREVIEW_FORMATS). 그래서
++// 여기 두지 않는다 — 골라도 501 만 받는다.
+ const PREVIEW_VIEWS = [
+   ['HTML', '그대로 보기'],
+   ['MD', '글자로 보기'],

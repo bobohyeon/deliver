@@ -1,0 +1,219 @@
+diff --git a/frontend/src/features/dashboard/ProjectCalendar.jsx b/frontend/src/features/dashboard/ProjectCalendar.jsx
+index 5adc1b1..1a383f3 100644
+--- a/frontend/src/features/dashboard/ProjectCalendar.jsx
++++ b/frontend/src/features/dashboard/ProjectCalendar.jsx
+@@ -1,8 +1,9 @@
+ // =============================================================================
+-// 이 파일의 책임: 프로젝트 태스크 마감과 승인된 일정을 합친 월간 달력을 그린다.
+-// 다른 파일과의 관계: api/dashboard.js의 통합 조회를 쓰고, DashboardView 안에
+-//   배치된다. 태스크는 기존 보드 상세 흐름으로 보내고 일정은 이 화면에서 본다.
+-// Spring 비교: 서버 DTO를 달력 뷰 모델로 표현하는 MVC View에 해당한다.
++// 이 파일의 책임: 프로젝트 태스크 마감과 승인된 일정을 월간 달력으로 보여주고,
++//   선택한 날짜의 항목을 우측 목록에 표시한다.
++// 다른 파일과의 관계: api/dashboard.js로 통합 조회한다. 우측 목록의 태스크를
++//   누르면 BoardView의 기존 task_id 상세 흐름으로 이동하고, 일정은 여기서 읽는다.
++// Spring 비교: 서버 DTO를 월간 달력 ViewModel로 표현하는 읽기 전용 MVC View다.
+ // =============================================================================
+ 
+ import { useMemo, useState } from 'react'
+@@ -24,7 +25,7 @@ export default function ProjectCalendar({ projectId }) {
+   const navigate = useNavigate()
+   const [month, setMonth] = useState(() => startOfMonth(new Date()))
+   const [selectedDate, setSelectedDate] = useState(() => toDateKey(new Date()))
+-  const [selectedEvent, setSelectedEvent] = useState(null)
++  const [selectedSchedule, setSelectedSchedule] = useState(null)
+   const days = useMemo(() => calendarDays(month), [month])
+   const from = toDateKey(days[0])
+   const to = toDateKey(days.at(-1))
+@@ -41,31 +42,28 @@ export default function ProjectCalendar({ projectId }) {
+   function moveMonth(offset) {
+     const next = new Date(month.getFullYear(), month.getMonth() + offset, 1)
+     setMonth(next)
+-    setSelectedDate(toDateKey(next))
+-    setSelectedEvent(null)
++    selectDate(toDateKey(next))
+   }
+   function goToday() {
+     const today = new Date()
+     setMonth(startOfMonth(today))
+-    setSelectedDate(toDateKey(today))
+-    setSelectedEvent(null)
++    selectDate(toDateKey(today))
+   }
+   function selectDate(dateKey) {
+     setSelectedDate(dateKey)
+-    setSelectedEvent(null)
++    setSelectedSchedule(null)
+   }
+-  function openItem(item, dateKey = selectedDate) {
++  function openListItem(item) {
+     if (item.item_type === 'TASK') {
+       navigate(`/projects/${projectId}/board?task_id=${item.source_id}`)
+       return
+     }
+-    setSelectedDate(dateKey)
+-    setSelectedEvent(item)
++    setSelectedSchedule(item)
+   }
+ 
+   return <section className='panel project-calendar' aria-labelledby='project-calendar-title'>
+     <div className='project-calendar__head'>
+-      <div><h2 id='project-calendar-title'>프로젝트 캘린더</h2><p>태스크 마감과 승인된 주요 일정을 함께 봅니다.</p></div>
++      <div><h2 id='project-calendar-title'>프로젝트 캘린더</h2><p>날짜를 선택하면 태스크 마감과 승인된 일정을 확인할 수 있습니다.</p></div>
+       <div className='project-calendar__controls'>
+         <button type='button' onClick={() => moveMonth(-1)} aria-label='이전 달'>‹</button>
+         <strong aria-live='polite'>{month.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long' })}</strong>
+@@ -82,15 +80,16 @@ export default function ProjectCalendar({ projectId }) {
+         <div className='project-calendar__grid'>
+           {days.map(day => {
+             const dateKey = toDateKey(day)
+-            const dayItems = items.filter(item => occursOn(item, dateKey))
++            const dayItems = items.filter(item => occursOn(item, dateKey)).sort(calendarItemOrder)
++            const preview = dayItems[0]
+             const outside = day.getMonth() !== month.getMonth()
+             const selected = dateKey === selectedDate
+             const today = dateKey === toDateKey(new Date())
+             return <div className={`project-calendar__day${outside ? ' is-outside' : ''}${selected ? ' is-selected' : ''}${today ? ' is-today' : ''}`} key={dateKey}>
+               <button type='button' className='project-calendar__date' aria-pressed={selected} onClick={() => selectDate(dateKey)}><span>{day.getDate()}</span>{today && <small>오늘</small>}</button>
+               <div className='project-calendar__events'>
+-                {dayItems.slice(0, 3).map(item => <button type='button' className={`project-calendar__event is-${item.item_type.toLowerCase()}`} title={item.title} onClick={() => openItem(item, dateKey)} key={item.id}><span>{KIND_LABELS[item.kind] ?? item.kind}</span><b>{item.title}</b></button>)}
+-                {dayItems.length > 3 && <button type='button' className='project-calendar__more' onClick={() => selectDate(dateKey)}>+{dayItems.length - 3}개 더 보기</button>}
++                {preview && <button type='button' className={calendarEventClass(preview, dateKey, day)} aria-label={`${KIND_LABELS[preview.kind] ?? preview.kind} ${preview.title}, ${formatDate(dateKey)} 항목 보기`} onClick={() => selectDate(dateKey)}><span>{KIND_LABELS[preview.kind] ?? preview.kind}</span><b>{showEventTitle(preview, dateKey, day) ? preview.title : '\u00a0'}</b></button>}
++                {dayItems.length > 1 && <button type='button' className='project-calendar__more' onClick={() => selectDate(dateKey)}>+{dayItems.length - 1}개 더 보기</button>}
+               </div>
+             </div>
+           })}
+@@ -99,21 +98,31 @@ export default function ProjectCalendar({ projectId }) {
+         {calendarQuery.isSuccess && !hasMonthItems && <p className='project-calendar__month-empty'>이 달에 표시할 태스크 마감이나 승인된 일정이 없습니다.</p>}
+       </div>
+ 
+-      <aside className='project-calendar__detail' aria-label='선택한 날짜의 항목'>
+-        <header><span>{formatDate(selectedDate)}</span><strong>{selectedItems.length}개 항목</strong></header>
+-        {selectedItems.length > 0
+-          ? <ul>{selectedItems.map(item => <li key={item.id}><button type='button' className={selectedEvent?.id === item.id ? 'is-active' : ''} onClick={() => openItem(item)}><span>{item.item_type === 'TASK' ? '태스크' : '일정'} · {KIND_LABELS[item.kind] ?? item.kind}</span><strong>{item.title}</strong><small>{item.item_type === 'TASK' ? TASK_STATUS_LABELS[item.status] ?? item.status : formatEventDate(item)}</small></button></li>)}</ul>
+-          : <div className='project-calendar__empty'><strong>이 날짜에는 항목이 없습니다.</strong><p>마감일이 있는 태스크나 승인된 일정이 생기면 자동으로 표시됩니다.</p></div>}
+-        {selectedEvent && <div className='project-calendar__schedule-detail'>
+-          <span>일정 · {KIND_LABELS[selectedEvent.kind] ?? selectedEvent.kind}</span>
+-          <h3>{selectedEvent.title}</h3>
+-          <dl><div><dt>날짜</dt><dd>{formatEventDate(selectedEvent)}</dd></div><div><dt>상태</dt><dd>승인 완료</dd></div></dl>
+-        </div>}
++      <aside className={`project-calendar__detail${selectedSchedule ? ' is-open' : ''}`} aria-label='선택한 날짜의 항목'>
++        {selectedSchedule
++          ? <>
++              <header><span>일정 상세</span><button type='button' className='project-calendar__detail-close' onClick={() => setSelectedSchedule(null)} aria-label='일정 상세 닫기'>×</button></header>
++              <ScheduleDetail item={selectedSchedule}/>
++            </>
++          : <>
++              <header><span>{formatDate(selectedDate)}</span><strong>{selectedItems.length}개 항목</strong></header>
++              {selectedItems.length > 0
++                ? <ul>{selectedItems.map(item => <li key={item.id}><button type='button' className={`kind-${item.kind.toLowerCase()}`} onClick={() => openListItem(item)}><span>{item.item_type === 'TASK' ? '태스크' : '일정'} · {KIND_LABELS[item.kind] ?? item.kind}</span><strong>{item.title}</strong><small>{item.item_type === 'TASK' ? `${TASK_STATUS_LABELS[item.status] ?? item.status} · 보드에서 상세 보기 →` : formatEventDate(item)}</small></button></li>)}</ul>
++                : <div className='project-calendar__empty'><strong>이 날짜에는 항목이 없습니다.</strong><p>마감일이 있는 태스크나 승인된 일정이 생기면 자동으로 표시됩니다.</p></div>}
++            </>}
+       </aside>
+     </div>
+   </section>
+ }
+ 
++function ScheduleDetail({ item }) {
++  return <div className={`project-calendar__schedule-detail kind-${item.kind.toLowerCase()}`}>
++    <span>일정 · {KIND_LABELS[item.kind] ?? item.kind}</span>
++    <h3>{item.title}</h3>
++    <dl><div><dt>날짜</dt><dd>{formatEventDate(item)}</dd></div><div><dt>상태</dt><dd>승인 완료</dd></div></dl>
++  </div>
++}
++
+ function startOfMonth(value) {
+   return new Date(value.getFullYear(), value.getMonth(), 1)
+ }
+@@ -143,6 +152,25 @@ function overlaps(item, startsOn, endsOn) {
+   return Boolean(date && startsOn <= date && date <= endsOn)
+ }
+ 
++function calendarItemOrder(left, right) {
++  if (left.kind === 'PERIOD' && right.kind !== 'PERIOD') return -1
++  if (left.kind !== 'PERIOD' && right.kind === 'PERIOD') return 1
++  return left.id.localeCompare(right.id)
++}
++
++function calendarEventClass(item, dateKey, day) {
++  const classes = ['project-calendar__event', `kind-${item.kind.toLowerCase()}`]
++  if (item.kind !== 'PERIOD') return classes.join(' ')
++  classes.push('is-period')
++  if (item.starts_on === dateKey || day.getDay() === 0) classes.push('is-period-start')
++  if (item.ends_on === dateKey || day.getDay() === 6) classes.push('is-period-end')
++  return classes.join(' ')
++}
++
++function showEventTitle(item, dateKey, day) {
++  return item.kind !== 'PERIOD' || item.starts_on === dateKey || day.getDay() === 0
++}
++
+ function formatDate(dateKey) {
+   const [year, month, day] = dateKey.split('-').map(Number)
+   return new Date(year, month - 1, day).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })
+diff --git a/frontend/src/styles/workspace.css b/frontend/src/styles/workspace.css
+index dabba03..4bdf2f3 100644
+--- a/frontend/src/styles/workspace.css
++++ b/frontend/src/styles/workspace.css
+@@ -193,13 +193,13 @@
+ .project-calendar__notice span, .project-calendar__notice small { display: block; }
+ .project-calendar__notice small { margin-top: 4px; color: #7d6a6a; }
+ .project-calendar__notice button { padding: 8px 11px; border: 1px solid #d9bcbc; border-radius: 8px; background: #fff; color: #8a3d3d; font-weight: 750; cursor: pointer; }
+-.project-calendar__layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; align-items: start; }
++.project-calendar__layout { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; align-items: start; }
+ .project-calendar__month { position: relative; min-width: 0; overflow-x: auto; }
+ .project-calendar__weekdays, .project-calendar__grid { min-width: 720px; }
+ .project-calendar__weekdays { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border: 1px solid #dce3ee; border-bottom: 0; border-radius: 10px 10px 0 0; background: #f7f8fc; }
+ .project-calendar__weekdays span { padding: 9px; color: #65748a; font-size: 12px; font-weight: 800; text-align: center; }
+ .project-calendar__grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-top: 1px solid #dce3ee; border-left: 1px solid #dce3ee; }
+-.project-calendar__day { min-height: 124px; padding: 7px; border-right: 1px solid #dce3ee; border-bottom: 1px solid #dce3ee; background: #fff; }
++.project-calendar__day { height: 112px; padding: 7px; overflow: hidden; border-right: 1px solid #dce3ee; border-bottom: 1px solid #dce3ee; background: #fff; }
+ .project-calendar__day.is-outside { background: #f8f9fc; }
+ .project-calendar__day.is-selected { box-shadow: inset 0 0 0 2px #5d55c7; }
+ .project-calendar__date { display: flex; width: 100%; min-height: 28px; padding: 0 2px; align-items: center; justify-content: space-between; border: 0; background: transparent; color: #36435a; font: inherit; font-weight: 750; cursor: pointer; }
+@@ -209,8 +209,16 @@
+ .project-calendar__event, .project-calendar__more { width: 100%; min-width: 0; padding: 5px 6px; overflow: hidden; border: 1px solid #d9dfeb; border-radius: 6px; background: #f7f8fc; color: #445168; text-align: left; cursor: pointer; }
+ .project-calendar__event span { display: block; color: #65748a; font-size: 9px; font-weight: 850; }
+ .project-calendar__event b { display: block; margin-top: 2px; overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+-.project-calendar__event.is-task { border-left: 3px solid #5148c8; background: #f5f4ff; }
+-.project-calendar__event.is-schedule { border-left: 3px solid #65748a; background: #f5f7fa; }
++.project-calendar__event { border-left: 3px solid var(--calendar-accent, #65748a); background: var(--calendar-bg, #f5f7fa); }
++.project-calendar__event.kind-task_due, .project-calendar__detail .kind-task_due { --calendar-accent: #3d72d3; --calendar-bg: #eef4ff; }
++.project-calendar__event.kind-meeting, .project-calendar__detail .kind-meeting { --calendar-accent: #8750cc; --calendar-bg: #f5efff; }
++.project-calendar__event.kind-milestone, .project-calendar__detail .kind-milestone { --calendar-accent: #288a5a; --calendar-bg: #eaf8f0; }
++.project-calendar__event.kind-deadline, .project-calendar__detail .kind-deadline { --calendar-accent: #c15f2b; --calendar-bg: #fff2ea; }
++.project-calendar__event.kind-period, .project-calendar__detail .kind-period { --calendar-accent: #397a82; --calendar-bg: #eaf5f5; }
++.project-calendar__event.is-period { position: relative; z-index: 1; width: calc(100% + 14px); margin-right: -7px; margin-left: -7px; border-right: 0; border-left: 0; border-radius: 0; }
++.project-calendar__event.is-period-start { width: calc(100% + 7px); margin-left: 0; border-left: 3px solid var(--calendar-accent); border-radius: 6px 0 0 6px; }
++.project-calendar__event.is-period-end { width: calc(100% + 7px); margin-right: 0; border-right: 1px solid var(--calendar-accent); border-radius: 0 6px 6px 0; }
++.project-calendar__event.is-period-start.is-period-end { width: 100%; margin: 0; border-right: 1px solid var(--calendar-accent); border-radius: 6px; }
+ .project-calendar__more { border: 0; background: transparent; color: #5d55c7; font-size: 10px; font-weight: 750; text-align: center; }
+ .project-calendar__loading, .project-calendar__month-empty { margin: 12px 0 0; padding: 12px; border: 1px dashed #cbd4e2; border-radius: 9px; color: #69778b; font-size: 13px; text-align: center; }
+ .project-calendar__detail { min-height: 360px; padding: 16px; border: 1px solid #dce3ee; border-radius: 12px; background: #fafbfe; }
+@@ -218,7 +226,7 @@
+ .project-calendar__detail > header span { color: #202b3e; font-weight: 800; }
+ .project-calendar__detail > header strong { color: #65748a; font-size: 12px; }
+ .project-calendar__detail ul { display: grid; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
+-.project-calendar__detail li button { width: 100%; padding: 11px; border: 1px solid #dce3ee; border-radius: 9px; background: #fff; text-align: left; cursor: pointer; }
++.project-calendar__detail li button { width: 100%; padding: 11px; border: 1px solid #dce3ee; border-left: 4px solid var(--calendar-accent, #65748a); border-radius: 9px; background: var(--calendar-bg, #fff); text-align: left; cursor: pointer; }
+ .project-calendar__detail li button:hover, .project-calendar__detail li button:focus-visible, .project-calendar__detail li button.is-active { border-color: #756de8; background: #f5f4ff; }
+ .project-calendar__detail li span, .project-calendar__detail li strong, .project-calendar__detail li small { display: block; }
+ .project-calendar__detail li span { color: #65748a; font-size: 10px; font-weight: 800; }
+@@ -227,7 +235,7 @@
+ .project-calendar__empty { display: grid; min-height: 250px; place-items: center; align-content: center; text-align: center; }
+ .project-calendar__empty strong { color: #36435a; }
+ .project-calendar__empty p { margin: 8px 0 0; color: #758197; font-size: 12px; line-height: 1.6; }
+-.project-calendar__schedule-detail { margin-top: 14px; padding: 14px; border-top: 3px solid #65748a; border-radius: 9px; background: #fff; }
++.project-calendar__schedule-detail { margin-top: 14px; padding: 14px; border-top: 3px solid var(--calendar-accent, #65748a); border-radius: 9px; background: var(--calendar-bg, #fff); }
+ .project-calendar__schedule-detail > span { color: #65748a; font-size: 11px; font-weight: 800; }
+ .project-calendar__schedule-detail h3 { margin: 7px 0 12px; color: #202b3e; font-size: 16px; }
+ .project-calendar__schedule-detail dl, .project-calendar__schedule-detail dl div { margin: 0; }
+@@ -237,3 +245,8 @@
+ .project-calendar__schedule-detail dd { margin: 0; color: #36435a; font-weight: 700; }
+ @media (max-width: 1100px) { .project-calendar__layout { grid-template-columns: 1fr; } .project-calendar__detail { min-height: 240px; } }
+ @media (max-width: 680px) { .project-calendar__head { align-items: flex-start; flex-direction: column; } .project-calendar__controls { width: 100%; flex-wrap: wrap; } .project-calendar__controls strong { flex: 1; } .project-calendar__controls .project-calendar__today { width: 100%; } .project-calendar__notice { align-items: flex-start; flex-direction: column; } .project-calendar__notice button { width: 100%; } }
++
++
++/* 캘린더 우측 일정 상세 패널 */
++.project-calendar__detail.is-open { border-color: #bfc7d5; background: #fff; box-shadow: 0 12px 32px rgba(30, 43, 66, .12); }
++.project-calendar__detail-close { display: grid; width: 32px; height: 32px; padding: 0; place-items: center; border: 1px solid #d2d9e7; border-radius: 8px; background: #fff; color: #4b5870; font-size: 20px; cursor: pointer; }

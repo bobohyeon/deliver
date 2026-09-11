@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>RAG_임베딩모델_공개벤치마크_인용표</title>
+<style>
+@page { size: A4 portrait; margin: 18mm 16mm; }
+* { box-sizing: border-box; }
+body {
+  font-family: "Malgun Gothic", "맑은 고딕", -apple-system, sans-serif;
+  font-size: 10.5pt; line-height: 1.6; color: #111;
+  max-width: 900px; margin: 0 auto; padding: 24px;
+}
+h1 {
+  font-size: 19pt; margin: 0 0 6px; padding-bottom: 10px;
+  border-bottom: 2px solid #111; color: #000;
+}
+h2 {
+  font-size: 13pt; margin: 26px 0 10px; padding: 6px 10px;
+  background: #111; color: #fff;
+  page-break-after: avoid;
+}
+h3 {
+  font-size: 11.5pt; margin: 18px 0 8px; padding-left: 8px;
+  border-left: 3px solid #111; color: #000;
+  page-break-after: avoid;
+}
+h4 {
+  font-size: 10.5pt; margin: 14px 0 6px; color: #000;
+  page-break-after: avoid;
+}
+p { margin: 7px 0; }
+table {
+  width: 100%; border-collapse: collapse; margin: 10px 0 16px;
+  font-size: 9.5pt; page-break-inside: avoid;
+}
+th, td {
+  border: 1px solid #999; padding: 5px 8px;
+  text-align: left; vertical-align: top; word-break: break-word;
+}
+th { background: #e8e8e8; color: #000; font-weight: 600; }
+pre {
+  background: #f4f4f4; border: 1px solid #ccc; border-left: 3px solid #666;
+  padding: 9px 12px; margin: 10px 0;
+  font-family: Consolas, "D2Coding", monospace; font-size: 9pt;
+  line-height: 1.45; white-space: pre-wrap; page-break-inside: avoid;
+}
+code {
+  font-family: Consolas, "D2Coding", monospace; font-size: 9.2pt;
+  background: #eee; padding: 1px 4px; color: #000;
+}
+pre code { background: none; padding: 0; }
+blockquote {
+  margin: 10px 0; padding: 8px 13px;
+  background: #f6f6f6; border-left: 3px solid #666; color: #222;
+}
+blockquote p { margin: 4px 0; }
+ul, ol { margin: 7px 0; padding-left: 20px; }
+li { margin: 2px 0; }
+/* 중첩 목록은 <ul> 이 <li> 의 형제로 놓인다. 자손 선택자로 잡는다. */
+ul ul { margin: 2px 0; }
+hr { border: 0; border-top: 1px solid #ccc; margin: 20px 0; }
+strong { color: #000; }
+a { color: #000; text-decoration: underline; }
+
+/* 목차는 촘촘하게. 문서 첫 장에서 한눈에 들어와야 한다. */
+h2 + ul { font-size: 10pt; line-height: 1.45; }
+h2 + ul li { margin: 1px 0; }
+
+.doc-foot {
+  margin-top: 28px; padding-top: 10px; border-top: 1px solid #ccc;
+  font-size: 8.5pt; color: #555; text-align: center;
+}
+@media print {
+  body { padding: 0; }
+  h2 { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  a { text-decoration: none; color: #000; }
+}
+</style>
+</head>
+<body>
+<h1 id="임베딩-모델-공개-벤치마크--인용-가능한-점수만">임베딩 모델 공개 벤치마크 — 인용 가능한 점수만</h1>
+<pre><code>문서      공개 벤치마크 인용표 (회의·발표 근거용)
+작성      김보현
+작성일    2026-08-12 (2026-08-13 후보 확대 반영 — 1-1절)
+목적      우리 실측의 표본이 작다는 약점을 공개 점수로 보완한다
+짝 문서   관리/RAG_임베딩모델_비교분석표.md (우리 실측)
+          관리/RAG_임베딩모델_선정기준표.md (성능 외 8기준)</code></pre>
+<blockquote>
+<p><strong>이 문서에 우리가 만든 숫자는 없다.</strong> 전부 공개된 표에서 가져온 것이고
+출처와 확인 방법을 항목마다 달았다. <strong>인용해도 되는 값만 모았다.</strong></p>
+</blockquote>
+<h2 id="목차">목차</h2>
+<ul>
+<li><a href="#0-먼저--두-가지를-정정한다">0. 먼저 — 두 가지를 정정한다</a></li>
+<ul>
+<li><a href="#klue-는-검색-벤치마크가-아니다">KLUE 는 검색 벤치마크가 아니다</a></li>
+<li><a href="#mteb-는-그냥-mteb-라고-쓰면-안-된다">MTEB 는 그냥 &quot;MTEB&quot; 라고 쓰면 안 된다</a></li>
+</ul>
+<li><a href="#1-mteb-ko-retrieval-리더보드--이것을-인용한다">1. MTEB-ko-retrieval 리더보드 — 이것을 인용한다</a></li>
+<ul>
+<li><a href="#출처와-확인-방법">출처와 확인 방법</a></li>
+<li><a href="#무엇으로-재나--한국어-검색-데이터셋-8종의-평균">무엇으로 재나 — 한국어 검색 데이터셋 8종의 평균</a></li>
+<li><a href="#top-k-5--우리가-r5-를-기준으로-쓰므로-이-표가-직접-대응한다">Top-k 5 — 우리가 R@5 를 기준으로 쓰므로 이 표가 직접 대응한다</a></li>
+<li><a href="#top-k-10--참고">Top-k 10 — 참고</a></li>
+<li><a href="#1-1-2026-08-13-후보-확대--이-표가-덮는-범위">1-1. 2026-08-13 후보 확대 — 이 표가 덮는 범위</a></li>
+</ul>
+<li><a href="#2-우리-실측과-대조--순위가-같다">2. 우리 실측과 대조 — 순위가 같다</a></li>
+<ul>
+<li><a href="#이-일치가-무엇을-해결하나">이 일치가 무엇을 해결하나</a></li>
+<li><a href="#다만-격차의-크기는-다르다">다만 격차의 크기는 다르다</a></li>
+</ul>
+<li><a href="#3-회의에서-이-표로-답할-수-있는-것">3. 회의에서 이 표로 답할 수 있는 것</a></li>
+<li><a href="#4-이-표를-쓸-때-반드시-밝힐-것--네-가지">4. 이 표를 쓸 때 반드시 밝힐 것 — 네 가지</a></li>
+<ul>
+<li><a href="#인용할-때-이렇게-쓴다">인용할 때 이렇게 쓴다</a></li>
+</ul>
+<li><a href="#5-다른-모델-카드의-점수는-왜-안-썼나">5. 다른 모델 카드의 점수는 왜 안 썼나</a></li>
+<li><a href="#6-부수로-확인된-것-둘">6. 부수로 확인된 것 둘</a></li>
+<ul>
+<li><a href="#라이선스가-이중으로-확인됐다">라이선스가 이중으로 확인됐다</a></li>
+<li><a href="#접두어-설정이-맞았다">접두어 설정이 맞았다</a></li>
+</ul>
+<li><a href="#부록-재현-방법">부록. 재현 방법</a></li>
+</ul>
+<hr>
+<hr>
+<h2 id="0-먼저--두-가지를-정정한다">0. 먼저 — 두 가지를 정정한다</h2>
+<h3 id="klue-는-검색-벤치마크가-아니다">KLUE 는 검색 벤치마크가 아니다</h3>
+<p><strong>임베딩 모델 카드에 KLUE 점수는 없다.</strong> KLUE 는 한국어 이해 벤치마크로</p>
+<p>자연어추론 · 문장유사도 · 개체명인식 · 관계추출 · 기계독해 같은 과제를 잰다.</p>
+<p><strong>문서를 찾아오는 능력을 재는 것이 아니다.</strong></p>
+<p><strong>KLUE-STS 를 검색 근거로 쓰면 회의에서 반박당한다.</strong> 문장 유사도가 높다고</p>
+<p>검색이 잘 되는 것이 아니다. 우리가 재려는 것은 &quot;질의로 문서를 찾는 것&quot; 이다.</p>
+<p><strong>한국어 검색 벤치마크는 따로 있다</strong> — 1절의 8종이 그것이다.</p>
+<h3 id="mteb-는-그냥-mteb-라고-쓰면-안-된다">MTEB 는 그냥 &quot;MTEB&quot; 라고 쓰면 안 된다</h3>
+<p>MTEB 는 프레임워크 이름이고, 그 안에 언어·과제별로 다른 표가 있다.</p>
+<table><thead><tr>
+<th>흔히 말하는 &quot;MTEB 점수&quot;</th>
+<th>우리에게 쓸 수 있나</th>
+</tr></thead><tbody>
+<tr>
+<td>MTEB 영어 평균</td>
+<td><strong>쓸 수 없다.</strong> 우리 문서는 전부 한국어다</td>
+</tr>
+<tr>
+<td>MTEB 다국어 평균</td>
+<td>참고만. 100개 언어 평균에 한국어가 묻힌다</td>
+</tr>
+<tr>
+<td><strong>MTEB-ko-retrieval</strong></td>
+<td><strong>이것을 쓴다.</strong> 한국어 검색 8종 평균이다</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="1-mteb-ko-retrieval-리더보드--이것을-인용한다">1. MTEB-ko-retrieval 리더보드 — 이것을 인용한다</h2>
+<h3 id="출처와-확인-방법">출처와 확인 방법</h3>
+<table><thead><tr>
+<th></th>
+<th></th>
+</tr></thead><tbody>
+<tr>
+<td>어디</td>
+<td><code>github.com/nlpai-lab/KURE</code> README</td>
+</tr>
+<tr>
+<td>논문</td>
+<td>Jang et al., <strong>KURE: Embedding Model for Korean-Specific Retrieval</strong>, HCLT 2025, pp.129–134</td>
+</tr>
+<tr>
+<td>확인 명령</td>
+<td>`gh api repos/nlpai-lab/KURE/contents/README.md --jq &#x27;.content&#x27; \</td>
+<td>base64 -d`</td>
+</tr>
+<tr>
+<td>확인일</td>
+<td>2026-08-12</td>
+</tr>
+<tr>
+<td>라이선스</td>
+<td>README 본문에 <code>MIT</code> 명시</td>
+</tr>
+</tbody></table>
+<h3 id="무엇으로-재나--한국어-검색-데이터셋-8종의-평균">무엇으로 재나 — 한국어 검색 데이터셋 8종의 평균</h3>
+<table><thead><tr>
+<th>데이터셋</th>
+<th>무엇</th>
+<th>우리 도메인과의 거리</th>
+</tr></thead><tbody>
+<tr>
+<td><strong><code>AutoRAGRetrieval</code></strong></td>
+<td><strong>금융·공공·의료·법률·커머스 PDF 를 파싱한 문서 검색</strong></td>
+<td><strong>가장 가깝다</strong></td>
+</tr>
+<tr>
+<td><strong><code>MultiLongDocRetrieval</code></strong></td>
+<td>다양한 도메인 <strong>장문</strong> 검색</td>
+<td><strong>가깝다</strong> — 우리 문서가 45,000자다</td>
+</tr>
+<tr>
+<td><code>Ko-StrategyQA</code></td>
+<td>여러 단계를 거쳐 답을 찾는 질의응답</td>
+<td>중간</td>
+</tr>
+<tr>
+<td><code>PublicHealthQA</code></td>
+<td>의료·공중보건 문서 검색</td>
+<td>멀다</td>
+</tr>
+<tr>
+<td><code>XPQARetrieval</code></td>
+<td>여러 도메인 문서 검색</td>
+<td>중간</td>
+</tr>
+<tr>
+<td><code>MIRACLRetrieval</code></td>
+<td>Wikipedia 기반</td>
+<td>멀다</td>
+</tr>
+<tr>
+<td><code>MrTidyRetrieval</code></td>
+<td>Wikipedia 기반</td>
+<td>멀다</td>
+</tr>
+<tr>
+<td><code>BelebeleRetrieval</code></td>
+<td>FLORES-200 기반</td>
+<td>멀다</td>
+</tr>
+</tbody></table>
+<p><strong>8종 평균이라 우리 도메인(입찰공고·계약) 점수만 따로 볼 수는 없다.</strong></p>
+<p><code>AutoRAGRetrieval</code> 단독 점수를 보려면 평가 코드를 직접 돌려야 한다.</p>
+<h3 id="top-k-5--우리가-r5-를-기준으로-쓰므로-이-표가-직접-대응한다">Top-k 5 — 우리가 R@5 를 기준으로 쓰므로 이 표가 직접 대응한다</h3>
+<table><thead><tr>
+<th>순위</th>
+<th>모델</th>
+<th>Recall</th>
+<th>NDCG</th>
+<th>우리 후보인가</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>1</strong></td>
+<td><strong><code>nlpai-lab/KURE-v1</code></strong></td>
+<td><strong>0.73851</strong></td>
+<td><strong>0.67479</strong></td>
+<td><strong>채택 (기본)</strong></td>
+</tr>
+<tr>
+<td><strong>2</strong></td>
+<td><strong><code>dragonkue/BGE-m3-ko</code></strong></td>
+<td><strong>0.72517</strong></td>
+<td><strong>0.66692</strong></td>
+<td><strong>측정함 (2026-08-13 추가)</strong></td>
+</tr>
+<tr>
+<td><strong>3</strong></td>
+<td><strong><code>BAAI/bge-m3</code></strong></td>
+<td><strong>0.72954</strong></td>
+<td><strong>0.66615</strong></td>
+<td><strong>채택 (대안)</strong></td>
+</tr>
+<tr>
+<td><strong>4</strong></td>
+<td><strong><code>Snowflake/snowflake-arctic-embed-l-v2.0</code></strong></td>
+<td><strong>0.72962</strong></td>
+<td><strong>0.66236</strong></td>
+<td><strong>측정함 (2026-08-13 추가)</strong></td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>nlpai-lab/KoE5</code></td>
+<td>0.70820</td>
+<td>0.64499</td>
+<td>미측정</td>
+</tr>
+<tr>
+<td><strong>6</strong></td>
+<td><strong><code>intfloat/multilingual-e5-large</code></strong></td>
+<td><strong>0.70124</strong></td>
+<td><strong>0.64402</strong></td>
+<td><strong>측정함 · 3위</strong></td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>BAAI/bge-multilingual-gemma2</code></td>
+<td>0.70258</td>
+<td>0.63338</td>
+<td>미측정</td>
+</tr>
+<tr>
+<td>8</td>
+<td><code>jinaai/jina-embeddings-v3</code></td>
+<td>0.69933</td>
+<td>0.63133</td>
+<td>미측정</td>
+</tr>
+<tr>
+<td>9</td>
+<td><code>intfloat/multilingual-e5-large-instruct</code></td>
+<td>0.69018</td>
+<td>0.62486</td>
+<td>미측정</td>
+</tr>
+<tr>
+<td>10</td>
+<td><code>Alibaba-NLP/gte-multilingual-base</code></td>
+<td>0.69365</td>
+<td>0.61896</td>
+<td>미측정</td>
+</tr>
+<tr>
+<td><strong>11</strong></td>
+<td><strong><code>intfloat/multilingual-e5-base</code></strong></td>
+<td><strong>0.67250</strong></td>
+<td><strong>0.61119</strong></td>
+<td><strong>측정함 · 5위</strong></td>
+</tr>
+<tr>
+<td>12</td>
+<td><code>Alibaba-NLP/gte-Qwen2-7B-instruct</code></td>
+<td>0.67447</td>
+<td>0.60952</td>
+<td>미측정</td>
+</tr>
+<tr>
+<td>13</td>
+<td><code>intfloat/e5-mistral-7b-instruct</code></td>
+<td>0.67449</td>
+<td>0.60935</td>
+<td>미측정</td>
+</tr>
+<tr>
+<td><strong>14</strong></td>
+<td><strong><code>openai/text-embedding-3-large</code></strong></td>
+<td><strong>0.66365</strong></td>
+<td><strong>0.59389</strong></td>
+<td><strong>2라운드 후보</strong></td>
+</tr>
+<tr>
+<td>15</td>
+<td><code>Salesforce/SFR-Embedding-2_R</code></td>
+<td>0.65622</td>
+<td>0.58494</td>
+<td>미측정</td>
+</tr>
+<tr>
+<td>16</td>
+<td><code>upskyy/bge-m3-korean</code></td>
+<td>0.65477</td>
+<td>0.58073</td>
+<td>미측정</td>
+</tr>
+<tr>
+<td>17</td>
+<td><code>jhgan/ko-sroberta-multitask</code></td>
+<td>0.53136</td>
+<td>0.45879</td>
+<td>미측정</td>
+</tr>
+</tbody></table>
+<p><strong>순위는 NDCG 기준이다</strong> (원문 표의 정렬). Recall 로 정렬하면 3·4위와</p>
+<p>11~13위의 순서가 조금 바뀐다. 우리 판단에 영향은 없다.</p>
+<h3 id="top-k-10--참고">Top-k 10 — 참고</h3>
+<table><thead><tr>
+<th>모델</th>
+<th>Recall</th>
+<th>NDCG</th>
+</tr></thead><tbody>
+<tr>
+<td><strong><code>nlpai-lab/KURE-v1</code></strong></td>
+<td><strong>0.79682</strong></td>
+<td><strong>0.69473</strong></td>
+</tr>
+<tr>
+<td><code>BAAI/bge-m3</code></td>
+<td>0.79195</td>
+<td>0.68723</td>
+</tr>
+<tr>
+<td><code>dragonkue/BGE-m3-ko</code></td>
+<td>0.78450</td>
+<td>0.68748</td>
+</tr>
+<tr>
+<td><code>intfloat/multilingual-e5-large</code></td>
+<td>0.75902</td>
+<td>0.66370</td>
+</tr>
+<tr>
+<td><code>intfloat/multilingual-e5-base</code></td>
+<td>0.73512</td>
+<td>0.63216</td>
+</tr>
+<tr>
+<td><code>openai/text-embedding-3-large</code></td>
+<td>0.72946</td>
+<td>0.61670</td>
+</tr>
+</tbody></table>
+<h3 id="1-1-2026-08-13-후보-확대--이-표가-덮는-범위">1-1. 2026-08-13 후보 확대 — 이 표가 덮는 범위</h3>
+<p>후보를 5종에서 6종으로 바꿨다(<code>관리/RAG_임베딩모델_선정기준표.md</code>).</p>
+<p><strong>새 후보 4종 중 둘은 이 리더보드에 있고 둘은 없다.</strong></p>
+<table><thead><tr>
+<th>새 후보</th>
+<th>리더보드</th>
+<th>순위</th>
+<th>뜻</th>
+</tr></thead><tbody>
+<tr>
+<td><code>dragonkue/BGE-m3-ko</code></td>
+<td><strong>있다</strong></td>
+<td><strong>2위</strong> (NDCG 0.66692)</td>
+<td>공개 점수로 KURE 를 위협하는 유일한 후보다</td>
+</tr>
+<tr>
+<td><code>Snowflake/snowflake-arctic-embed-l-v2.0</code></td>
+<td><strong>있다</strong></td>
+<td><strong>4위</strong> (NDCG 0.66236)</td>
+<td>bge-m3(3위)와 붙어 있다</td>
+</tr>
+<tr>
+<td><code>nomic-ai/nomic-embed-text-v2-moe</code></td>
+<td><strong>없다</strong></td>
+<td>—</td>
+<td><strong>한국어 검색 공개 점수가 없다.</strong> 우리 실측이 유일한 근거가 된다</td>
+</tr>
+<tr>
+<td><code>Qwen/Qwen3-Embedding-0.6B</code></td>
+<td><strong>없다</strong></td>
+<td>—</td>
+<td>같음. 처음에 &quot;CPU 측정 불가&quot; 로 적었으나 <strong>정밀도(<code>bfloat16</code>)를 맞추지 않은 측정이어서 무효였다.</strong> <code>float32</code> 로는 649청크 약 13분으로 후보 자격이 있다 — <code>관리/RAG_임베딩모델_선정기준표.md</code> 기준 3·7절</td>
+</tr>
+</tbody></table>
+<p><strong>리더보드에 없는 모델을 후보에 넣을 때는 이 사실을 밝혀야 한다.</strong></p>
+<p>&quot;공개 점수가 좋아서&quot; 라는 근거를 쓸 수 없고, 우리 실측 하나로 판단해야 한다.</p>
+<p>표본이 작다는 약점을 공개 점수로 보완하는 이 문서의 방식이 그 둘에는 통하지 않는다.</p>
+<p><strong>상위 4위 안에 우리 후보가 셋 들어 있다</strong> — KURE-v1(1위) · BGE-m3-ko(2위) ·</p>
+<p>bge-m3(3위) · arctic(4위). 즉 <strong>1~4위를 전부 재는 셈</strong>이다.</p>
+<hr>
+<h2 id="2-우리-실측과-대조--순위가-같다">2. 우리 실측과 대조 — <strong>순위가 같다</strong></h2>
+<p><strong>이것이 이 문서의 핵심이다.</strong></p>
+<table><thead><tr>
+<th>모델</th>
+<th>차원</th>
+<th>공개 Recall@5</th>
+<th>공개 순위</th>
+<th><strong>우리 실측 R@5</strong></th>
+<th><strong>우리 순위</strong></th>
+</tr></thead><tbody>
+<tr>
+<td><strong>KURE-v1</strong></td>
+<td>1024</td>
+<td>0.73851</td>
+<td><strong>1</strong></td>
+<td><strong>27/34 (0.794)</strong></td>
+<td><strong>1</strong></td>
+</tr>
+<tr>
+<td><strong>bge-m3</strong></td>
+<td>1024</td>
+<td>0.72954</td>
+<td><strong>2</strong></td>
+<td>26/34 (0.765)</td>
+<td><strong>2</strong></td>
+</tr>
+<tr>
+<td><strong>e5-large</strong></td>
+<td>1024</td>
+<td>0.70124</td>
+<td><strong>3</strong></td>
+<td>23/34 (0.676)</td>
+<td><strong>3</strong></td>
+</tr>
+<tr>
+<td><strong>e5-base</strong></td>
+<td>768</td>
+<td>0.67250</td>
+<td><strong>4</strong></td>
+<td>13/34 (0.382)</td>
+<td><strong>5</strong></td>
+</tr>
+<tr>
+<td><code>text-embedding-3-large</code></td>
+<td>1024 로 축소 가능</td>
+<td>0.66365</td>
+<td><strong>5</strong></td>
+<td>미측정</td>
+<td>—</td>
+</tr>
+</tbody></table>
+<p>*(우리가 측정한 모델만 뽑아 다시 순위를 매긴 것이다. 전체 17개 중 순위는 위 1절 표를 본다.)*</p>
+<p><strong>측정한 네 모델의 순위가 완전히 일치한다.</strong></p>
+<p>질의 34개로 잰 우리 결과가 8개 벤치마크 평균과 같은 순서를 낸다.</p>
+<h3 id="이-일치가-무엇을-해결하나">이 일치가 무엇을 해결하나</h3>
+<table><thead><tr>
+<th>우리 실측의 약점</th>
+<th>공개 점수가 보완하는 방식</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>표본이 34문항뿐이다</strong></td>
+<td>8개 데이터셋 평균이 같은 순서를 낸다. 우연으로 보기 어렵다</td>
+</tr>
+<tr>
+<td><strong>문서가 5건뿐이다</strong></td>
+<td>리더보드는 Wikipedia · PDF · 장문 등 훨씬 넓은 코퍼스다</td>
+</tr>
+<tr>
+<td><strong>정답을 내가 정했다</strong></td>
+<td>공개 데이터셋은 다른 사람이 만든 정답이다</td>
+</tr>
+<tr>
+<td><strong>청킹이 시험용이다</strong></td>
+<td>데이터셋마다 청킹 방식이 다른데도 순서가 같다</td>
+</tr>
+</tbody></table>
+<p><strong>&quot;표본이 작아서 못 믿겠다&quot; 는 지적에 이 표로 답한다.</strong></p>
+<h3 id="다만-격차의-크기는-다르다">다만 격차의 크기는 다르다</h3>
+<table><thead><tr>
+<th></th>
+<th>KURE 대 e5-base 격차</th>
+</tr></thead><tbody>
+<tr>
+<td>공개 Recall@5</td>
+<td>0.739 대 0.673 = <strong>6.6 포인트</strong></td>
+</tr>
+<tr>
+<td>우리 실측 R@5</td>
+<td>0.794 대 0.382 = <strong>41.2 포인트</strong></td>
+</tr>
+</tbody></table>
+<p><strong>우리 쪽 격차가 6배 크다.</strong> 이유는 우리가 <strong>글자가 겹치지 않는 질의만</strong></p>
+<p>따로 골라 쟀기 때문이다. 공개 벤치마크는 그런 구분을 하지 않는다.</p>
+<p><strong>즉 우리 측정이 더 어려운 문제를 낸 것이고, 그래서 모델 차이가 크게 벌어진다.</strong></p>
+<p>이건 우리 측정의 강점이다 — 순위는 같은데 판별력이 높다.</p>
+<hr>
+<h2 id="3-회의에서-이-표로-답할-수-있는-것">3. 회의에서 이 표로 답할 수 있는 것</h2>
+<table><thead><tr>
+<th>질문</th>
+<th>답</th>
+<th>근거</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>&quot;왜 KURE-v1 인가&quot;</strong></td>
+<td>한국어 검색 8종 평균에서 17개 모델 중 1위다. 우리 실측에서도 1위였다</td>
+<td>1절 · 2절</td>
+</tr>
+<tr>
+<td><strong>&quot;왜 로컬인가. OpenAI 가 더 좋지 않나&quot;</strong></td>
+<td><strong><code>text-embedding-3-large</code> 가 한국어 검색에서 14위다.</strong> <code>e5-base</code>(768) 보다도 낮다</td>
+<td>1절</td>
+</tr>
+<tr>
+<td><strong>&quot;768 이면 저장이 싼데&quot;</strong></td>
+<td><code>e5-base</code>(768) 가 11위다. <code>e5-large</code>(1024) 는 6위다. 공개 점수도 우리 실측과 같은 방향이다</td>
+<td>1절</td>
+</tr>
+<tr>
+<td><strong>&quot;표본 34개로 정한 건가&quot;</strong></td>
+<td>아니다. 8개 공개 데이터셋 평균이 같은 순서를 낸다</td>
+<td>2절</td>
+</tr>
+<tr>
+<td><strong>&quot;KURE 와 bge-m3 중 어느 것&quot;</strong></td>
+<td><strong>공개 점수도 1·3위로 붙어 있다.</strong> 우리 실측도 1문항 차이다. 확정을 보류한 이유가 여기 있다</td>
+<td>1절 · 2절</td>
+</tr>
+<tr>
+<td><strong>&quot;MTEB 점수 몇 점인가&quot;</strong></td>
+<td>그 질문 자체가 모호하다. 영어 · 다국어 · 한국어 검색이 다 다르다</td>
+<td>0절</td>
+</tr>
+</tbody></table>
+<hr>
+<h2 id="4-이-표를-쓸-때-반드시-밝힐-것--네-가지">4. 이 표를 쓸 때 반드시 밝힐 것 — 네 가지</h2>
+<p><strong>발표에서 먼저 말하지 않으면 질문으로 돌아온다.</strong></p>
+<table><thead><tr>
+<th></th>
+<th>밝힐 것</th>
+<th>왜</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>1</strong></td>
+<td><strong>이 리더보드는 KURE 개발팀이 만든 것이다</strong></td>
+<td>자기 모델이 1위인 표다. <strong>무효는 아니다</strong> — MTEB 프레임워크와 공개 데이터셋을 쓰고 평가 코드도 공개했다. 하지만 만든 주체를 밝히는 것이 정직하다</td>
+</tr>
+<tr>
+<td><strong>2</strong></td>
+<td><strong>Voyage 와 Gemini 는 이 표에 없다</strong></td>
+<td>API 모델 중에는 OpenAI 하나만 있다. Voyage·Gemini 의 한국어 검색 성능은 <strong>공개 점수로도 알 수 없다</strong></td>
+</tr>
+<tr>
+<td><strong>3</strong></td>
+<td><strong>후보 3종이 이 표에 없다</strong></td>
+<td><code>dragonkue/multilingual-e5-small-ko-v2</code>(384) · <code>nomic-ai/nomic-embed-text-v2-moe</code>(768) · <code>Qwen/Qwen3-Embedding-0.6B</code> 가 없다. <strong>이 셋의 한국어 검색 성능은 공개 점수로 알 수 없고 우리 실측뿐이다</strong></td>
+</tr>
+<tr>
+<td><strong>4</strong></td>
+<td><strong>8종 평균이라 우리 도메인 점수가 아니다</strong></td>
+<td>입찰공고·계약 문서는 없다. 가장 가까운 것이 <code>AutoRAGRetrieval</code>(공공·법률 PDF)인데 단독 점수는 안 나와 있다</td>
+</tr>
+</tbody></table>
+<h3 id="인용할-때-이렇게-쓴다">인용할 때 이렇게 쓴다</h3>
+<blockquote>
+<p>한국어 검색 벤치마크 8종 평균(MTEB-ko-retrieval)에서 <code>KURE-v1</code> 이
+17개 모델 중 1위이고 <code>openai/text-embedding-3-large</code> 는 14위다.
+Recall@5 기준 0.739 대 0.664 다.
+출처 — <code>github.com/nlpai-lab/KURE</code> (Jang et al., HCLT 2025).
+<strong>리더보드는 KURE 개발팀이 작성했다.</strong>
+우리 문서·질의 73개로 직접 측정한 결과도 같은 순위였다.</p>
+</blockquote>
+<hr>
+<h2 id="5-다른-모델-카드의-점수는-왜-안-썼나">5. 다른 모델 카드의 점수는 왜 안 썼나</h2>
+<table><thead><tr>
+<th>모델 카드</th>
+<th>실린 점수</th>
+<th>왜 안 쓰나</th>
+</tr></thead><tbody>
+<tr>
+<td><code>BAAI/bge-m3</code></td>
+<td>MIRACL · MKQA · MLDR 다국어</td>
+<td><strong>한국어 단독이 아니다.</strong> 100개 언어 평균에 묻힌다</td>
+</tr>
+<tr>
+<td><code>intfloat/multilingual-e5-*</code></td>
+<td>MTEB 다국어 · MIRACL</td>
+<td>같은 이유</td>
+</tr>
+<tr>
+<td>Voyage · Gemini</td>
+<td>제공자 자체 벤치마크</td>
+<td><strong>비교 대상과 데이터셋을 제공자가 골랐다.</strong> 같은 자가 아니다</td>
+</tr>
+</tbody></table>
+<p>**한국어 검색만 재고, 우리 후보가 다 들어 있고, 평가 코드가 공개된 표가</p>
+<p>MTEB-ko-retrieval 하나였다.** 그래서 이것만 인용한다.</p>
+<hr>
+<h2 id="6-부수로-확인된-것-둘">6. 부수로 확인된 것 둘</h2>
+<h3 id="라이선스가-이중으로-확인됐다">라이선스가 이중으로 확인됐다</h3>
+<p><code>KURE</code> README 본문에 <strong><code>## License</code> — <code>MIT</code></strong> 가 명시돼 있다.</p>
+<p>앞서 <code>gh api repos/nlpai-lab/KURE/license</code> 로 확인한 것과 일치한다.</p>
+<p><strong>저장소 라이선스와 카드 본문이 같다.</strong></p>
+<h3 id="접두어-설정이-맞았다">접두어 설정이 맞았다</h3>
+<p>README <code>주의사항</code> 절에 이렇게 적혀 있다.</p>
+<blockquote>
+<p><code>KoE5</code> 사용 시 prefix 를 붙여야 한다 (<code>query: {query}</code>, <code>passage: {document}</code>)</p>
+</blockquote>
+<p><strong><code>KURE-v1</code> 은 언급이 없다.</strong> 우리 하네스가 <code>KURE-v1</code> 과 <code>bge-m3</code> 에</p>
+<p>접두어를 안 붙이고 <code>e5</code> 계열에만 붙인 것이 맞다. 이 규칙을 틀리면 한쪽이</p>
+<p>억울하게 진다.</p>
+<hr>
+<h2 id="부록-재현-방법">부록. 재현 방법</h2>
+<pre><code>gh api repos/nlpai-lab/KURE/contents/README.md --jq &#x27;.content&#x27; | base64 -d &gt; KURE_README.md</code></pre>
+<p>허깅페이스 모델 카드(<code>huggingface.co/nlpai-lab/KURE-v1</code>)에도 같은 표가 있다.</p>
+<p><strong>작업 환경에서 허깅페이스 접속이 막혀 GitHub 저장소로 확인했다.</strong></p>
+<p>두 곳의 내용이 다를 수 있으므로 최종 인용 전에 카드도 한 번 보는 것이 안전하다.</p>
+<p>*출처 내용은 라이선스 준수를 위해 필요한 수치만 인용하고 설명은 재구성했다.*</p>
+<div class="doc-foot">PDF Brief AI · 김보현 · 브라우저에서 Ctrl+P → &#x27;PDF로 저장&#x27;</div>
+</body>
+</html>

@@ -1,0 +1,118 @@
+diff --git a/frontend/src/App.jsx b/frontend/src/App.jsx
+index 85ba77b..462f34f 100644
+--- a/frontend/src/App.jsx
++++ b/frontend/src/App.jsx
+@@ -1,5 +1,16 @@
+-import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
++// =============================================================================
++// 이 파일의 책임: 인증 상태에 따라 공개·보호 라우트를 조립하고 프로젝트 공통
++//   도구를 페이지 전환과 독립된 수명으로 제공한다.
++// 다른 파일과의 관계: 각 page를 라우팅하고, 프로젝트 경로에서는 ChatView를 한 번만
++//   마운트해 작업공간·문서 상세·OCR 검수 사이에서도 진행 상태를 유지한다.
++// Spring 비교: SecurityFilter와 공통 Layout Controller를 합친 애플리케이션 진입점이다.
++// =============================================================================
++
++import { useQuery } from '@tanstack/react-query'
++import { Navigate, Route, Routes, useLocation, useMatch } from 'react-router-dom'
++import { getProject } from './api/project'
+ import Toast from './components/common/Toast'
++import ChatView from './features/chat/ChatView'
+ import { useSession } from './hooks/useSession'
+ import { useToast } from './hooks/useToast'
+ import AuthPage from './pages/AuthPage'
+@@ -25,6 +36,22 @@ function ProtectedRoute({ user, loading, children }) {
+   return children
+ }
+ 
++function ProjectChatHost({ user }) {
++  const match = useMatch('/projects/:projectId/*')
++  const rawProjectId = match?.params.projectId
++  const projectId = Number(rawProjectId)
++  const enabled = Boolean(user && Number.isSafeInteger(projectId) && projectId > 0)
++  const projectQuery = useQuery({
++    queryKey: ['project-access', rawProjectId],
++    queryFn: () => getProject(rawProjectId),
++    enabled,
++    retry: false,
++  })
++
++  if (!enabled || !projectQuery.data) return null
++  return <ChatView key={projectId} projectId={projectId} projectName={projectQuery.data.name}/>
++}
++
+ export default function App() {
+   const { toast, notify, closeToast } = useToast()
+   const session = useSession()
+@@ -42,5 +69,6 @@ export default function App() {
+       <Route path="/projects/:projectId/:tab" element={<ProtectedRoute {...session}><WorkspacePage user={session.user} onLogout={session.logout} notify={notify}/></ProtectedRoute>}/>
+       <Route path="*" element={<NotFoundPage/>}/>
+     </Routes>
++    <ProjectChatHost user={session.user}/>
+   </>
+ }
+diff --git a/frontend/src/features/chat/ChatView.jsx b/frontend/src/features/chat/ChatView.jsx
+index 229a695..1bbdbb1 100644
+--- a/frontend/src/features/chat/ChatView.jsx
++++ b/frontend/src/features/chat/ChatView.jsx
+@@ -1,8 +1,8 @@
+ // =============================================================================
+ // 이 파일의 책임: 프로젝트 화면 어디서든 우측 하단 버튼으로 여는 문서 질의응답
+ //   패널을 제공하고, 답변과 서버가 검증한 원문 근거를 표시한다(CHAT-001 MVP).
+-// 다른 파일과의 관계: WorkspacePage가 프로젝트별로 한 번 마운트하고 api/chat.js만
+-//   호출한다. 근거를 누르면 기존 문서 원문 화면의 해당 청크 구간으로 이동한다.
++// 다른 파일과의 관계: App의 프로젝트 공통 호스트가 프로젝트별로 한 번 마운트하고
++//   api/chat.js만 호출한다. 근거를 누르면 기존 문서 원문 화면의 해당 청크 구간으로 이동한다.
+ // Spring 비교: 전역 레이아웃에 붙는 공통 Widget View와 단건 Command form이다.
+ // =============================================================================
+ 
+@@ -41,6 +41,7 @@ export default function ChatView({ projectId, projectName }) {
+     const trimmed = question.trim()
+     if (!trimmed || chat.isPending) return
+     setAskedQuestion(trimmed)
++    setQuestion('')
+     chat.mutate(trimmed)
+   }
+ 
+diff --git a/frontend/src/pages/DocumentDetailPage.jsx b/frontend/src/pages/DocumentDetailPage.jsx
+index 2773f44..8511da7 100644
+--- a/frontend/src/pages/DocumentDetailPage.jsx
++++ b/frontend/src/pages/DocumentDetailPage.jsx
+@@ -14,7 +14,6 @@ import { getProject } from '../api/project'
+ import AppHeader from '../components/common/AppHeader'
+ import ConfirmDialog from '../components/common/ConfirmDialog'
+ import LoadingState from '../components/common/LoadingState'
+-import ChatView from '../features/chat/ChatView'
+ import DocumentAnalysisTab from '../features/document-detail/DocumentAnalysisTab'
+ import DocumentContentTab from '../features/document-detail/DocumentContentTab'
+ import DocumentHeader from '../features/document-detail/DocumentHeader'
+@@ -123,8 +122,6 @@ export default function DocumentDetailPage({ user, onLogout, notify }) {
+         {activeTab === 'history' && <DocumentHistoryTab projectId={projectId} document={document}/>}
+       </main>
+     </div></div>
+-    {/* 문서 상세도 프로젝트 화면이므로 탭 화면과 같은 플로팅 챗봇을 제공한다. */}
+-    <ChatView key={projectId} projectId={Number(projectId)} projectName={projectQuery.data?.name}/>
+     <ConfirmDialog open={deleteOpen} title="문서를 완전히 삭제하시겠습니까?" message="원본 파일, 추출 텍스트, OCR 수정 이력과 분석 결과가 모두 삭제되며 복구할 수 없습니다." confirmationText={document.filename} confirmLabel="문서 영구 삭제" danger onCancel={() => setDeleteOpen(false)} onConfirm={() => { setDeleteOpen(false); deleteMutation.mutate() }}/>
+   </div>
+ }
+diff --git a/frontend/src/pages/WorkspacePage.jsx b/frontend/src/pages/WorkspacePage.jsx
+index 69ee0d8..9daf686 100644
+--- a/frontend/src/pages/WorkspacePage.jsx
++++ b/frontend/src/pages/WorkspacePage.jsx
+@@ -13,7 +13,6 @@ import { getProject } from '../api/project'
+ import AppHeader from '../components/common/AppHeader'
+ import LoadingState from '../components/common/LoadingState'
+ import BoardView from '../features/board/BoardView'
+-import ChatView from '../features/chat/ChatView'
+ import AmountSummaryView from '../features/amount/AmountSummaryView'
+ import DashboardView from '../features/dashboard/DashboardView'
+ import DeliverablesView from '../features/deliverables/DeliverablesView'
+@@ -170,9 +169,6 @@ function WorkspaceContent({ project, projects, tab, navigate, notify, user, onLo
+     </div>
+     <ProjectCreateModal open={creating} recentInvitees={recentInvitees} pending={createMutation.isPending} onClose={() => setCreating(false)} onSubmit={createNewProject}/>
+     {uploadFiles.length > 0 && <DocumentUploadModal files={uploadFiles} uploading={false} onClose={() => setUploadFiles([])} onRemove={index => setUploadFiles(current => current.filter((_, currentIndex) => currentIndex !== index))} onSubmit={confirmUpload}/>}
+-    {/* 챗봇은 특정 탭이 아니라 프로젝트 전체에 붙는 공통 도구다. 프로젝트를
+-        바꾸면 key가 바뀌어 이전 프로젝트 질문·근거가 새 프로젝트에 남지 않는다. */}
+-    <ChatView key={project.id} projectId={project.id} projectName={project.name}/>
+   </div>
+ }
+ 

@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<!--
+  Tasqra 랜딩 목업 v2 (정적 HTML 1파일 · 설치/프레임워크/CDN 없음)
+  - 네가 준 TasqraLandingA.jsx 구조를 그대로 옮김(헤더 + 좌 히어로 + 우 네트워크).
+  - 고친 것: (1) 오른쪽 네트워크 카드를 다크네이비 -> 밝은 B팔레트로 (안 어둡게)
+             (2) 노드<->중앙 연결선 추가(직선, 안 휘게)  (3) 타이포 정리
+  - 브라우저로 더블클릭하면 바로 열립니다.
+-->
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tasqra — 문서 하나로 프로젝트를 시작하세요</title>
+<style>
+  :root{
+    --navy:#0D1B3D; --blue:#315FEA; --blue-2:#5B84F0;
+    --light-blue:#EEF4FF; --border:#DCE5F4; --border-2:#E3EBF8;
+    --text:#17233F; --sub:#66738D; --bg:#F8FAFF;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Malgun Gothic",
+      "Apple SD Gothic Neo","Noto Sans KR",sans-serif;
+    color:var(--text); background:var(--bg); -webkit-font-smoothing:antialiased;
+  }
+  a{text-decoration:none; color:inherit;}
+  button{font-family:inherit; cursor:pointer;}
+
+  /* ---------- 헤더 ---------- */
+  header{
+    height:76px; padding:0 6vw; display:flex; align-items:center;
+    justify-content:space-between; background:rgba(255,255,255,.94);
+    border-bottom:1px solid var(--border); position:sticky; top:0; z-index:20;
+    backdrop-filter:blur(8px);
+  }
+  .logo{display:flex; align-items:center; gap:10px;}
+  .logo-mark{
+    width:31px; height:31px; display:flex; align-items:center; justify-content:center;
+    color:#fff; font-weight:800; font-size:17px; border-radius:9px;
+    background:linear-gradient(145deg,#3774ff,#173fbb);
+    box-shadow:0 5px 15px rgba(49,95,234,.25);
+  }
+  .logo-text{display:flex; flex-direction:column; line-height:1.1;}
+  .logo-text strong{font-size:18px; letter-spacing:-.5px; color:var(--text);}
+  .logo-text span{margin-top:2px; font-size:9px; letter-spacing:1.5px; color:#8A97AE;}
+  nav.menu{display:flex; gap:34px;}
+  nav.menu a{color:#34415B; font-size:14px; font-weight:500;}
+  nav.menu a:hover{color:var(--blue);}
+  .actions{display:flex; align-items:center; gap:10px;}
+  .btn{border-radius:9px; font-weight:600; border:none; display:inline-flex;
+    align-items:center; gap:8px; transition:.15s;}
+  .btn-login{padding:10px 18px; background:#fff; border:1px solid var(--border); color:var(--text);}
+  .btn-login:hover{border-color:#c3cfe2;}
+  .btn-primary{padding:11px 19px; background:var(--blue); color:#fff;
+    box-shadow:0 6px 16px rgba(49,95,234,.24);}
+  .btn-primary:hover{background:#2450d8;}
+
+  /* ---------- 히어로 ---------- */
+  .hero{
+    min-height:calc(100vh - 76px); padding:64px 7vw 56px;
+    display:grid; grid-template-columns:.95fr 1.05fr; align-items:center; gap:48px;
+    background:radial-gradient(circle at 78% 42%, rgba(213,226,255,.5), transparent 42%), var(--bg);
+  }
+  .hero-left{max-width:600px;}
+  .eyebrow{display:inline-flex; align-items:center; gap:7px; padding:8px 14px;
+    border-radius:20px; color:var(--blue); background:var(--light-blue);
+    font-size:13px; font-weight:700;}
+  h1{margin:22px 0 20px; font-size:clamp(40px,4vw,60px); line-height:1.15;
+    letter-spacing:-1.5px; color:var(--navy); font-weight:800;}
+  h1 .accent{color:var(--blue);}
+  .desc{color:var(--sub); font-size:16px; line-height:1.8; margin:0;}
+  .hero-btns{display:flex; gap:12px; margin-top:30px;}
+  .btn-lg{padding:14px 22px; font-size:15px; border-radius:10px;}
+  .btn-ghost{background:#fff; border:1px solid var(--border); color:#35415A;}
+  .btn-ghost:hover{border-color:#c3cfe2;}
+  .feature-row{display:flex; gap:30px; margin-top:46px; flex-wrap:wrap;}
+  .feat{display:flex; align-items:center; gap:10px;}
+  .feat-ic{width:36px; height:36px; display:flex; align-items:center; justify-content:center;
+    border-radius:9px; color:var(--blue); background:#fff; border:1px solid var(--border);}
+  .feat-tx{display:flex; flex-direction:column;}
+  .feat-tx strong{font-size:13px; color:var(--text);}
+  .feat-tx span{margin-top:2px; font-size:11px; color:#8792A7;}
+
+  /* ---------- 네트워크 (밝게) ---------- */
+  .net-area{display:flex; align-items:center; justify-content:center;}
+  .net-card{
+    position:relative; width:min(720px,100%); height:470px; border-radius:24px;
+    overflow:hidden; border:1px solid var(--border-2);
+    background:
+      radial-gradient(circle at 50% 50%, rgba(49,95,234,.10), transparent 58%),
+      linear-gradient(160deg,#FFFFFF,#F2F6FF);
+    box-shadow:0 24px 55px rgba(30,58,95,.10);
+  }
+  /* 은은한 점배경 */
+  .net-card::before{content:""; position:absolute; inset:0;
+    background-image:radial-gradient(circle, rgba(49,95,234,.10) 1px, transparent 1px);
+    background-size:34px 34px; opacity:.5;}
+  .net-lines{position:absolute; inset:0; width:100%; height:100%; z-index:1;}
+  .node{
+    position:absolute; z-index:2; width:194px; display:flex; align-items:center; gap:11px;
+    padding:13px 14px; border-radius:13px; background:#fff; border:1px solid var(--border-2);
+    box-shadow:0 8px 20px rgba(30,58,95,.08);
+  }
+  .node-ic{width:38px; height:38px; flex:0 0 38px; display:flex; align-items:center;
+    justify-content:center; border-radius:10px; color:var(--blue); background:var(--light-blue);}
+  .node-tx{display:flex; flex-direction:column; min-width:0;}
+  .node-tx strong{font-size:13.5px; color:var(--text);}
+  .node-tx span{margin-top:3px; font-size:11px; color:var(--sub); line-height:1.35;}
+  .n-doc{left:3%;  top:11%;}
+  .n-ai{left:3%;   top:60%;}
+  .n-proj{right:3%; top:11%;}
+  .n-task{right:3%; top:60%;}
+  .n-team{left:50%; bottom:5%; transform:translateX(-50%);}
+
+  .hub{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); z-index:3;
+    display:flex; flex-direction:column; align-items:center;}
+  .hub-glow{position:absolute; width:150px; height:150px; left:50%; top:36px;
+    transform:translate(-50%,-50%);
+    background:radial-gradient(circle, rgba(91,132,240,.45), rgba(91,132,240,0) 68%); z-index:-1;}
+  .hub-logo{width:76px; height:76px; display:flex; align-items:center; justify-content:center;
+    color:#fff; font-size:38px; font-weight:800; border-radius:20px;
+    background:linear-gradient(145deg,#5B84F0,#2450d8);
+    box-shadow:0 12px 30px rgba(49,95,234,.4);}
+  .hub-label{margin-top:12px; color:var(--text); font-size:13px; font-weight:700;}
+
+  @media (max-width:1000px){ .hero{grid-template-columns:1fr; gap:36px;} nav.menu{display:none;} }
+  @media (max-width:620px){
+    .net-card{height:auto; padding:20px; display:flex; flex-direction:column; gap:12px;}
+    .net-card::before, .net-lines, .hub-glow{display:none;}
+    .node{position:static!important; transform:none!important; width:100%;}
+    .hub{position:static!important; transform:none!important; order:-1; margin-bottom:4px;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-mark">T</div>
+    <div class="logo-text"><strong>Tasqra</strong><span>DOCUMENT · TO · ACTION</span></div>
+  </div>
+  <nav class="menu">
+    <a href="#">제품소개</a><a href="#">기능</a><a href="#">요금제</a><a href="#">고객사</a>
+  </nav>
+  <div class="actions">
+    <button class="btn btn-login">로그인</button>
+    <button class="btn btn-primary">무료로 시작하기</button>
+  </div>
+</header>
+
+<section class="hero">
+  <!-- 좌: 텍스트 -->
+  <div class="hero-left">
+    <span class="eyebrow">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/><path d="M12 8l1.4 2.6L16 12l-2.6 1.4L12 16l-1.4-2.6L8 12l2.6-1.4z"/></svg>
+      AI 문서 분석 · 프로젝트 자동 생성
+    </span>
+    <h1>문서 하나로,<br><span class="accent">프로젝트</span>를 시작하세요.</h1>
+    <p class="desc">제안요청서, 사업계획서, 계약서 등 다양한 문서를 업로드하면<br>
+      Tasqra가 핵심 내용을 분석하고 프로젝트와 태스크로 연결해드립니다.</p>
+    <div class="hero-btns">
+      <button class="btn btn-primary btn-lg">무료로 시작하기
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </button>
+      <button class="btn btn-ghost btn-lg">기능 둘러보기</button>
+    </div>
+    <div class="feature-row">
+      <div class="feat">
+        <div class="feat-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg></div>
+        <div class="feat-tx"><strong>문서 분석</strong><span>다양한 문서 지원</span></div>
+      </div>
+      <div class="feat">
+        <div class="feat-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="4" r="1.6"/><circle cx="5" cy="18" r="1.6"/><circle cx="19" cy="18" r="1.6"/><path d="M12 9V5.6M9.8 13.6l-3.4 2.8M14.2 13.6l3.4 2.8"/></svg></div>
+        <div class="feat-tx"><strong>AI 내용 분석</strong><span>핵심 내용 자동 추출</span></div>
+      </div>
+      <div class="feat">
+        <div class="feat-ic"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5a2 2 0 012-2h4l2 3h6a2 2 0 012 2v9a2 2 0 01-2 2H4z"/><path d="M8 12v5M12 10v7M16 13v4"/></svg></div>
+        <div class="feat-tx"><strong>프로젝트 생성</strong><span>업무 구조 자동 구성</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 우: 네트워크 -->
+  <div class="net-area">
+    <div class="net-card">
+      <!-- 연결선: 직선, 폭 변해도 두께 일정 -->
+      <svg class="net-lines" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <g stroke="#B9CEF3" stroke-width="1.5" vector-effect="non-scaling-stroke">
+          <line x1="50" y1="50" x2="20" y2="22"/>
+          <line x1="50" y1="50" x2="20" y2="72"/>
+          <line x1="50" y1="50" x2="80" y2="22"/>
+          <line x1="50" y1="50" x2="80" y2="72"/>
+          <line x1="50" y1="50" x2="50" y2="88"/>
+        </g>
+        <g fill="#315FEA">
+          <circle cx="20" cy="22" r="1.3" vector-effect="non-scaling-stroke"/>
+          <circle cx="20" cy="72" r="1.3"/>
+          <circle cx="80" cy="22" r="1.3"/>
+          <circle cx="80" cy="72" r="1.3"/>
+          <circle cx="50" cy="88" r="1.3"/>
+        </g>
+      </svg>
+
+      <div class="hub">
+        <div class="hub-glow"></div>
+        <div class="hub-logo">T</div>
+        <div class="hub-label">Tasqra</div>
+      </div>
+
+      <div class="node n-doc">
+        <div class="node-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg></div>
+        <div class="node-tx"><strong>문서</strong><span>사업 문서 업로드</span></div>
+      </div>
+      <div class="node n-ai">
+        <div class="node-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="4" r="1.6"/><circle cx="5" cy="18" r="1.6"/><circle cx="19" cy="18" r="1.6"/><path d="M12 9V5.6M9.8 13.6l-3.4 2.8M14.2 13.6l3.4 2.8"/></svg></div>
+        <div class="node-tx"><strong>AI 분석</strong><span>핵심 내용 분석</span></div>
+      </div>
+      <div class="node n-proj">
+        <div class="node-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5a2 2 0 012-2h4l2 3h6a2 2 0 012 2v9a2 2 0 01-2 2H4z"/><path d="M8 12v5M12 10v7M16 13v4"/></svg></div>
+        <div class="node-tx"><strong>프로젝트</strong><span>분석 내용을 프로젝트로</span></div>
+      </div>
+      <div class="node n-task">
+        <div class="node-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l2 2 3-3M4 13l2 2 3-3M4 20l2 2 3-3M13 7h7M13 14h7M13 21h7"/></svg></div>
+        <div class="node-tx"><strong>태스크 관리</strong><span>업무를 나누고 관리</span></div>
+      </div>
+      <div class="node n-team">
+        <div class="node-ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3 2.7-5 6-5s6 2 6 5"/><circle cx="17" cy="9" r="2.4"/><path d="M16 15c2.5 0 5 1.6 5 5"/></svg></div>
+        <div class="node-tx"><strong>팀 협업</strong><span>담당자와 업무 연결</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">DOC3 모이는 문서 T</title>
+  <defs>
+    <linearGradient id="doc3" x1="7" y1="50" x2="57" y2="13" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#173cff"/>
+      <stop offset=".54" stop-color="#087ff4"/>
+      <stop offset="1" stop-color="#08d7e5"/>
+    </linearGradient>
+  </defs>
+  <path fill="#173cff" opacity=".45" d="M6 14h21l7 7-7 7H6a4 4 0 0 1-4-4v-6a4 4 0 0 1 4-4Z"/>
+  <path fill="#087ff4" opacity=".72" d="M9 25h22l7 7-7 7H9a4 4 0 0 1-4-4v-6a4 4 0 0 1 4-4Z"/>
+  <path fill="url(#doc3)" d="M14 36h43l-6 9H38l-5 16H22l5-16H8z"/>
+</svg>

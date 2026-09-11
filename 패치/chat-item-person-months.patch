@@ -1,0 +1,291 @@
+--- a/backend/app/services/chat_service.py
++++ b/backend/app/services/chat_service.py
+@@ -135,6 +135,24 @@
+         # 계산한다. `2명`처럼 기간 없는 인원 수는 계산하지 않고 인월을 다시 묻는다.
+         has_amount_intent = self._has_amount_calculation_intent(question)
+         if has_amount_intent:
++            person_month_assignments = self._requested_person_month_assignments(
++                question
++            )
++            if person_month_assignments is not None:
++                return self._answer_unit_price(
++                    project_id=project_id,
++                    question=question,
++                    assembled=assembled,
++                    searched_project_ids=search.searched_project_ids,
++                    requested_person_months_by_name=person_month_assignments,
++                )
++            if self._person_month_expression_count(question) > 1:
++                return self._clarification_response(
++                    answer="인월 수량을 항목과 일대일로 연결하지 못했습니다. "
++                    "'특급기술자 2인월, 고급기술자 3인월'처럼 질문해 주세요.",
++                    assembled=assembled,
++                    searched_project_ids=search.searched_project_ids,
++                )
+             person_months = self._requested_person_months(question)
+             if person_months is not None:
+                 return self._answer_unit_price(
+@@ -230,6 +248,40 @@
+         )
+ 
+     @classmethod
++    def _requested_person_month_assignments(
++        cls,
++        question: str,
++    ) -> dict[str, Decimal] | None:
++        """`항목명 N인월`이 둘 이상이고 모든 인월 표현과 1:1일 때만 매핑한다."""
++        all_quantities = re.findall(
++            r"(?<![\d.])(\d+(?:\.\d+)?)\s*(?:/\s*)?인\s*(?:/\s*)?월",
++            question,
++        )
++        pairs = re.findall(
++            r"([가-힣A-Za-z0-9]+기술자)\s*"
++            r"(\d+(?:\.\d+)?)\s*(?:/\s*)?인\s*(?:/\s*)?월",
++            question,
++        )
++        if len(all_quantities) < 2 or len(pairs) != len(all_quantities):
++            return None
++
++        assignments: dict[str, Decimal] = {}
++        for item_name, raw_quantity in pairs:
++            key = cls._compact(item_name)
++            quantity = Decimal(raw_quantity)
++            if quantity <= 0 or key in assignments:
++                return None
++            assignments[key] = quantity
++        return assignments
++
++    @classmethod
++    def _person_month_expression_count(cls, question: str) -> int:
++        return len(re.findall(
++            r"(?<![\d.])\d+(?:\.\d+)?\s*(?:/\s*)?인\s*(?:/\s*)?월",
++            question,
++        ))
++
++    @classmethod
+     def _person_month_quantities(cls, question: str) -> set[Decimal]:
+         """`2인월`, `1.5 / 인 / 월`처럼 명시된 인월 수량을 읽는다."""
+         raw_values = re.findall(
+@@ -279,6 +331,7 @@
+         assembled: AssembledContext,
+         searched_project_ids: list[int],
+         requested_person_months: Decimal | None = None,
++        requested_person_months_by_name: dict[str, Decimal] | None = None,
+     ) -> ChatResponse:
+         """승인 금액 행과 원문을 대조해 단가 또는 명시한 인월 금액을 답한다."""
+         evidence_document_ids = {
+@@ -297,7 +350,13 @@
+                 if "기술자" in self._compact(row[0].item_name)
+             ]
+         else:
+-            requested_names = self._explicit_technician_names(question)
++            requested_name_list = self._explicit_technician_names(question)
++            if len(requested_name_list) != len(set(requested_name_list)):
++                return self._unverified_unit_price_response(
++                    assembled=assembled,
++                    searched_project_ids=searched_project_ids,
++                )
++            requested_names = set(requested_name_list)
+             candidates = [
+                 row
+                 for row in project_rows
+@@ -314,6 +373,16 @@
+                     for other in names
+                 )
+             ]
++            # 집합 변환 전에 각 실제 후보명이 질문에 정확히 한 번만 나오는지 본다.
++            # 같은 기술자를 두 번 적고 한쪽에만 수량을 붙인 요청을 계산하지 않는다.
++            if any(
++                question_key.count(self._compact(row[0].item_name)) != 1
++                for row in candidates
++            ):
++                return self._unverified_unit_price_response(
++                    assembled=assembled,
++                    searched_project_ids=searched_project_ids,
++                )
+             if requested_names != {
+                 self._compact(row[0].item_name) for row in candidates
+             }:
+@@ -324,6 +393,14 @@
+ 
+         candidate_names = [self._compact(row[0].item_name) for row in candidates]
+         candidate_documents = {row[1] for row in candidates}
++        if (
++            requested_person_months_by_name is not None
++            and set(candidate_names) != set(requested_person_months_by_name)
++        ):
++            return self._unverified_unit_price_response(
++                assembled=assembled,
++                searched_project_ids=searched_project_ids,
++            )
+         if (
+             not candidates
+             or len(candidate_names) != len(set(candidate_names))
+@@ -345,7 +422,10 @@
+                 or item.unit_price != item.unit_price.to_integral_value()
+                 or item.amount != item.amount.to_integral_value()
+                 or (
+-                    requested_person_months is not None
++                    (
++                        requested_person_months is not None
++                        or requested_person_months_by_name is not None
++                    )
+                     and self._compact(item.unit) != "인월"
+                 )
+             ):
+@@ -422,22 +502,34 @@
+                 )
+             )
+ 
+-        if requested_person_months is not None:
++        if (
++            requested_person_months is not None
++            or requested_person_months_by_name is not None
++        ):
+             if any(row[4] != row[3] for row in verified_rows):
+                 return self._unverified_unit_price_response(
+                     assembled=assembled,
+                     searched_project_ids=searched_project_ids,
+                 )
+-            quantity_text = self._format_decimal(requested_person_months)
+             lines = []
++            requested_values: list[Decimal] = []
+             for item, _source_quantity, unit_price, _stated, _expected in (
+                 verified_rows
+             ):
++                requested_quantity = (
++                    requested_person_months_by_name[self._compact(item.item_name)]
++                    if requested_person_months_by_name is not None
++                    else requested_person_months
++                )
++                if requested_quantity is None:
++                    raise ValueError("요청 인월 수량이 없다")
++                requested_values.append(requested_quantity)
++                quantity_text = self._format_decimal(requested_quantity)
+                 currency_suffix = (
+                     "원" if item.currency == "KRW" else f" {item.currency}"
+                 )
+                 calculated = self._calculate_amount(
+-                    requested_person_months,
++                    requested_quantity,
+                     unit_price,
+                 )
+                 lines.append(
+@@ -451,7 +543,14 @@
+                     + lines[0].removeprefix("- ")
+                     + "입니다."
+                 )
++            elif requested_person_months_by_name is not None:
++                answer = (
++                    "문서에서 검증한 1인월 단가로 항목별 명시 수량을 계산하면 "
++                    "다음과 같습니다.\n"
++                    + "\n".join(lines)
++                )
+             else:
++                quantity_text = self._format_decimal(requested_values[0])
+                 answer = (
+                     f"문서에서 검증한 1인월 단가로 {quantity_text}인월 금액을 "
+                     "계산하면 다음과 같습니다.\n"
+@@ -519,14 +618,14 @@
+         )
+ 
+     @classmethod
+-    def _explicit_technician_names(cls, question: str) -> set[str]:
+-        """쉼표·접속사로 나열된 `...기술자` 이름을 빠짐없이 뽑는다."""
++    def _explicit_technician_names(cls, question: str) -> list[str]:
++        """쉼표·접속사로 나열된 이름을 출현 순서와 중복을 보존해 뽑는다."""
+         pattern = (
+             r"(?:^|[\s,·/]|와|과|및)\s*"
+             r"([가-힣A-Za-z0-9]+기술자)"
+             r"(?=$|[\s,·/]|와|과|및|의|은|는|이|가|을|를)"
+         )
+-        return {cls._compact(name) for name in re.findall(pattern, question)}
++        return [cls._compact(name) for name in re.findall(pattern, question)]
+ 
+     @staticmethod
+     def _format_single_unit_price_answer(
+--- a/backend/tests/test_chat_service.py
++++ b/backend/tests/test_chat_service.py
+@@ -415,7 +415,40 @@
+     assert response.evidence == []
+ 
+ 
+-def test_different_person_month_quantities_request_separate_questions():
++def test_different_person_month_quantities_map_to_each_named_item():
++    first = _amount_item("특급기술자", 3, 9_500_000, 28_500_000)
++    second = _amount_item("고급기술자", 6, 7_200_000, 43_200_000)
++    third = _amount_item("중급기술자", 4, 5_800_000, 23_200_000)
++    table = f"{first.source_quote}\n{second.source_quote}\n{third.source_quote}"
++    ai = _FakeAI()
++    service, _, _, _ = _service(
++        search_response=_search_response([_search_item(11)]),
++        rows=[_chunk(11, table)],
++        amount_rows=[
++            (first, 10, "계약서.pdf"),
++            (second, 10, "계약서.pdf"),
++            (third, 10, "계약서.pdf"),
++        ],
++        ai=ai,
++    )
++
++    response = asyncio.run(service.ask(
++        user_id=7,
++        project_id=1,
++        question=(
++            "특급기술자 2인월, 고급기술자 3인월, "
++            "중급기술자 1.5인월 인건비는?"
++        ),
++    ))
++
++    assert ai.requests == []
++    assert "특급기술자: 2인월 × 9,500,000원 = 19,000,000원" in response.answer
++    assert "고급기술자: 3인월 × 7,200,000원 = 21,600,000원" in response.answer
++    assert "중급기술자: 1.5인월 × 5,800,000원 = 8,700,000원" in response.answer
++    assert len(response.evidence) == 1
++
++
++def test_duplicate_requested_name_abstains_even_when_only_one_has_quantity():
+     first = _amount_item("특급기술자", 3, 9_500_000, 28_500_000)
+     second = _amount_item("고급기술자", 6, 7_200_000, 43_200_000)
+     table = f"{first.source_quote}\n{second.source_quote}"
+@@ -430,11 +463,35 @@
+     response = asyncio.run(service.ask(
+         user_id=7,
+         project_id=1,
+-        question="특급기술자 2인월, 고급기술자 3인월 인건비는?",
+-    ))
+-
+-    assert ai.requests == []
+-    assert "인월 수량을 하나로 확정하지 못했습니다" in response.answer
++        question=(
++            "특급기술자와 특급기술자 2인월, "
++            "고급기술자 3인월 인건비는?"
++        ),
++    ))
++
++    assert ai.requests == []
++    assert "단가를 하나로 확정하지 못했습니다" in response.answer
++    assert response.evidence == []
++
++
++def test_unpaired_multiple_person_months_request_explicit_item_mapping():
++    item = _amount_item("특급기술자", 3, 9_500_000, 28_500_000)
++    ai = _FakeAI()
++    service, _, _, _ = _service(
++        search_response=_search_response([_search_item(11)]),
++        rows=[_chunk(11, item.source_quote)],
++        amount_rows=[(item, 10, "계약서.pdf")],
++        ai=ai,
++    )
++
++    response = asyncio.run(service.ask(
++        user_id=7,
++        project_id=1,
++        question="특급기술자 2인월과 3인월 인건비는?",
++    ))
++
++    assert ai.requests == []
++    assert "인월 수량을 항목과 일대일로 연결하지 못했습니다" in response.answer
+     assert response.evidence == []
+ 
+ 

@@ -1,0 +1,343 @@
+diff --git a/backend/app/dependencies.py b/backend/app/dependencies.py
+index 70a59bd..502a4ef 100644
+--- a/backend/app/dependencies.py
++++ b/backend/app/dependencies.py
+@@ -258,13 +258,16 @@ def get_amount_item_service(
+     db: Session = Depends(get_db),
+     amount_repository: AmountRepository = Depends(get_amount_repository),
+     task_repository: TaskRepository = Depends(get_task_repository),
++    task_service: TaskService = Depends(get_task_service),
+ ) -> AmountItemService:
+     """금액 항목을 고치는 서비스 (AMT-001-2).
+ 
+-    태스크 저장소는 응답에 `task_id` 를 붙이는 데만 쓴다 — 고친 줄이 목록과 같은
+-    모양이어야 화면이 그 줄만 갈아끼울 수 있다.
++    태스크가 둘 필요하다.
++      · `TaskRepository` — 응답에 `task_id` 를 붙인다(목록과 같은 모양이어야 화면이
++        그 줄만 갈아끼울 수 있다)
++      · `TaskService` — 고친 결과를 연결된 태스크 설명의 «자동 기록» 에 적는다
+     """
+-    return AmountItemService(db, amount_repository, task_repository)
++    return AmountItemService(db, amount_repository, task_repository, task_service)
+ 
+ 
+ def get_amount_task_service(
+diff --git a/backend/app/services/amount_item_service.py b/backend/app/services/amount_item_service.py
+index bfba25a..7b95259 100644
+--- a/backend/app/services/amount_item_service.py
++++ b/backend/app/services/amount_item_service.py
+@@ -27,6 +27,7 @@
+ 
+ from __future__ import annotations
+ 
++import logging
+ from datetime import datetime, timezone
+ 
+ from sqlalchemy.orm import Session
+@@ -38,6 +39,9 @@ from app.repositories.amount_repository import AmountRepository
+ from app.repositories.task_repository import TaskRepository
+ from app.schemas.amount_item import AmountItemRow
+ from app.services.amount_summary_service import AmountSummaryService
++from app.services.task_service import TaskService
++
++logger = logging.getLogger(__name__)
+ 
+ # 고칠 수 있는 컬럼. 여기 없는 것은 요청에 들어와도 무시한다.
+ #
+@@ -52,10 +56,14 @@ class AmountItemService:
+         db: Session,
+         amounts: AmountRepository,
+         tasks: TaskRepository | None = None,
++        task_service: TaskService | None = None,
+     ) -> None:
+         self._db = db
+         self._amounts = amounts
+         self._tasks = tasks
++        # 고친 결과를 연결된 태스크 설명에 적는 데만 쓴다. 없으면 적지 않는다 —
++        # 금액 수정 자체는 태스크와 무관하게 성립한다.
++        self._task_service = task_service
+ 
+     def update(
+         self, project_id: int, item_id: int, user_id: int, values: dict
+@@ -88,9 +96,64 @@ class AmountItemService:
+         task_ids = (
+             self._tasks.suggestion_task_ids(project_id) if self._tasks else {}
+         )
+-        return AmountSummaryService._to_row(
++        row = AmountSummaryService._to_row(
+             item, document_id, filename, task_ids.get(item.id)
+         )
++        self._note_task(project_id, row, user_id)
++        return row
++
++    def _note_task(self, project_id: int, row: AmountItemRow, user_id: int) -> None:
++        """이 항목으로 만든 태스크가 있으면 지금 상태를 그 설명에 적는다.
++
++        불일치로 태스크를 만든 뒤(`AMT-004-3`) 금액을 고치면, 보드에 남은 태스크가
++        **왜 아직 있는지 알 수 없게 된다.** 삭제하거나 완료로 옮기지 않고 «지금
++        상태» 만 적어 둔다 — 판단은 사람이 한다.
++
++        ### 실패해도 금액 수정을 되돌리지 않는다
++
++        이미 커밋된 수정을 «메모를 못 남겼다» 는 이유로 되돌리면 사용자는 고치기가
++        실패했다고 읽고 다시 고친다. 실제로는 고쳐져 있다. 이 프로젝트에 같은 판례가
++        있다 — `worker.enqueue_build_chunks` 주석의 *"이미 성공해서 커밋된 작업을
++        큐 등록 실패 때문에 되돌리면 안 된다"* 다.
++
++        그래서 예외를 삼키고 로그만 남긴다. 놓친 메모는 다음에 그 항목을 고치면
++        따라온다.
++        """
++        if self._task_service is None or row.task_id is None:
++            return
++        try:
++            self._task_service.replace_auto_note(
++                project_id, row.task_id, user_id, self._note_text(row)
++            )
++        except Exception:  # noqa: BLE001 - 이미 성공한 수정을 지키는 것이 우선이다
++            logger.exception(
++                "태스크 자동 기록에 실패했다. project_id=%s task_id=%s amount_item_id=%s "
++                "— 금액 수정은 이미 저장됐다",
++                project_id,
++                row.task_id,
++                row.id,
++            )
++
++    @staticmethod
++    def _note_text(row: AmountItemRow) -> str:
++        """태스크 설명에 넣을 «지금 상태» 한 줄.
++
++        검산 결과가 셋이라 문장도 셋이다. `verified` 의 `False` 와 `None` 을 합치면
++        수량·단가가 없는 정상 항목이 «틀렸다» 로 적힌다.
++        """
++        if row.verified is True:
++            return (
++                f"검산이 맞았습니다. 수량 × 단가 {row.expected:,}원 "
++                f"= 문서 금액 {row.amount:,}원."
++            )
++        if row.verified is None:
++            return "수량이나 단가가 없어 검산할 수 없습니다. 금액은 문서에 적힌 값을 그대로 씁니다."
++        gap = row.difference or 0
++        return (
++            f"아직 어긋납니다. 수량 × 단가 {row.expected:,}원, "
++            f"문서 금액 {row.amount:,}원 — 문서 금액이 {abs(gap):,}원 "
++            + ("적습니다." if gap > 0 else "많습니다.")
++        )
+ 
+     @staticmethod
+     def _normalize(field: str, value):
+diff --git a/backend/app/services/task_service.py b/backend/app/services/task_service.py
+index e237072..4fcc364 100644
+--- a/backend/app/services/task_service.py
++++ b/backend/app/services/task_service.py
+@@ -11,6 +11,14 @@ from app.core.transaction import transactional
+ from app.models.task import Task, TaskActivityLog
+ from app.repositories.task_repository import TaskRepository
+ 
++# 설명 끝의 «자동 기록» 블록을 여는 표시. 시스템이 붙인 문장과 사람이 쓴 설명을
++# 가르는 유일한 기준이다.
++#
++# ⚠ **화면과 글자까지 같아야 한다** — frontend/src/utils/taskNote.js 의
++#   AUTO_NOTE_MARKER 다. 한 글자라도 다르면 보드 카드가 블록을 못 찾아서 색이 안
++#   입고 본문에 섞여 나온다. 에러가 나지 않으므로 알아채기 어렵다.
++AUTO_NOTE_MARKER = "── 자동 기록 ──"
++
+ 
+ class TaskService:
+     def __init__(self, db: Session, tasks: TaskRepository) -> None:
+@@ -79,6 +87,46 @@ class TaskService:
+             self._record(task, user_id, "DELETED", {"origin": task.origin})
+             self._tasks.delete(task)
+ 
++    def replace_auto_note(
++        self, project_id: int, task_id: int, actor_id: int, note: str
++    ) -> Task:
++        """설명 끝의 **자동 기록 블록**을 갈아끼운다.
++
++        금액 항목을 고쳐서 검산 결과가 바뀌었을 때처럼, 시스템이 태스크에 «지금
++        상태» 를 알려야 하는 자리에서 쓴다.
++
++        ### 사람이 쓴 부분을 건드리지 않는다
++
++        구분자(`AUTO_NOTE_MARKER`) 앞은 그대로 두고 뒤만 바꾼다. 그래서 사용자가
++        태스크에 적어 둔 메모가 사라지지 않는다.
++
++        ### 쌓이지 않는다
++
++        **블록 하나를 통째로 교체**한다. 여러 번 고쳐도 마지막 상태만 남는다.
++        이력이 필요하면 활동 기록(`task_activity_logs`)에 남는다 — 그쪽이 이력을
++        담는 자리다.
++
++        ### 시각을 적지 않는다
++
++        이 블록은 **현재 상태**이고 이력이 아니다. 시각을 적으면 로그처럼 보여서
++        "왜 한 줄만 있나" 가 된다. 언제 바뀌었는지는 활동 기록에 있다.
++
++        ### 상태(status)를 바꾸지 않는다
++
++        검산이 맞았다고 시스템이 `DONE` 으로 옮기지 않는다. `completed_at` 이
++        주간 보고서의 재료(`DLV-002-1`)라서, 시스템이 임의로 찍으면 **보고서에
++        "이 주에 이 일을 끝냈다" 는 거짓이 들어간다.** 일이 끝났는지는 사람이 정한다.
++
++        Spring 비교: 도메인 이벤트를 받아 엔티티의 표시용 필드만 갱신하는
++        핸들러 자리다.
++        """
++        task = self.get(project_id, task_id)
++        written = (task.description or "").split(AUTO_NOTE_MARKER)[0].rstrip()
++        with transactional(self._db):
++            task.description = f"{written}\n\n{AUTO_NOTE_MARKER}\n{note}".lstrip()
++            self._record(task, actor_id, "AUTO_NOTE", {"note": note})
++        return self.get(project_id, task_id)
++
+     def _record(self, task: Task, actor_id: int, event_type: str, details: dict) -> None:
+         self._tasks.add_activity(TaskActivityLog(project_id=task.project_id, task_id=task.id, task_title=task.title, event_type=event_type, actor_id=actor_id, details=details))
+ 
+diff --git a/frontend/src/features/amount/AmountSummaryView.jsx b/frontend/src/features/amount/AmountSummaryView.jsx
+index 16d6c77..07c4cb1 100644
+--- a/frontend/src/features/amount/AmountSummaryView.jsx
++++ b/frontend/src/features/amount/AmountSummaryView.jsx
+@@ -414,10 +414,17 @@ function ItemEditor({ projectId, item, notify, onClose }) {
+     mutationFn: changes => updateAmountItem(projectId, item.id, changes),
+     onSuccess: row => {
+       // 서버가 다시 검산해서 돌려준다. 화면이 곱해서 판단하지 않는다.
++      //
++      // 태스크가 연결돼 있으면 보드를 가리킨다. 시스템이 태스크를 지우거나 완료로
++      // 옮기지 않으므로(completed_at 이 주간 보고서의 재료다) 사람이 처리해야 한다.
++      // 그 사실을 알리지 않으면 보드에 이유 모를 태스크가 남는다.
++      const detail = row.verified === true ? '검산이 맞았습니다.' : verifyText(row)[0]
+       notify?.(
+         'success',
+         '금액 항목을 고쳤습니다',
+-        row.verified === true ? '검산이 맞았습니다.' : verifyText(row)[0],
++        row.task_id
++          ? `${detail} 연결된 태스크에도 적었습니다 — 보드에서 확인해 주세요.`
++          : detail,
+       )
+       queryClient.invalidateQueries({ queryKey: ['projects', projectId, 'amount-items'] })
+       // 합계·원가구분별·문서 합계 대조가 다 바뀐다.
+@@ -491,7 +498,13 @@ function ItemEditor({ projectId, item, notify, onClose }) {
+     </p>
+     <p className='amount-edit-note'>
+       저장하면 <strong>사람이 확인한 값(EDITED)</strong>으로 남고 합계·검산에 바로 반영됩니다.
+-      빈 칸으로 두면 그 값을 <strong>비웁니다</strong> — 제경비처럼 수량·단가가 원래 없는 항목에 씁니다.
++    </p>
++    {/* 「비우기」와 「0」은 다르다. 이걸 안 적으면 수량을 없애려고 0 을 넣고
++        계산값이 0원이 되는 것을 고장으로 읽는다 — 실제로 겪은 일이다. */}
++    <p className='amount-edit-note'>
++      <strong>빈 칸으로 두면 그 값을 비웁니다</strong> — 검산을 하지 않습니다(제경비처럼 수량·단가가
++      원래 없는 항목에 씁니다). <strong>0 을 넣으면 «0 이라고 적혀 있다»</strong> 는 뜻이라
++      계산값이 0원이 됩니다. 둘은 다릅니다.
+     </p>
+ 
+     <div className='amount-edit-actions'>
+@@ -571,6 +584,16 @@ function verifyText(row) {
+   if (row.excluded_reason) return ['금액 없음', 'muted']
+   if (row.verified === true) return ['맞음', 'ok']
+   if (row.verified === null) return ['검산 불가', 'muted']
++  // 계산값이 0원인 경우를 따로 말한다.
++  //
++  // 수량이나 단가가 0 이면 수량 × 단가가 0원이 되는데, 그때 "문서 금액이
++  // 200,000원 많음" 이라고만 적으면 **계산값이 0 이라는 사실이 감춰진다.**
++  // 사용자는 금액이 조금 어긋난 줄로 읽는다.
++  //
++  // 0 을 «검산 불가» 로 바꾸지 않는 이유: 비어 있는 것(NULL)과 0 은 다르다.
++  // NULL 은 "문서에 안 적혀 있다"(제경비), 0 은 "문서에 0 이라고 적혀 있다" 다.
++  // 그리고 수량 0 에 금액 200,000 인 줄은 실제로 앞뒤가 안 맞으므로 잡아야 한다.
++  if (row.expected === 0) return ['수량 × 단가가 0원입니다', 'bad']
+   const gap = row.difference ?? 0
+   return [
+     gap > 0
+diff --git a/frontend/src/features/board/BoardView.css b/frontend/src/features/board/BoardView.css
+index 7909bef..a1ba2f1 100644
+--- a/frontend/src/features/board/BoardView.css
++++ b/frontend/src/features/board/BoardView.css
+@@ -5,3 +5,11 @@
+ .task-dialog{width:min(650px,100%)}.task-dialog>label,.task-dialog-grid label{display:grid;gap:7px;margin:14px 0;color:#344057;font-weight:750}.task-dialog-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.task-dialog input,.task-dialog textarea,.task-dialog select{width:100%;padding:11px;border:1px solid #d5deeb;border-radius:9px;background:#fff}.task-dialog>footer{display:flex;justify-content:flex-end;gap:9px;margin-top:22px}.task-dialog>footer button{padding:10px 17px;border:1px solid #d4dce8;border-radius:9px;background:#fff;font-weight:750}.task-dialog>footer .primary{border-color:#5148c8;background:#5148c8;color:#fff}
+ .task-activity-dialog{width:min(720px,100%)}.task-activity-list{max-height:60vh;margin:18px 0 0;padding:0;overflow:auto;list-style:none}.task-activity-list li{display:flex;justify-content:space-between;gap:18px;padding:14px 2px;border-top:1px solid #e6ebf2}.task-activity-list strong,.task-activity-list span{display:block}.task-activity-list span{margin-top:5px;color:#65748a;font-size:13px}.task-activity-list time{flex:0 0 auto;color:#8a96a6;font-size:12px}.task-activity-empty{padding:28px 0;color:#758197;text-align:center}
+ @media(max-width:700px){.task-board-heading{align-items:stretch;flex-direction:column}.task-board-heading>div:last-child{margin:0 0 12px}.task-board-heading>div:last-child button{flex:1}.task-dialog-grid{grid-template-columns:1fr}.task-activity-list li{flex-direction:column;gap:7px}}
++
++
++
++/* 자동 기록 블록. 시스템이 붙인 것이라 사람이 쓴 설명과 구분해야 한다.
++   테마에서 파생된 진한 색(--c-accent-strong)을 쓴다 — utils/theme.js 가 사용자가
++   고른 색에서 만들어 주므로 어느 테마에서도 어울린다. 빨강은 쓰지 않는다:
++   여기는 오류가 아니라 상태 알림이고, 빨강은 삭제·위험에 이미 쓰고 있다. */
++.task-board-note { margin: 9px 0 0 !important; padding: 8px 10px; border-left: 3px solid var(--c-accent-strong); border-radius: 0 8px 8px 0; background: var(--c-accent-bg); color: var(--c-accent-strong) !important; font-size: 12px !important; font-weight: 700; line-height: 1.5; white-space: pre-wrap; }
+diff --git a/frontend/src/features/board/BoardView.jsx b/frontend/src/features/board/BoardView.jsx
+index 679a393..cc42fee 100644
+--- a/frontend/src/features/board/BoardView.jsx
++++ b/frontend/src/features/board/BoardView.jsx
+@@ -2,6 +2,7 @@ import { useState } from 'react'
+ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+ import { createTask, deleteTask, listTaskActivity, listTasks, updateTask } from '../../api/task'
+ import PageHeading from '../../components/common/PageHeading'
++import { splitAutoNote } from '../../utils/taskNote'
+ import './BoardView.css'
+ 
+ const COLUMNS = [['TODO', '할 일'], ['IN_PROGRESS', '진행 중'], ['DONE', '완료']]
+@@ -88,7 +89,24 @@ export default function BoardView({ projectId, members, canEdit, notify }) {
+ }
+ 
+ function TaskCard({ task, canEdit, dragging, onDragStart, onDragEnd, onEdit, onDelete }) {
+-  return <article className={`task-board-card task-board-card-${task.type.toLowerCase()}${dragging ? ' is-dragging' : ''}`} draggable={canEdit} onDragStart={onDragStart} onDragEnd={onDragEnd}><div className='task-board-card-top'><span>{TYPE_LABELS[task.type] ?? '기타'}</span>{canEdit && <div><button onClick={onEdit}>수정</button><button className='danger-text' onClick={onDelete}>삭제</button></div>}</div><h3>{task.title}</h3>{task.description && <p>{task.description}</p>}<footer><span>{task.assignee?.name ?? '담당자 미정'}</span><time dateTime={task.due_on ?? undefined}>{task.due_on ? `~ ${task.due_on}` : '마감 미정'}</time></footer></article>
++  return <article className={`task-board-card task-board-card-${task.type.toLowerCase()}${dragging ? ' is-dragging' : ''}`} draggable={canEdit} onDragStart={onDragStart} onDragEnd={onDragEnd}><div className='task-board-card-top'><span>{TYPE_LABELS[task.type] ?? '기타'}</span>{canEdit && <div><button onClick={onEdit}>수정</button><button className='danger-text' onClick={onDelete}>삭제</button></div>}</div><h3>{task.title}</h3><TaskDescription text={task.description}/><footer><span>{task.assignee?.name ?? '담당자 미정'}</span><time dateTime={task.due_on ?? undefined}>{task.due_on ? `~ ${task.due_on}` : '마감 미정'}</time></footer></article>
++}
++
++// 설명을 그린다. 끝에 붙은 **자동 기록 블록**은 사람이 쓴 것과 구분해 색으로 낸다.
++//
++// 시스템이 붙인 문장을 사람이 쓴 설명과 같은 모양으로 두면, 누가 쓴 것인지 알 수
++// 없어서 사용자가 자기가 적은 것으로 오해한다. 금액 검산이 맞았는지 같은 상태가
++// 여기 들어오므로 눈에 띄어야 한다.
++//
++// 구분자는 utils/taskNote.js 에 있고 **백엔드 task_service.py 와 글자까지 같아야**
++// 한다. 다르면 색이 안 입고 본문에 섞여 나온다 — 에러가 없어 알아채기 어렵다.
++function TaskDescription({ text }) {
++  const [written, note] = splitAutoNote(text)
++  if (!written && !note) return null
++  return <>
++    {written && <p>{written}</p>}
++    {note && <p className='task-board-note'>{note}</p>}
++  </>
+ }
+ 
+ function TaskDialog({ task, members, pending, onClose, onSubmit }) {
+diff --git a/frontend/src/utils/taskNote.js b/frontend/src/utils/taskNote.js
+new file mode 100644
+index 0000000..65e12f9
+--- /dev/null
++++ b/frontend/src/utils/taskNote.js
+@@ -0,0 +1,35 @@
++// =============================================================================
++// 이 파일의 책임: 태스크 설명 끝에 붙는 **자동 기록 블록**을 사람이 쓴 부분과
++//   분리한다. 보드 카드가 그 블록만 다른 색으로 그릴 수 있게 하는 것이 목적이다.
++// 다른 파일과의 관계: features/board/BoardView.jsx 가 카드를 그릴 때 쓴다.
++//   블록을 만드는 쪽은 백엔드 services/task_service.py 의 AUTO_NOTE_MARKER 다.
++// Spring 비교: 표시용 문자열 파싱이라 대응물이 없다. 굳이 대면 뷰에서 쓰는
++//   유틸 클래스(JSP 의 커스텀 태그 함수) 자리다.
++//
++// ⚠ 표시 문자열이 백엔드와 **글자까지 같아야 한다**
++//   backend/app/services/task_service.py 의 AUTO_NOTE_MARKER 와 한 글자라도
++//   다르면 블록을 못 찾아서 색이 안 입고 그냥 본문에 섞여 나온다. 에러가 나지
++//   않으므로 알아채기 어렵다. 한쪽을 고치면 **반드시 다른 쪽도** 고친다.
++//
++//   상수를 한 곳에 두지 못하는 이유: 백엔드는 파이썬이고 화면은 자바스크립트라
++//   같은 파일을 공유할 수 없다. 서버가 응답에 구분자를 실어 보내는 방법도 있지만,
++//   설명은 그냥 텍스트 컬럼이라 그러려면 태스크 응답 모양을 바꿔야 한다.
++// =============================================================================
++
++export const AUTO_NOTE_MARKER = '── 자동 기록 ──'
++
++/** 설명을 [사람이 쓴 부분, 자동 기록] 으로 나눈다.
++ *
++ *  자동 기록이 없으면 두 번째가 빈 문자열이다. 구분자가 여러 번 있으면
++ *  **처음 것**에서 나눈다 — 서버가 늘 마지막 블록만 남기므로 정상적으로는 하나뿐이고,
++ *  사람이 실수로 같은 글자를 적었더라도 사람이 쓴 것을 먼저 보여주는 쪽이 안전하다.
++ */
++export function splitAutoNote(text) {
++  if (!text) return ['', '']
++  const at = text.indexOf(AUTO_NOTE_MARKER)
++  if (at === -1) return [text, '']
++  return [
++    text.slice(0, at).trimEnd(),
++    text.slice(at + AUTO_NOTE_MARKER.length).trim(),
++  ]
++}

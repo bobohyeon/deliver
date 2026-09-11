@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-labelledby="title">
+  <title id="title">헤일로 리본</title>
+  <defs>
+    <linearGradient id="halo" x1="15" y1="75" x2="79" y2="17" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2638d8"/>
+      <stop offset=".55" stop-color="#1677eb"/>
+      <stop offset="1" stop-color="#19c8da"/>
+    </linearGradient>
+    <linearGradient id="halo-fold" x1="52" y1="39" x2="36" y2="76" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#172268"/>
+      <stop offset="1" stop-color="#2a42dd"/>
+    </linearGradient>
+  </defs>
+  <circle cx="47" cy="47" r="34" fill="none" stroke="url(#halo)" stroke-width="5" stroke-linecap="round" stroke-dasharray="174 40" transform="rotate(-28 47 47)" opacity=".28"/>
+  <path fill="url(#halo)" d="M17 25h62c2.8 0 4 2.7 2.1 4.9l-7.2 8.4c-1.6 1.9-3.8 2.7-6.4 2.7H50.7L37.3 73.7c-1.8 4.2-6.8 5.1-9.8 1.8-2.1-2.3-1.7-5.1-.3-8.3L37.7 41H11.5z"/>
+  <path fill="url(#halo-fold)" d="M50.7 41h15.5L47.6 75.2c-2.4 4.3-8 4.4-10.8.5l13.9-34.7Z"/>
+  <path fill="#1acddd" d="m47 73.1 15.6-18.8c1.4-1.7 3.1-2.3 5.4-2.3h14L56.1 78.4c-3.2 3.3-7.8 2.5-10.1-.7-.9-1.3-.5-3 1-4.6Z"/>
+  <path d="M12 57c15 18 57 21 77-4" fill="none" stroke="url(#halo)" stroke-width="3.6" stroke-linecap="round"/>
+  <circle cx="87" cy="51" r="3.5" fill="#1acddd"/>
+</svg>

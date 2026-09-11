@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">TQ3 오픈 모노그램</title>
+  <defs>
+    <linearGradient id="tq3" x1="9" y1="54" x2="55" y2="10" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#173cff"/>
+      <stop offset=".5" stop-color="#087ff4"/>
+      <stop offset="1" stop-color="#08d7e5"/>
+    </linearGradient>
+  </defs>
+  <path d="M47 15A23 23 0 1 0 48 46" fill="none" stroke="url(#tq3)" stroke-width="7" stroke-linecap="round"/>
+  <path d="m45 44 11 11" fill="none" stroke="#08cfe7" stroke-width="7" stroke-linecap="round"/>
+  <path fill="url(#tq3)" d="M17 19h30l-5 8h-9l-7 22h-9l7-22H12z"/>
+</svg>

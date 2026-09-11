@@ -1,0 +1,35 @@
+diff --git a/backend/app/services/deliverable_markdown.py b/backend/app/services/deliverable_markdown.py
+--- a/backend/app/services/deliverable_markdown.py
++++ b/backend/app/services/deliverable_markdown.py
+@@ -321,27 +321,17 @@
+     issue_rows = [
+-        [
+-            "일정 이슈",
+-            clean(item.title),
+-            day(item.due_on),
+-            "대응 전략 미등록",
+-        ]
++        [clean(item.title), day(item.due_on)]
+         for item in materials.overdue_tasks[:5]
+     ]
+     if materials.overdue_total > 5:
+         issue_rows.append(
+             [
+-                "안내",
+                 f"기한 초과 {materials.overdue_total}건 중 5건만 표시",
+                 EMPTY,
+-                EMPTY,
+             ]
+         )
+     issues = Section(
+-        title="이슈 및 리스크",
+-        header=["구분", "내용", "기한", "대응"],
++        title="일정 이슈",
++        header=["내용", "기한"],
+         rows=issue_rows,
+-        note=(
+-            "기한이 지난 미완료 작업이 없습니다. "
+-            "리스크·대응 전용 항목은 현재 지원하지 않습니다."
+-        ),
++        note="기한이 지난 미완료 작업이 없습니다.",
+     )

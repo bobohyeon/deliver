@@ -1,0 +1,154 @@
+diff --git a/backend/app/analyzers/prompts.py b/backend/app/analyzers/prompts.py
+index da0fa92..87d6d3b 100644
+--- a/backend/app/analyzers/prompts.py
++++ b/backend/app/analyzers/prompts.py
+@@ -4,7 +4,7 @@ from app.ai.client_protocol import AIRequest
+ 
+ SUMMARY_PROMPT_VERSION = "summary-v2"
+ CATEGORY_PROMPT_VERSION = "category-v2"
+-OVERVIEW_PROMPT_VERSION = "overview-v2"
++OVERVIEW_PROMPT_VERSION = "overview-v3"
+ DECISION_PROMPT_VERSION = "decision-v1"
+ SCHEDULE_PROMPT_VERSION = "schedule-v1"
+ 
+@@ -211,10 +211,17 @@ confidence 는 0~1 이며 context 에 이름이 분명하면 0.8 이상, 짐작
+ 
+ DELIVERABLE_OVERVIEW_SYSTEM_PROMPT = COMMON + """
+ 한국어로 산출물의 개요만 작성하세요. 건수·기간·대표 항목·금액의 범위와 의미를 유지하세요.
+-2~4문장, 공백 포함 250자 이내입니다. 자료가 적으면 더 적은 문장을 허용합니다.
++입력의 deliverable_kind 에 따라 형식을 구분하세요.
++- PROJECT_STATUS: 현재 상태를 2~4개의 짧은 줄로 요약하세요. 자료가 적으면 1줄도
++  허용합니다. 각 줄은 `자료:`, `진행:`, `결정:`, `일정:`, `금액:` 중 근거가 있는
++  내용에 맞는 표제로 시작하고 핵심 사실 하나만 적으세요. 같은 표제를 반복하지 말고,
++  글머리표·번호·빈 줄 없이 summary 문자열에서 줄 사이를 `\\n`으로 구분하세요.
++- WEEKLY_REPORT: 선택 기간의 변동을 2~4문장으로 요약하세요. 자료가 적으면 더 적은
++  문장을 허용합니다.
++전체 summary 는 공백과 줄바꿈을 포함해 250자 이내입니다.
+ 대표 항목을 전체로 일반화하거나 완료 태스크 수를 프로젝트 완료율로 바꾸지 마세요.
+ 비교 자료 없이 증가·개선·지연을 단정하지 마세요. 금액을 임의로 계약총액이나 지출로
+-해석하지 마세요. 표의 이름을 단순 나열하지 마세요.
++해석하지 마세요. 표 이름만 나열하지 말고 자료에서 확인되는 상태를 적으세요.
+ 자료가 없으면 "제공된 범위에 산출물로 요약할 자료가 없습니다."라고 쓰세요.
+ 출력: {"summary":"개요 내용"}
+ """
+diff --git a/backend/app/services/deliverable_html.py b/backend/app/services/deliverable_html.py
+index 198037a..5314087 100644
+--- a/backend/app/services/deliverable_html.py
++++ b/backend/app/services/deliverable_html.py
+@@ -101,8 +101,10 @@ tbody tr:nth-child(even) td { background: #fafafa; }
+ .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+ 
+ /* 자료가 없는 절과 개요. 선 대신 연회색 면으로 문장을 감싼다(왼쪽 선을 두지 않는다). */
+-p.note { margin: 0; padding: 14px 16px; background: #f5f5f5; color: #4a4a4a;
++p.note, ul.note { margin: 0; padding: 14px 16px; background: #f5f5f5; color: #4a4a4a;
+   font-size: 13px; border-radius: 3px; }
++ul.note { padding-left: 34px; }
++ul.note li + li { margin-top: 6px; }
+ 
+ footer { max-width: 920px; margin: 0 auto; padding: 22px 44px 42px; }
+ footer p { margin: 0; color: #8a8a8a; font-size: 11px; }
+@@ -158,10 +160,16 @@ def to_html(document: DeliverableDocument) -> str:
+         if section.header and section.rows:
+             parts.extend(_table(section.header, section.rows))
+         else:
+-            # 표가 없는 절(개요)과 행이 없는 표는 같은 모양으로 문장만 낸다.
+-            # 빈 표를 그리면 "자료를 못 가져온 것" 처럼 보인다.
++            # 프로젝트 현황의 줄 단위 개요는 HTML/PDF에서 목록으로 보존한다.
++            # 주간 보고서처럼 한 줄인 개요와 빈 표 안내는 기존 문단을 유지한다.
+             note = section.note or "해당 자료가 없습니다."
+-            parts.append(f'<p class="note">{escape(note)}</p>')
++            note_lines = [line.strip() for line in note.splitlines() if line.strip()]
++            if len(note_lines) > 1:
++                parts.append('<ul class="note">')
++                parts.extend(f"<li>{escape(line)}</li>" for line in note_lines)
++                parts.append("</ul>")
++            else:
++                parts.append(f'<p class="note">{escape(note_lines[0])}</p>')
+         parts.append("</section>")
+     parts.append("</main>")
+ 
+diff --git a/backend/app/services/deliverable_markdown.py b/backend/app/services/deliverable_markdown.py
+index ac0fd3b..7baabe8 100644
+--- a/backend/app/services/deliverable_markdown.py
++++ b/backend/app/services/deliverable_markdown.py
+@@ -305,8 +305,17 @@ def to_markdown(document: DeliverableDocument) -> str:
+             # 빈 표 대신 한 줄로 없다고 적는다.
+             lines.append(section.note or "해당 자료가 없습니다.")
+         else:
+-            # 문단. 개요처럼 표가 아닌 절이다. 기울임으로 본문과 구별한다.
+-            lines.append(f"_{section.note}_" if section.note else "")
++            # 프로젝트 현황 개요는 한 줄에 사실 하나를 담는다. 여러 줄이면
++            # Markdown 목록으로 표현하고, 주간 보고서의 한 문단 개요는 유지한다.
++            note_lines = [
++                line.strip()
++                for line in (section.note or "").splitlines()
++                if line.strip()
++            ]
++            if len(note_lines) > 1:
++                lines.extend(f"- {line}" for line in note_lines)
++            else:
++                lines.append(f"_{note_lines[0]}_" if note_lines else "")
+         lines.append("")
+ 
+     # 끝에 개수를 다시 적지 않는다. 표를 세면 되고, 두 곳에 적으면 어긋난다.
+diff --git a/backend/app/services/deliverable_service.py b/backend/app/services/deliverable_service.py
+index 99faeef..c304e9c 100644
+--- a/backend/app/services/deliverable_service.py
++++ b/backend/app/services/deliverable_service.py
+@@ -548,13 +548,21 @@ class DeliverableService:
+         digest = self._overview_digest(title, since, until, materials)
+         try:
+             budget = PromptBudget(settings)
+-            prompt = build_deliverable_overview_prompt(digest, representative_names_omitted=False)
++            prompt = build_deliverable_overview_prompt(
++                digest,
++                deliverable_kind=kind,
++                representative_names_omitted=False,
++            )
+             omitted = not budget.fits(prompt)
+             if omitted:
+                 # 숫자나 행 중간을 잘라 새 의미를 만들지 않는다. 전체 집계는 유지하고
+                 # 대표 이름만 생략한다. 이것도 안 맞으면 개요를 만들지 않는다.
+                 digest = self._overview_digest(title, since, until, materials, include_names=False)
+-                prompt = build_deliverable_overview_prompt(digest, representative_names_omitted=True)
++                prompt = build_deliverable_overview_prompt(
++                    digest,
++                    deliverable_kind=kind,
++                    representative_names_omitted=True,
++                )
+             prompt = budget.prepare(prompt)
+             result = await asyncio.wait_for(
+                 self._ai_client.generate_with_meta(prompt),
+diff --git a/backend/app/services/deliverable_xlsx.py b/backend/app/services/deliverable_xlsx.py
+index 2d6a711..1a74d20 100644
+--- a/backend/app/services/deliverable_xlsx.py
++++ b/backend/app/services/deliverable_xlsx.py
+@@ -148,7 +148,13 @@ def _write_summary(
+     for section in note_sections:
+         sheet.cell(row=row, column=1, value=section.title).font = _SECTION_FONT
+         row += 1
+-        text = section.note or "해당 자료가 없습니다."
++        raw_text = section.note or "해당 자료가 없습니다."
++        note_lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
++        text = (
++            "\n".join(f"• {line}" for line in note_lines)
++            if len(note_lines) > 1
++            else raw_text
++        )
+         cell = sheet.cell(row=row, column=1, value=text)
+         cell.font = _NOTE_FONT
+         cell.alignment = _TOP_LEFT
+@@ -283,7 +289,11 @@ def _note_height(text: str, merged_width: int) -> float:
+     병합한 칸은 엑셀이 높이를 자동으로 늘려주지 않아서 직접 줄 수를 센다.
+     """
+     usable = max(20, merged_width)
+-    lines = max(1, -(-_display_width(text) // usable))
++    logical_lines = text.splitlines() or [""]
++    lines = sum(
++        max(1, -(-_display_width(line) // usable))
++        for line in logical_lines
++    )
+     return _LINE_HEIGHT * lines
+
+ 
+ 

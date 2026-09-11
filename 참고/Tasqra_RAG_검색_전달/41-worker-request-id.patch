@@ -1,0 +1,266 @@
+diff --git a/backend/app/api/routes/document_router.py b/backend/app/api/routes/document_router.py
+index 3753ec6..9f0b2d0 100644
+--- a/backend/app/api/routes/document_router.py
++++ b/backend/app/api/routes/document_router.py
+@@ -5,6 +5,7 @@ from fastapi.responses import FileResponse
+ 
+ from app.core.error_codes import ErrorCode
+ from app.core.exceptions import BusinessError
++from app.core.middleware import current_request_id
+ from app.dependencies import ProjectAccess, get_document_service, get_extraction_service, get_project_access, get_project_editor_access
+ from app.schemas.common import PageResponse
+ from app.schemas.document import AnalysisResponse, DocumentDetailResponse, DocumentListItem, DocumentProcessingResponse, OcrElementBatchUpdateRequest, OcrElementBatchUpdateResponse, OcrElementCreateRequest, OcrElementDeletionRequest, OcrElementExclusionRequest, OcrElementMergeGroupsRequest, OcrElementMergeGroupsResponse, OcrElementMergeRequest, OcrElementMergeResponse, OcrElementMergeUndoResponse, OcrElementResponse, OcrElementUpdateRequest, OcrPageResponse, OcrReprocessRequest, OcrReprocessResponse, OcrReviewResponse, OcrRevisionResponse, OcrStructureEventResponse, OcrUndoableMergeResponse
+@@ -115,7 +116,10 @@ def complete_ocr_review(document_id: int, access: ProjectAccess = Depends(get_pr
+     # 검수가 확정되면 본문이 바뀌었을 수 있으므로 청킹·임베딩을 다시 돌린다 (RAG-001-3).
+     # 여기서 부르는 이유: service 가 리턴한 시점에 transactional 이 이미 커밋했다.
+     # 큐 등록이 실패해도 예외를 올리지 않아 검수 완료는 그대로 성공한다.
+-    enqueue_build_chunks(access.project.id, document.id, reason="OCR 검수 확정 (RAG-001-3)")
++    # request_id 는 contextvar 에서 읽는다 (SYS-003-1). 이 엔드포인트 서명에
++    # Depends 를 더하지 않는 이유는, 이 파일을 다른 사람이 만지고 있어서 서명을
++    # 고치면 충돌 지점이 되기 때문이다. 값을 못 얻으면 "-" 이고 아무것도 깨지지 않는다.
++    enqueue_build_chunks(access.project.id, document.id, reason="OCR 검수 확정 (RAG-001-3)", request_id=current_request_id())
+     document = service.get_document_for_review(access.project.id, document.id)
+     pages = [OcrPageResponse(id=page.id, page_number=page.page_number, page_kind=page.page_kind, width=page.width, height=page.height, image_url=f"/api/projects/{access.project.id}/documents/{document.id}/review/pages/{page.id}/image", elements=[OcrElementResponse.model_validate(item) for item in page.elements if not item.is_deleted]) for page in document.review_pages]
+     latest_merge = service.get_latest_undoable_merge(access.project.id, document_id)
+diff --git a/backend/app/api/routes/upload_router.py b/backend/app/api/routes/upload_router.py
+index d561d70..154fcbd 100644
+--- a/backend/app/api/routes/upload_router.py
++++ b/backend/app/api/routes/upload_router.py
+@@ -4,6 +4,7 @@ from starlette import status
+ from app.core.config import settings
+ from app.core.error_codes import ErrorCode
+ from app.core.exceptions import BusinessError
++from app.core.middleware import get_request_id
+ from app.dependencies import ProjectAccess, get_extraction_service, get_project_editor_access
+ from app.schemas.document import DocumentUploadResponse
+ from app.services.extraction_service import ExtractionService
+@@ -12,7 +13,7 @@ from app.worker import extract_document_task
+ router = APIRouter(prefix="/api/projects/{project_id}", tags=["upload"])
+ 
+ @router.post("/documents", response_model=DocumentUploadResponse, status_code=status.HTTP_201_CREATED)
+-def upload_document(file: UploadFile = File(...), extraction_strategy: str = Form("AUTO"), document_type: str | None = Form(None), access: ProjectAccess = Depends(get_project_editor_access), service: ExtractionService = Depends(get_extraction_service)):
++def upload_document(file: UploadFile = File(...), extraction_strategy: str = Form("AUTO"), document_type: str | None = Form(None), request_id: str = Depends(get_request_id), access: ProjectAccess = Depends(get_project_editor_access), service: ExtractionService = Depends(get_extraction_service)):
+     if not file.filename:
+         raise BusinessError(ErrorCode.INVALID_FILE_TYPE, detail="파일명이 필요합니다.")
+     content = file.file.read(settings.max_file_size_bytes + 1)
+@@ -28,8 +29,11 @@ def upload_document(file: UploadFile = File(...), extraction_strategy: str = For
+         extraction_strategy,
+         document_type,
+     )
++    # request_id 를 태스크에 실어 보낸다 (SYS-003-1). 이것이 없으면 워커 로그를
++    # 업로드 요청과 이어붙일 수 없다 — "업로드는 됐는데 텍스트가 안 나온다" 는
++    # 신고에서 어느 요청이었는지 찾을 방법이 없어진다.
+     try:
+-        extract_document_task.delay(access.project.id, document.id)
++        extract_document_task.delay(access.project.id, document.id, request_id=request_id)
+     except Exception as exc:
+         service.discard_pending_upload(document)
+         raise BusinessError(ErrorCode.PROCESS_QUEUE_UNAVAILABLE) from exc
+diff --git a/backend/app/core/logging_config.py b/backend/app/core/logging_config.py
+index 5841be6..27fc1e3 100644
+--- a/backend/app/core/logging_config.py
++++ b/backend/app/core/logging_config.py
+@@ -20,14 +20,39 @@ class RequestIdLogFilter(logging.Filter):
+ 
+ 
+ #   - main.py에서 앱 생성 전에 이 함수를 한 번 호출해서 등록합니다.
++#   - worker.py도 모듈 수준에서 호출합니다. 워커 프로세스는 main.py를 거치지
++#     않아서(celery -A app.worker.celery_app), 거기서 부르지 않으면 워커 로그에
++#     [request_id=...]가 아예 붙지 않습니다.
++
++# 핸들러에 이름을 붙여 두고 같은 이름이 이미 있으면 다시 붙이지 않는다.
++_HANDLER_NAME = "tasqra-request-id"
++
++
+ def setup_logging() -> None:
++    """루트 로거에 request_id를 찍는 핸들러를 붙인다. **두 번 불러도 안전하다.**
++
++    두 번 불리는 것은 가정이 아니라 실제다. main.py가 8행에서 라우터들을 import
++    하고 그 사슬이 document_router -> app.worker 로 이어지는데, worker.py가 모듈
++    수준에서 이 함수를 부른다. 그래서 API 프로세스에서도 두 번 불린다.
++
++    막지 않으면 루트 로거에 StreamHandler가 두 개 붙어 **모든 로그가 두 줄로**
++    나온다. 에러가 아니라서 알아채기 어렵고, 로그를 세는 눈을 망친다.
++
++    Spring 비교: logback은 설정 파일을 한 번만 읽으므로 이 문제가 없다. 코드로
++    핸들러를 붙이는 방식이라 멱등성을 직접 챙겨야 한다.
++    """
++    root_logger = logging.getLogger()
++    for existing in root_logger.handlers:
++        if existing.name == _HANDLER_NAME:
++            return
++
+     formatter = logging.Formatter(
+         "%(asctime)s [%(levelname)s] [request_id=%(request_id)s] %(name)s - %(message)s"
+         )
+     handler = logging.StreamHandler()
++    handler.set_name(_HANDLER_NAME)
+     handler.setFormatter(formatter)
+     handler.addFilter(RequestIdLogFilter())
+ 
+-    root_logger = logging.getLogger()
+     root_logger.addHandler(handler)
+     root_logger.setLevel(level=logging.INFO)
+diff --git a/backend/app/core/middleware.py b/backend/app/core/middleware.py
+index abe7ae5..2846b51 100644
+--- a/backend/app/core/middleware.py
++++ b/backend/app/core/middleware.py
+@@ -53,6 +53,54 @@ def resolve_request_id(incoming: str | None) -> str:
+     return str(uuid.uuid4())
+ 
+ 
++# --- 요청 밖으로 request_id 를 꺼내는 세 가지 방법 ---------------------------
++#
++# 워커(Celery)는 미들웨어를 거치지 않는다. 그래서 태스크를 큐에 넣을 때 값을 실어
++# 보내고, 워커가 받아서 자기 프로세스의 contextvar 에 심어야 로그에 찍힌다.
++# 아래 셋이 그 양쪽 끝이다.
++
++
++def get_request_id(request: Request) -> str:
++    """FastAPI 의존성. 엔드포인트에서 `request_id: str = Depends(get_request_id)`.
++
++    `request.state` 에서 읽는다 — 미들웨어가 거기에 **직접** 심으므로 contextvar
++    전달 여부와 무관하게 값이 맞는다. 새 엔드포인트에서는 이쪽을 쓴다.
++
++    Spring 비교: `@RequestAttribute("requestId") String requestId` 로 받는 자리다.
++    """
++    return getattr(request.state, "request_id", "-")
++
++
++def current_request_id() -> str:
++    """contextvar 에서 읽는다. **엔드포인트 서명을 바꿀 수 없을 때만** 쓴다.
++
++    의존성을 더하려면 함수 서명을 고쳐야 하는데, 남이 만지고 있는 파일에서는
++    그것이 충돌 지점이 된다. 그럴 때 한 줄로 끝내려고 둔다.
++
++    요청 밖(워커·스크립트)에서 부르면 `"-"` 다. 값을 못 얻어도 아무것도 깨지지
++    않는다 — 추적이 안 될 뿐이다.
++
++    Spring 비교: `MDC.get("requestId")` 를 직접 읽는 것과 같다.
++    """
++    return request_id_ctx_var.get()
++
++
++def bind_request_id(request_id: str | None) -> None:
++    """받은 값을 이 프로세스의 contextvar 에 심는다. **워커가 부른다.**
++
++    미들웨어가 없는 프로세스에서 미들웨어 역할을 대신하는 자리다. 이것을 부르지
++    않으면 태스크 인자로 값을 받아도 로그 필터가 읽을 곳이 없다.
++
++    받은 값을 그대로 믿지 않고 다시 검사한다. 큐 메시지도 결국 외부에서 온 값이
++    닿을 수 있는 경로이고, 줄바꿈이 섞이면 로그를 위조할 수 있다(log injection).
++    미들웨어가 들어오는 헤더를 검사하는 것과 같은 이유다.
++    """
++    if request_id and _SAFE_REQUEST_ID.match(request_id):
++        request_id_ctx_var.set(request_id)
++    else:
++        request_id_ctx_var.set("-")
++
++
+ class RequestIdMiddleware(BaseHTTPMiddleware):
+     async def dispatch(self, request: Request, call_next) -> Response:
+         request_id = resolve_request_id(request.headers.get(REQUEST_ID_HEADER))
+diff --git a/backend/app/worker.py b/backend/app/worker.py
+index a97e93a..3468040 100644
+--- a/backend/app/worker.py
++++ b/backend/app/worker.py
+@@ -3,6 +3,8 @@ import logging
+ from celery import Celery
+ 
+ from app.core.config import settings
++from app.core.logging_config import setup_logging
++from app.core.middleware import bind_request_id
+ from app.db.session import SessionLocal
+ 
+ logger = logging.getLogger(__name__)
+@@ -17,8 +19,23 @@ celery_app.conf.update(
+     task_reject_on_worker_lost=True,
+     task_track_started=True,
+     broker_connection_retry_on_startup=True,
++    # Celery 가 루트 로거를 가로채지 않게 한다(기본값은 True 다). 가로채면 아래
++    # setup_logging() 이 붙인 포맷터가 밀려나 request_id 가 사라진다.
++    worker_hijack_root_logger=False,
+ )
+ 
++# 워커 프로세스의 로깅을 여기서 설정한다 (SYS-003-1).
++#
++# **여기서 부르지 않으면 값을 넘겨도 아무것도 안 보인다.** 워커는
++# `celery -A app.worker.celery_app worker` 로 뜨고 app.main 을 절대 불러오지
++# 않는다. 그래서 setup_logging() 이 main.py 에만 있으면 워커 로그에는
++# [request_id=...] 포맷터 자체가 붙지 않는다 — 값이 "-" 로 찍히는 게 아니라
++# 아예 없다.
++#
++# API 프로세스에서도 이 줄이 실행된다(main.py 가 라우터를 import 하는 사슬로
++# 이 모듈이 끌려온다). setup_logging() 이 멱등이라 두 번째는 아무 일도 하지 않는다.
++setup_logging()
++
+ 
+ @celery_app.task(
+     bind=True,
+@@ -28,7 +45,16 @@ celery_app.conf.update(
+     retry_backoff_max=60,
+     retry_kwargs={"max_retries": 2},
+ )
+-def extract_document_task(self, project_id: int, document_id: int) -> int:
++def extract_document_task(self, project_id: int, document_id: int, request_id: str = "-") -> int:
++    # request_id 를 **기본값 있는 키워드 인자**로 받는다. 이유가 둘이고 두 번째가
++    # 실제로 사고 나는 지점이다 (SYS-003-1).
++    #
++    #   (1) 이 태스크를 부르는 곳이 셋이라 한 곳을 미뤄도 안 깨진다
++    #   (2) **배포 순간 큐에 남아 있던 메시지**는 인자 2개로 들어온다. 필수 인자로
++    #       만들면 그 태스크들이 전부 TypeError 로 죽는다 — 그 시점에 올라온
++    #       문서가 조용히 처리되지 않는다. 사용자는 업로드가 됐다고 본다.
++    bind_request_id(request_id)
++
+     # Imports are delayed so Celery can initialize without loading the OCR model.
+     from app.dependencies import get_extractor_registry
+     from app.repositories.document_repository import DocumentRepository
+@@ -42,7 +68,11 @@ def extract_document_task(self, project_id: int, document_id: int) -> int:
+     #
+     # ExtractionService.process_document 안에 넣지 않고 여기 둔 이유는, 문서
+     # 추출이 DOC 영역이라 그쪽 서비스 코드를 건드리지 않으려는 것이다.
+-    enqueue_build_chunks(project_id, document_id, reason="문서 추출 완료")
++    #
++    # request_id 를 그대로 넘겨 사슬을 잇는다. 여기서 빠뜨리면 "업로드는 됐는데
++    # 검색이 안 된다" 는 신고를 받았을 때 청킹 로그를 찾을 수 없다 — 추출까지는
++    # 이어지고 그다음이 끊긴다.
++    enqueue_build_chunks(project_id, document_id, reason="문서 추출 완료", request_id=request_id)
+ 
+     return document_id
+ 
+@@ -55,7 +85,7 @@ def extract_document_task(self, project_id: int, document_id: int) -> int:
+     retry_backoff_max=60,
+     retry_kwargs={"max_retries": 2},
+ )
+-def build_chunks_task(self, project_id: int, document_id: int) -> int:
++def build_chunks_task(self, project_id: int, document_id: int, request_id: str = "-") -> int:
+     """문서 하나를 청킹하고 임베딩해 document_chunks 에 넣는다 (RAG-001-1 · RAG-001-2).
+ 
+     documents.extract 태스크와 일부러 분리해 뒀다. 문서 추출 파이프라인은
+@@ -69,6 +99,8 @@ def build_chunks_task(self, project_id: int, document_id: int) -> int:
+     기동할 때 무거운 것을 끌어오지 않게 한다. 임베딩 구현이 나중에 실제 모델을
+     쓰게 되면 이 지연 임포트가 특히 중요해진다.
+     """
++    bind_request_id(request_id)
++
+     from app.dependencies import get_embedding_client
+     from app.repositories.chunk_repository import ChunkRepository
+     from app.services.chunking_service import ChunkingService
+@@ -83,7 +115,7 @@ def build_chunks_task(self, project_id: int, document_id: int) -> int:
+ 
+ 
+ 
+-def enqueue_build_chunks(project_id: int, document_id: int, *, reason: str) -> bool:
++def enqueue_build_chunks(project_id: int, document_id: int, *, reason: str, request_id: str = "-") -> bool:
+     """청킹·임베딩 태스크를 큐에 넣는다. 실패해도 예외를 올리지 않는다.
+ 
+     부르는 쪽마다 try/except 를 복사하지 않게 하려고 여기 모았다. 지금 두 곳에서
+@@ -108,7 +140,7 @@ def enqueue_build_chunks(project_id: int, document_id: int, *, reason: str) -> b
+     깨지는 것도 똑같다.
+     """
+     try:
+-        build_chunks_task.delay(project_id, document_id)
++        build_chunks_task.delay(project_id, document_id, request_id=request_id)
+         return True
+     except Exception:  # noqa: BLE001 - 이미 성공한 작업을 지키는 것이 우선이다
+         logger.exception(

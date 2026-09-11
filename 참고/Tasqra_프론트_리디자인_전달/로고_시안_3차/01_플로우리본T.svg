@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 72 72" role="img" aria-labelledby="title">
+  <title id="title">플로우 리본 T</title>
+  <defs>
+    <linearGradient id="flow-top" x1="8" y1="17" x2="64" y2="17" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#173cff"/>
+      <stop offset=".54" stop-color="#087df4"/>
+      <stop offset="1" stop-color="#08d9e6"/>
+    </linearGradient>
+    <linearGradient id="flow-stem" x1="39" y1="24" x2="23" y2="61" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#142381"/>
+      <stop offset=".52" stop-color="#173cff"/>
+      <stop offset="1" stop-color="#087df4"/>
+    </linearGradient>
+    <linearGradient id="flow-tail" x1="27" y1="60" x2="63" y2="33" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#087df4"/>
+      <stop offset="1" stop-color="#08d9e6"/>
+    </linearGradient>
+  </defs>
+  <path fill="url(#flow-top)" d="M8 25 15 14c1.4-2.2 3.3-3 5.8-3h43.4c2.4 0 3.3 2.3 1.8 4.2l-6 7.4c-1.5 1.8-3.5 2.4-6 2.4H8Z"/>
+  <path fill="url(#flow-stem)" d="M26 25h18L31 58.5c-1.8 4.7-6.8 5.5-10 2.1-2.2-2.3-1.9-5.2-.4-8.5l9.1-20.4C31 28.6 29.8 26 26 25Z"/>
+  <path fill="url(#flow-tail)" d="m28.5 56.5 17-22.2c1.3-1.7 3-2.4 5.2-2.4h12.1c1.8 0 2.5 1.8 1.2 3.1L39 61.3c-3.3 3.5-8 2.6-10.5-1.2-1-1.4-.9-2.4 0-3.6Z"/>
+</svg>

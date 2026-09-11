@@ -1,0 +1,495 @@
+diff --git a/backend/app/api/routes/deliverable_router.py b/backend/app/api/routes/deliverable_router.py
+index 473cd48..a5bf8c6 100644
+--- a/backend/app/api/routes/deliverable_router.py
++++ b/backend/app/api/routes/deliverable_router.py
+@@ -58,7 +58,7 @@ def preview_deliverable(
+ 
+     | kind | 기간 | 담기는 것 |
+     |---|---|---|
+-    | `WEEKLY_REPORT` | **필수** | 기간 안의 문서·결정·일정·금액 |
++    | `WEEKLY_REPORT` | **필수** | 기간 안의 문서·완료한 태스크·결정·일정·금액 |
+     | `DECISION_LOG` | 무시 | 결정 **전부** |
+     | `MEETING_AGENDA` | 무시 | **미결 결정만** (`status='PENDING'`) |
+     | `PROJECT_STATUS` | 무시 | 현재 상태 전부 |
+@@ -66,8 +66,12 @@ def preview_deliverable(
+     `can_generate` 가 `false` 면 만들 수 없고 `blocked_reason` 에 이유가 있다.
+     화면이 그 문장을 그대로 보여줄 수 있다.
+ 
+-    **`counts.completed_tasks` 가 `null` 인 것은 0건이 아니라 "아직 셀 수 없다"** 다
+-    (`tasks` 테이블 미구현). 화면에서 0 으로 바꾸면 안 된다.
++    `counts.completed_tasks` 는 리비전 0019 로 `tasks` 테이블이 생긴 뒤부터 실제
++    건수다. 상태가 `DONE` 이고 `completed_at` 이 기간에 드는 태스크만 센다. 전에는
++    셀 수 없어 `null` 이었고, 지금은 0 이 정말 0건이라는 뜻이다.
++
++    `uncountable` 은 셀 수 없는 재료의 이름이며 지금은 빈 목록이다. 다음에 못 세는
++    재료가 생기면 여기에 담아 보낸다.
+ 
+     오류
+       `422 PERIOD_REQUIRED`         주간 보고서인데 기간이 없다
+diff --git a/backend/app/repositories/deliverable_repository.py b/backend/app/repositories/deliverable_repository.py
+index d6e4a29..86c5324 100644
+--- a/backend/app/repositories/deliverable_repository.py
++++ b/backend/app/repositories/deliverable_repository.py
+@@ -12,17 +12,16 @@
+ #   dashboard_repository 머리말과 같다 — 목록을 받아 화면에서 세면 페이지 상한
+ #   때문에 숫자가 조용히 틀린다.
+ #
+-# ⚠ 완료 태스크는 셀 수 없다
+-#   `tasks` 테이블이 아직 없다(TSK-001-1 태스크 CRUD 미구현). 마이그레이션
+-#   어디에도 create_table("tasks") 가 없고 모델도 없다.
++# ⚠ 완료 태스크를 이제 센다 (전에는 셀 수 없었다)
++#   `tasks` 테이블이 리비전 0019 로 생겼다(TSK-001-1·TSK-001-2 구현). 그래서
++#   count_completed_tasks 를 두고, 서비스의 UNCOUNTABLE 이 빈 목록이 됐다.
+ #   **`decisions` · `schedule_items` 와 혼동하지 말 것** — 그 둘은 리비전 0007 로
+-#   있고 8/20 에 ORM 모델도 생겼다. 뜻도 "결정사항" 과 "일정" 이라 태스크가 아니다.
+-#   그래서 count_tasks 같은 메서드를 두지 않았다. 없는 것을 0 으로 세면 "완료한
+-#   태스크가 0건" 과 "아직 셀 수 없다" 를 구별할 수 없다.
++#   있고 뜻도 "결정사항" 과 "일정" 이라 태스크가 아니다.
+ #
+ # ⚠ 기간 필터를 어느 컬럼에 걸지가 종류마다 다르다
+ #   문서는 created_at, 결정은 decided_on, 일정은 due_on(kind 마다 다른 컬럼),
+-#   금액은 문서를 거쳐야 한다. 한 컬럼으로 통일할 수 없어서 메서드를 나눴다.
++#   태스크는 completed_at, 금액은 문서를 거쳐야 한다. 한 컬럼으로 통일할 수
++#   없어서 메서드를 나눴다.
+ # =============================================================================
+ 
+ from __future__ import annotations
+@@ -36,6 +35,7 @@ from app.models.amount import AmountItem
+ from app.models.decision import Decision
+ from app.models.document import Document
+ from app.models.schedule import ScheduleItem
++from app.models.task import Task
+ 
+ __all__ = ["DeliverableRepository"]
+ 
+@@ -123,6 +123,37 @@ class DeliverableRepository:
+             stmt = stmt.where(or_(starts_ok, ends_ok))
+         return int(self._db.execute(stmt).scalar() or 0)
+ 
++    # --- 태스크 -------------------------------------------------------------
++
++    def count_completed_tasks(
++        self, project_id: int, *, since: date | None = None, until: date | None = None
++    ) -> int:
++        """완료한 태스크 수. 기간은 `completed_at` 으로 본다.
++
++        `status == 'DONE'` 을 함께 거는 이유
++          `completed_at` 만 보면 완료를 되돌린 태스크가 남는다. 반대로 상태만
++          보면 "이번 주에 완료" 가 아니라 "지금 완료 상태" 를 세게 된다. 둘을
++          함께 걸어야 주간 보고서의 "이 기간에 끝낸 일" 이 된다.
++          task_service 가 DONE 으로 옮길 때 `completed_at` 을 찍고 DONE 에서
++          빼낼 때 NULL 로 지우므로 두 조건이 어긋나지 않는다.
++
++        기간을 주면 `completed_at` 이 NULL 인 행은 빠진다 — `count_decisions` 의
++        `decided_on` 과 같은 판단이다. 완료 시각을 모르는 태스크를 "이번 주에
++        끝낸 일" 로 넣으면 보고서가 틀린다.
++
++        `completed_at` 은 timestamptz 이고 인자는 date 다. `count_documents` 와
++        같은 이유로 `func.date()` 로 날짜만 비교한다 — 그러지 않으면 종료일 당일에
++        끝낸 태스크가 빠진다.
++        """
++        stmt = select(func.count()).select_from(Task).where(
++            Task.project_id == project_id, Task.status == "DONE"
++        )
++        if since is not None:
++            stmt = stmt.where(func.date(Task.completed_at) >= since)
++        if until is not None:
++            stmt = stmt.where(func.date(Task.completed_at) <= until)
++        return int(self._db.execute(stmt).scalar() or 0)
++
+     # --- 금액 ---------------------------------------------------------------
+ 
+     def count_amount_items(
+diff --git a/backend/app/schemas/deliverable.py b/backend/app/schemas/deliverable.py
+index 7b5f67b..e80bd4e 100644
+--- a/backend/app/schemas/deliverable.py
++++ b/backend/app/schemas/deliverable.py
+@@ -37,30 +37,40 @@ PERIOD_REQUIRED_KINDS = ("WEEKLY_REPORT",)
+ class PreviewCounts(BaseModel):
+     """산출물에 담길 재료의 건수.
+ 
+-    ⚠ **`completed_tasks` 가 `None` 인 것은 "0건" 이 아니라 "아직 셀 수 없다" 다.**
+-    `tasks` 테이블이 없다(TSK-001-1 미구현). 화면에서 0 으로 바꾸면 안 된다 —
+-    사용자가 "이번 주에 완료한 일이 없다" 로 잘못 읽는다. 대시보드의 `open_tasks`
+-    와 같은 규칙이다.
++    `completed_tasks` 는 리비전 0019 로 `tasks` 테이블이 생긴 뒤부터 실제로 센다.
++    전에는 셀 수 없어서 `None` 이었다 — 이제 다른 재료와 같은 `int` 이고, 0 은
++    "아직 셀 수 없다" 가 아니라 **정말 0건**이라는 뜻이다.
+     """
+ 
+     documents: int
+     decisions: int
+     schedule_items: int
+     amount_items: int
++    # 완료한 태스크. 주간 보고서·현황 한 장의 재료다(DLV-002-1 은 tasks.completed_at
++    # 을 필수로 요구한다). 결정사항 대장·회의 안건에는 담기지 않아 0 이다.
++    completed_tasks: int
+     # 기간과 무관하다. 지금 남아 있는 승인 대기 건수다.
+     pending_suggestions: int
+-    # 셀 수 없으면 None. 위 경고 참고.
+-    completed_tasks: int | None = None
+ 
+     @property
+     def countable_total(self) -> int:
+         """셀 수 있는 재료의 합. 생성 가능 판정에 쓴다.
+ 
++        완료한 태스크도 **더한다.** 명세가 주간 보고서의 내용으로 "문서·태스크·
++        결정·기한·금액 변동" 을 나열하므로, 그 기간에 끝낸 일만 있어도 보고서에
++        담을 것이 있다.
++
+         `pending_suggestions` 는 **더하지 않는다.** 그것은 "담길 내용" 이 아니라
+         "처리해야 할 일" 이라, 승인 대기만 있고 확정된 내용이 없으면 보고서는
+         비어 있다.
+         """
+-        return self.documents + self.decisions + self.schedule_items + self.amount_items
++        return (
++            self.documents
++            + self.decisions
++            + self.schedule_items
++            + self.amount_items
++            + self.completed_tasks
++        )
+ 
+ 
+ class DeliverablePreviewResponse(BaseModel):
+@@ -76,5 +86,6 @@ class DeliverablePreviewResponse(BaseModel):
+     # 이 유형이 기간을 요구하는가. 화면이 날짜 입력을 띄울지 정한다.
+     needs_period: bool
+     # 셀 수 없는 재료의 이름. 화면이 "집계 전" 으로 표시한다.
+-    # 지금은 항상 ["completed_tasks"] 다 — tasks 테이블이 생기면 빈 목록이 된다.
++    # `tasks` 테이블이 생겨 지금은 항상 빈 목록이다. **필드를 지우지 않는다** —
++    # 다음에 또 못 세는 재료가 생기면 화면을 고치지 않고 여기로 알릴 수 있다.
+     uncountable: list[str] = Field(default_factory=list)
+diff --git a/backend/app/services/deliverable_service.py b/backend/app/services/deliverable_service.py
+index 8ebd505..76abc1e 100644
+--- a/backend/app/services/deliverable_service.py
++++ b/backend/app/services/deliverable_service.py
+@@ -15,12 +15,12 @@
+ #
+ # ⚠ 종류마다 세는 대상이 다르다 — 이것이 이 파일의 핵심이다
+ #
+-#   | kind           | 기간   | 무엇을 담나                          |
+-#   |----------------|--------|--------------------------------------|
+-#   | WEEKLY_REPORT  | 필수   | 기간 안의 문서·결정·일정·금액 변동   |
+-#   | DECISION_LOG   | 없음   | 결정 **전부**(확정·미결·뒤집힘)      |
+-#   | MEETING_AGENDA | 없음   | **미결 결정만**(status='PENDING')    |
+-#   | PROJECT_STATUS | 없음   | 현재 상태 전부                        |
++#   | kind           | 기간   | 무엇을 담나                                |
++#   |----------------|--------|--------------------------------------------|
++#   | WEEKLY_REPORT  | 필수   | 기간 안의 문서·태스크·결정·일정·금액 변동  |
++#   | DECISION_LOG   | 없음   | 결정 **전부**(확정·미결·뒤집힘)            |
++#   | MEETING_AGENDA | 없음   | **미결 결정만**(status='PENDING')          |
++#   | PROJECT_STATUS | 없음   | 현재 상태 전부                              |
+ #
+ #   결정사항 대장에 기간을 걸면 "지난주에 정한 것만" 이 되어 대장이 아니게 된다.
+ #   회의 안건에 확정된 결정을 넣으면 이미 끝난 것을 또 논의하게 된다.
+@@ -50,8 +50,10 @@ from app.schemas.deliverable import (
+ 
+ logger = logging.getLogger(__name__)
+ 
+-# tasks 테이블이 없어 셀 수 없는 재료. 생기면 이 목록이 빈다.
+-UNCOUNTABLE = ["completed_tasks"]
++# 셀 수 없는 재료. `tasks` 테이블이 리비전 0019 로 생겨 지금은 비어 있다.
++# 상수를 지우지 않고 빈 목록으로 두는 이유: 응답의 uncountable 계약을 유지하면
++# 다음에 못 세는 재료가 생겨도 화면을 고치지 않고 여기에 이름만 더하면 된다.
++UNCOUNTABLE: list[str] = []
+ 
+ __all__ = ["DeliverableService", "UNCOUNTABLE"]
+ 
+@@ -124,6 +126,7 @@ class DeliverableService:
+                 decisions=self._repo.count_decisions(project_id, status="PENDING"),
+                 schedule_items=0,
+                 amount_items=0,
++                completed_tasks=0,
+                 pending_suggestions=pending,
+             )
+ 
+@@ -134,10 +137,11 @@ class DeliverableService:
+                 decisions=self._repo.count_decisions(project_id),
+                 schedule_items=0,
+                 amount_items=0,
++                completed_tasks=0,
+                 pending_suggestions=pending,
+             )
+ 
+-        # WEEKLY_REPORT · PROJECT_STATUS — 네 종류를 모두 담는다.
++        # WEEKLY_REPORT · PROJECT_STATUS — 다섯 종류를 모두 담는다.
+         # 주간 보고서는 기간이 있고 현황 한 장은 없다(since·until 이 None).
+         return PreviewCounts(
+             documents=self._repo.count_documents(project_id, since=since, until=until),
+@@ -148,6 +152,9 @@ class DeliverableService:
+             amount_items=self._repo.count_amount_items(
+                 project_id, since=since, until=until
+             ),
++            completed_tasks=self._repo.count_completed_tasks(
++                project_id, since=since, until=until
++            ),
+             pending_suggestions=pending,
+         )
+ 
+@@ -171,5 +178,5 @@ class DeliverableService:
+         if kind == "DECISION_LOG":
+             return "기록된 결정사항이 없습니다."
+         if kind == "WEEKLY_REPORT":
+-            return "선택한 기간에 문서·결정·일정·금액 변동이 없습니다."
++            return "선택한 기간에 문서·태스크·결정·일정·금액 변동이 없습니다."
+         return "프로젝트에 담을 내용이 아직 없습니다."
+diff --git a/backend/tests/test_deliverable_preview.py b/backend/tests/test_deliverable_preview.py
+index a31a318..58a3e94 100644
+--- a/backend/tests/test_deliverable_preview.py
++++ b/backend/tests/test_deliverable_preview.py
+@@ -7,7 +7,7 @@
+ #     ① 종류마다 세는 대상이 다른가 (이 기능의 핵심 규칙)
+ #     ② 대상이 없으면 생성이 막히는가 (완료 판정)
+ #     ③ 주간 보고서만 기간을 요구하는가
+-#     ④ 셀 수 없는 것(completed_tasks)을 0 으로 만들지 않는가
++#     ④ 완료한 태스크를 기간·종류에 맞게 세는가 (리비전 0019 로 열린 재료)
+ #     ⑤ 승인 대기가 생성 가능 판정에 섞이지 않는가
+ #
+ # 다른 파일과의 관계: services/deliverable_service.py · schemas/deliverable.py
+@@ -29,12 +29,13 @@ from app.services.deliverable_service import DeliverableService
+ WEEK = {"period_from": date(2026, 8, 14), "period_to": date(2026, 8, 20)}
+ 
+ 
+-def _service(*, documents=0, decisions=0, schedules=0, amounts=0, pending=0,
++def _service(*, documents=0, decisions=0, schedules=0, amounts=0, tasks=0, pending=0,
+              open_decisions=0):
+     repo = MagicMock()
+     repo.count_documents.return_value = documents
+     repo.count_schedule_items.return_value = schedules
+     repo.count_amount_items.return_value = amounts
++    repo.count_completed_tasks.return_value = tasks
+     repo.count_pending_suggestions.return_value = pending
+ 
+     # status 인자에 따라 다른 값을 준다 — 회의 안건은 미결만 센다.
+@@ -48,24 +49,26 @@ def _service(*, documents=0, decisions=0, schedules=0, amounts=0, pending=0,
+ # --- ① 종류마다 세는 대상이 다르다 ------------------------------------------
+ 
+ 
+-def test_weekly_report_counts_all_four_kinds():
+-    service, repo = _service(documents=12, decisions=5, schedules=3, amounts=2)
++def test_weekly_report_counts_all_five_kinds():
++    service, repo = _service(documents=12, decisions=5, schedules=3, amounts=2, tasks=7)
+     out = service.preview(1, kind="WEEKLY_REPORT", **WEEK)
+-    assert (out.counts.documents, out.counts.decisions,
+-            out.counts.schedule_items, out.counts.amount_items) == (12, 5, 3, 2)
++    assert (out.counts.documents, out.counts.decisions, out.counts.schedule_items,
++            out.counts.amount_items, out.counts.completed_tasks) == (12, 5, 3, 2, 7)
+     # 기간이 리포지토리까지 전달돼야 한다.
+     assert repo.count_documents.call_args.kwargs["since"] == WEEK["period_from"]
+     assert repo.count_documents.call_args.kwargs["until"] == WEEK["period_to"]
++    assert repo.count_completed_tasks.call_args.kwargs["since"] == WEEK["period_from"]
++    assert repo.count_completed_tasks.call_args.kwargs["until"] == WEEK["period_to"]
+ 
+ 
+ def test_decision_log_counts_only_decisions_without_period():
+     """결정사항 대장에 기간을 걸면 '지난주에 정한 것만' 이 되어 대장이 아니게 된다."""
+-    service, repo = _service(documents=12, decisions=5, schedules=3, amounts=2)
++    service, repo = _service(documents=12, decisions=5, schedules=3, amounts=2, tasks=7)
+     out = service.preview(1, kind="DECISION_LOG", **WEEK)
+ 
+     assert out.counts.decisions == 5
+     assert (out.counts.documents, out.counts.schedule_items,
+-            out.counts.amount_items) == (0, 0, 0)
++            out.counts.amount_items, out.counts.completed_tasks) == (0, 0, 0, 0)
+     # 기간을 무시한다 — 날짜를 줬어도 응답에 담기지 않는다.
+     assert out.period_from is None and out.period_to is None
+     # status 없이(=전부) 센다.
+@@ -74,23 +77,24 @@ def test_decision_log_counts_only_decisions_without_period():
+ 
+ def test_meeting_agenda_counts_only_open_decisions():
+     """리비전 0007 주석: status='PENDING' 인 항목이 그대로 다음 회의 안건이 된다."""
+-    service, repo = _service(decisions=5, open_decisions=2)
++    service, repo = _service(decisions=5, open_decisions=2, tasks=7)
+     out = service.preview(1, kind="MEETING_AGENDA")
+ 
+     # 전체 5건 중 미결 2건만 담긴다.
+     assert out.counts.decisions == 2
+     assert repo.count_decisions.call_args.kwargs["status"] == "PENDING"
+     assert (out.counts.documents, out.counts.schedule_items,
+-            out.counts.amount_items) == (0, 0, 0)
++            out.counts.amount_items, out.counts.completed_tasks) == (0, 0, 0, 0)
+ 
+ 
+ def test_project_status_counts_all_without_period():
+     """현황 한 장은 '현재 상태' 라 기간이 없다."""
+-    service, repo = _service(documents=12, decisions=5, schedules=3, amounts=2)
++    service, repo = _service(documents=12, decisions=5, schedules=3, amounts=2, tasks=7)
+     out = service.preview(1, kind="PROJECT_STATUS", **WEEK)
+-    assert out.counts.countable_total == 22
++    assert out.counts.countable_total == 29
+     assert out.period_from is None
+     assert repo.count_documents.call_args.kwargs["since"] is None
++    assert repo.count_completed_tasks.call_args.kwargs["since"] is None
+ 
+ 
+ # --- ② 대상이 없으면 생성이 막힌다 (완료 판정) ------------------------------
+@@ -168,22 +172,48 @@ def test_unknown_kind_is_rejected():
+         service.preview(1, kind="SOMETHING_ELSE")
+ 
+ 
+-# --- ④ 셀 수 없는 것을 0 으로 만들지 않는다 ---------------------------------
++# --- ④ 완료한 태스크를 센다 (리비전 0019 로 열린 재료) ----------------------
+ 
+ 
+-def test_completed_tasks_is_none_not_zero():
+-    """tasks 테이블이 없다. 0 으로 두면 '완료한 일이 없다' 로 잘못 읽힌다."""
+-    service, _ = _service(documents=5)
++def test_completed_tasks_is_counted_not_null():
++    """tasks 테이블이 생겼다. 더 이상 '셀 수 없다' 가 아니다."""
++    service, _ = _service(documents=5, tasks=4)
+     out = service.preview(1, kind="WEEKLY_REPORT", **WEEK)
+-    assert out.counts.completed_tasks is None
+-    assert "completed_tasks" in out.uncountable
++    assert out.counts.completed_tasks == 4
++    assert out.uncountable == []
+ 
+ 
+-def test_uncountable_is_reported_even_when_generatable():
+-    service, _ = _service(documents=5)
++def test_zero_completed_tasks_means_really_zero():
++    """0 은 '집계 전' 이 아니라 그 기간에 끝낸 일이 없다는 뜻이다."""
++    service, _ = _service(documents=5, tasks=0)
+     out = service.preview(1, kind="WEEKLY_REPORT", **WEEK)
++    assert out.counts.completed_tasks == 0
++    assert out.uncountable == []
++
++
++def test_completed_tasks_alone_allows_generation():
++    """명세가 주간 보고서 내용에 태스크를 넣으므로 태스크만 있어도 만들 수 있다."""
++    service, _ = _service(tasks=2)
++    out = service.preview(1, kind="WEEKLY_REPORT", **WEEK)
++    assert out.counts.countable_total == 2
+     assert out.can_generate is True
+-    assert out.uncountable == ["completed_tasks"]
++    assert out.blocked_reason is None
++
++
++def test_blocked_reason_mentions_tasks_for_weekly_report():
++    """막힌 이유가 세는 대상과 같아야 한다 — 태스크도 셌으므로 문장에 있어야 한다."""
++    service, _ = _service()
++    out = service.preview(1, kind="WEEKLY_REPORT", **WEEK)
++    assert "태스크" in out.blocked_reason
++
++
++def test_decision_kinds_do_not_count_tasks():
++    """결정사항 대장·회의 안건에는 태스크가 담기지 않는다."""
++    for kind in ("DECISION_LOG", "MEETING_AGENDA"):
++        service, repo = _service(decisions=3, open_decisions=1, tasks=9)
++        out = service.preview(1, kind=kind)
++        assert out.counts.completed_tasks == 0, kind
++        repo.count_completed_tasks.assert_not_called()
+ 
+ 
+ # --- ⑤ 승인 대기는 생성 가능 판정에 섞이지 않는다 ---------------------------
+@@ -193,7 +223,7 @@ def test_pending_does_not_count_toward_total():
+     """승인 대기만 있으면 보고서는 비어 있다. 담길 내용이 아니다."""
+     counts = PreviewCounts(
+         documents=0, decisions=0, schedule_items=0, amount_items=0,
+-        pending_suggestions=7,
++        completed_tasks=0, pending_suggestions=7,
+     )
+     assert counts.countable_total == 0
+ 
+@@ -207,9 +237,10 @@ def test_pending_is_shown_regardless_of_period():
+     repo.count_pending_suggestions.assert_called_once_with(1)
+ 
+ 
+-def test_countable_total_sums_four_kinds():
++def test_countable_total_sums_five_kinds():
++    """완료한 태스크까지 다섯을 더한다. 승인 대기는 아무리 많아도 더하지 않는다."""
+     counts = PreviewCounts(
+         documents=12, decisions=5, schedule_items=3, amount_items=2,
+-        pending_suggestions=99,
++        completed_tasks=7, pending_suggestions=99,
+     )
+-    assert counts.countable_total == 22
++    assert counts.countable_total == 29
+diff --git a/frontend/src/api/deliverable.js b/frontend/src/api/deliverable.js
+index 36fbc1c..7d02354 100644
+--- a/frontend/src/api/deliverable.js
++++ b/frontend/src/api/deliverable.js
+@@ -19,21 +19,21 @@ import { http } from './http'
+ // 응답: {
+ //   kind, period_from, period_to,
+ //   counts: {
+-//     documents, decisions, schedule_items, amount_items,   // 담기는 것
++//     documents, completed_tasks, decisions, schedule_items, amount_items,  // 담기는 것
+ //     pending_suggestions,      // 담기지 않는다. 처리해야 할 일이다
+-//     completed_tasks,          // null 이면 "아직 셀 수 없다" (0 건이 아니다)
+ //   },
+ //   can_generate,               // false 면 만들 수 없다
+ //   blocked_reason,             // 그 이유. 화면이 그대로 보여줄 수 있는 문장이다
+ //   needs_period,               // 이 유형이 기간을 쓰는가
+-//   uncountable: ['completed_tasks'],   // 셀 수 없는 재료의 이름
++//   uncountable: [],            // 셀 수 없는 재료의 이름. 지금은 비어 있다
+ // }
+ //
+-// ⚠️ completed_tasks 가 null 인 이유: 세려면 tasks 테이블이 필요한데 아직 없다
+-//   (TSK-001-1 태스크 CRUD 미구현). **화면에서 0 으로 바꾸지 말 것** — 사용자가
+-//   "이번 주에 완료한 일이 없다" 로 잘못 읽는다. 대시보드의 open_tasks 와 같은
+-//   규칙이다. 어느 항목이 그런지는 응답의 uncountable 이 알려주므로 화면이
+-//   필드 이름을 외우지 않아도 된다.
++// completed_tasks 는 이제 실제 건수다
++//   전에는 tasks 테이블이 없어 null 이었다. 리비전 0019 로 테이블이 생겨 세므로
++//   0 은 "집계 전" 이 아니라 그 기간에 끝낸 일이 없다는 뜻이다.
++//   **uncountable 처리는 지우지 않는다** — 다음에 또 못 세는 재료가 생기면
++//   서버가 그 이름을 담아 보내고 화면은 고치지 않아도 된다. 화면이 필드 이름을
++//   외우지 않게 하려고 둔 장치다.
+ //
+ // can_generate 를 화면이 계산하지 않는 이유
+ //   건수를 보고 화면이 스스로 판단하면 같은 규칙이 서버와 화면 두 곳에 생긴다.
+diff --git a/frontend/src/features/deliverables/DeliverablesView.css b/frontend/src/features/deliverables/DeliverablesView.css
+index 9b8a5b0..44de83b 100644
+--- a/frontend/src/features/deliverables/DeliverablesView.css
++++ b/frontend/src/features/deliverables/DeliverablesView.css
+@@ -45,7 +45,9 @@
+ 
+ /* 건수 카드. "담길 내용" 과 "담기지 않는 것" 을 나눠서, 승인 대기가 4건인데
+    못 만드는 상황이 모순처럼 보이지 않게 한다. */
+-.deliverable-count-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 18px; }
++/* 담길 내용은 다섯이다 — 문서·완료한 태스크·결정·일정·금액. 넷이던 때는
++   repeat(4) 였는데 그대로 두면 마지막 칸만 아래로 떨어져 짝이 안 맞아 보인다. */
++.deliverable-count-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 18px; }
+ .deliverable-count-grid--aside { grid-template-columns: repeat(2, 1fr); }
+ .deliverable-group-heading { grid-column: 1 / -1; margin: 0; color: #65748a; font-size: 13px; font-weight: 750; }
+ 
+diff --git a/frontend/src/features/deliverables/DeliverablesView.jsx b/frontend/src/features/deliverables/DeliverablesView.jsx
+index b808027..09a4a86 100644
+--- a/frontend/src/features/deliverables/DeliverablesView.jsx
++++ b/frontend/src/features/deliverables/DeliverablesView.jsx
+@@ -61,9 +61,16 @@ const FORMATS = [
+   ['PDF', 'PDF', '그대로 인쇄하고 공유'],
+ ]
+ 
+-// 산출물에 실제로 담기는 재료.
++// 산출물에 실제로 담기는 재료. 순서는 명세가 나열한 순서다 —
++// "문서·태스크·결정·기한·금액"(DLV-001-2).
++//
++// 완료한 태스크가 여기로 올라온 이유
++//   전에는 "담기지 않는 것" 에 있었다. tasks 테이블이 없어 셀 수 없었기 때문이다
++//   (응답이 null 이었다). 리비전 0019 로 테이블이 생겨 이제 실제로 세고, 주간
++//   보고서의 재료이므로 담길 내용에 둔다.
+ const CONTENT_COUNTS = [
+   ['documents', '문서'],
++  ['completed_tasks', '완료한 태스크'],
+   ['decisions', '결정사항'],
+   ['schedule_items', '일정'],
+   ['amount_items', '금액 항목'],
+@@ -73,7 +80,6 @@ const CONTENT_COUNTS = [
+ // 적지 않으면 "4건이 있는데 왜 못 만드나" 가 된다.
+ const ASIDE_COUNTS = [
+   ['pending_suggestions', '승인 대기', '승인하면 담깁니다'],
+-  ['completed_tasks', '완료한 태스크', null],
+ ]
+ 
+ /** Date 를 'YYYY-MM-DD' 로. toISOString() 을 쓰지 않는다 — 그것은 UTC 라서
+@@ -204,7 +210,7 @@ export default function DeliverablesView({ projectId, notify }) {
+ 
+ // 값이 null·undefined 면 '—' 를 보여준다. 0 과 구별하기 위한 것이다.
+ //   0    — 실제로 0건이다
+-//   —    — 아직 못 받았거나(로딩) 셀 수 없다(완료한 태스크)
++//   —    — 아직 못 받았거나(로딩) 셀 수 없다(응답의 uncountable 에 있는 재료)
+ // 둘을 같은 '—' 로 두되 **셀 수 없는 것에는 이유를 적는다.** 대시보드의
+ // SummaryCard 와 같은 규칙이다. 0 으로 바꾸면 사용자가 "없다" 로 잘못 읽는다.
+ function CountCard({ label, value, note, unknown }) {
