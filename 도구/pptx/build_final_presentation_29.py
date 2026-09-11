@@ -1597,7 +1597,16 @@ def reframe_slide(content: str, display_no: int, presenter: str) -> str:
 
 
 def first21_slides():
-    """22번 이후 파일을 건드리지 않고 새 발표 순서 1~21만 조립한다."""
+    """내가 만드는 장만 조립한다 — 1~20번과 22번이다.
+
+    **21번은 여기서 만들지 않는다.** 21번은 세현님이 만든 검색 모델 학습(하드
+    네거티브) 슬라이드이고, 원본 PNG 의 번호만 바꿔 교체용_PNG 에 넣었다.
+    따라서 이 함수의 결과에는 slide-21 이 없고 slide-22(재정렬 모델)가 들어온다.
+
+    발표 경계도 함께 바뀌었다 — 김보현이 21번까지 발표하고 22번부터 박세현이다.
+    그래서 22번 재정렬 모델의 발표자는 박세현으로 남고, 5번 팀 구성 슬라이드의
+    인계 문구는 `김보현 1~21 → 박세현 22번부터` 로 적는다.
+    """
     # (새 번호, 기존 콘텐츠 검수 키, 생성 함수, 발표자)
     items = [
         (1, 1, v2.slide1, "김보현"),
@@ -1620,7 +1629,8 @@ def first21_slides():
         (18, 16, slide16, "김보현"),
         (19, 17, slide17, "김보현"),
         (20, None, manual_slide20_embedding_selection, "김보현"),
-        (21, 12, slide12, "박세현"),
+        # 21번은 세현님 PNG(검색 모델 학습)로 대체됐다. 재정렬 모델이 22번으로 밀렸다.
+        (22, 12, slide12, "박세현"),
     ]
     slides = []
     for display_no, review_key, builder, presenter in items:
@@ -1631,18 +1641,23 @@ def first21_slides():
         if display_no == 5:
             marker = "기능 슬라이드마다 실제 담당자 표기"
             assert content.count(marker) == 1
-            content = content.replace(marker, "김보현 1~20  →  박세현 21번부터")
-        slides.append(reframe_slide(content, display_no, presenter))
+            content = content.replace(marker, "김보현 1~21  →  박세현 22번부터")
+        slides.append((display_no, reframe_slide(content, display_no, presenter)))
     assert len(slides) == 21
+    assert [no for no, _ in slides] == list(range(1, 21)) + [22]
     return slides
 
 
 def write_first21_svgs():
-    """slide-01~21과 전용 미리보기만 갱신한다. slide-22 이후는 읽거나 쓰지 않는다."""
+    """내가 만드는 장만 갱신한다 — slide-01~20 과 slide-22.
+
+    **slide-21 은 쓰지 않는다.** 세현님 PNG 를 번호만 바꿔 쓰는 장이라 여기서
+    만들면 서로 다른 21번이 생긴다. 23번 이후도 읽거나 쓰지 않는다.
+    """
     OUT.mkdir(parents=True, exist_ok=True)
     slides = first21_slides()
-    for idx, content in enumerate(slides, start=1):
-        path = OUT / f"slide-{idx:02d}.svg"
+    for display_no, content in slides:
+        path = OUT / f"slide-{display_no:02d}.svg"
         path.write_text(content, encoding="utf-8")
         ET.parse(path)
     parts = [
@@ -1650,11 +1665,11 @@ def write_first21_svgs():
         'body{margin:0;background:#dce4f1;font-family:Arial,sans-serif}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;padding:18px}.item{background:white;padding:6px;box-shadow:0 5px 18px #0e162f22}.item img{width:100%;display:block}.item b{display:block;padding:6px;color:#16234a}',
         '</style></head><body><div class="grid">',
     ]
-    for idx in range(1, 22):
-        parts.append(f'<div class="item"><b>{idx:02d}</b><img src="slide-{idx:02d}.svg"></div>')
+    for display_no, _ in slides:
+        parts.append(f'<div class="item"><b>{display_no:02d}</b><img src="slide-{display_no:02d}.svg"></div>')
     parts.append('</div></body></html>')
     (OUT / "preview-01-21.html").write_text("".join(parts), encoding="utf-8")
-    print(f"SVG slides written: {OUT} (1-21 only)")
+    print(f"SVG slides written: {OUT} (1-20, 22 · 21번은 세현님 PNG)")
 
 
 def all_slides():
