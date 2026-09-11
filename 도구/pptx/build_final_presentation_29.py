@@ -1004,7 +1004,7 @@ def slide26():
         y=330+i*120
         p.append(number_badge(1450,y,no,C["cyan"],dark=True));p.append(text(1530,y+24,h,20,700,"#FFFFFF"))
         if i<4:p.append(line(1481,y+45,1481,y+92,"#405787",3))
-    p.append(text(1450,950,"영상 재생 예상  3~4분",17,600,"#94A5C9"))
+    p.append(text(1450,950,"영상 재생  3분",17,600,"#94A5C9"))
     return finish(p)
 
 
@@ -1678,6 +1678,44 @@ def write_first21_svgs():
     print(f"SVG slides written: {OUT} (1-19, 21, 22 · 20번은 세현님 PNG)")
 
 
+def after31_slides():
+    """32번 이후 내가 만드는 마무리 장이다. 세현님 PNG 구간(20·23~31)은 건드리지 않는다.
+
+    세현님이 21~31번을 채우면서 **내가 만든 마무리 4장의 번호가 밀렸다.** 세현님은
+    자기 슬라이드만 번호를 바꿨으므로 이 4장은 여기서 다시 매긴다.
+
+      32  제품 시연 영상 (slide26 · 원래 25번)
+      33  현재 한계와 다음 단계 (slide27 · 원래 26번)
+      34  결론 (slide28 · 원래 27번)
+      35  Q&A (slide29 · 원래 28번)
+
+    `first21_slides()` 와 만드는 번호가 겹치지 않는다. 두 함수를 합치지 않은 이유는
+    발표자 경계가 다르고(여기는 전부 박세현·팀) 세현님 구간이 중간에 끼어 있어서다.
+    """
+    items = [
+        (32, 26, slide26, "박세현"),
+        (33, 27, slide27, "박세현"),
+        (34, 28, slide28, "박세현"),
+        (35, 29, slide29, "팀"),
+    ]
+    slides = []
+    for display_no, review_key, builder, presenter in items:
+        content = apply_content_review(review_key, builder())
+        slides.append((display_no, reframe_slide(content, display_no, presenter)))
+    assert [no for no, _ in slides] == [32, 33, 34, 35]
+    return slides
+
+
+def write_after31_svgs():
+    """slide-32~35 만 갱신한다. 31번 이하는 읽거나 쓰지 않는다."""
+    OUT.mkdir(parents=True, exist_ok=True)
+    for display_no, content in after31_slides():
+        path = OUT / f"slide-{display_no}.svg"
+        path.write_text(content, encoding="utf-8")
+        ET.parse(path)
+    print(f"SVG slides written: {OUT} (32-35 · 마무리 4장)")
+
+
 def all_slides():
     # review_key는 25번 삭제 전의 문구 검수 키다. 마지막 4장의 기존 검수 규칙을 보존한다.
     items = [
@@ -1781,9 +1819,10 @@ def package_pptx():
 
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('mode',choices=['svg','first21','pptx','all','manual','manual17','manual20','manual21'],nargs='?',default='svg');args=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('mode',choices=['svg','first21','after31','pptx','all','manual','manual17','manual20','manual21'],nargs='?',default='svg');args=parser.parse_args()
     if args.mode in {'svg','all'}:write_svgs()
     if args.mode == 'first21':write_first21_svgs()
+    if args.mode == 'after31':write_after31_svgs()
     if args.mode in {'pptx','all'}:package_pptx()
     if args.mode == 'manual':
         for slide_no in (17, 20, 21):write_manual_slide_svg(slide_no)
