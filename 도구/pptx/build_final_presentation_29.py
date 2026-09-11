@@ -1597,11 +1597,11 @@ def reframe_slide(content: str, display_no: int, presenter: str) -> str:
 
 
 def first21_slides():
-    """내가 만드는 장만 조립한다 — 1~20번과 22번이다.
+    """내가 만드는 장만 조립한다 — 1~19번과 21·22번이다.
 
-    **21번은 여기서 만들지 않는다.** 21번은 세현님이 만든 검색 모델 학습(하드
+    **20번은 여기서 만들지 않는다.** 20번은 세현님이 만든 검색 모델 학습(하드
     네거티브) 슬라이드이고, 원본 PNG 의 번호만 바꿔 교체용_PNG 에 넣었다.
-    따라서 이 함수의 결과에는 slide-21 이 없고 slide-22(재정렬 모델)가 들어온다.
+    따라서 이 함수의 결과에는 slide-20 이 없다.
 
     발표 경계도 함께 바뀌었다 — 김보현이 21번까지 발표하고 22번부터 박세현이다.
     그래서 22번 재정렬 모델의 발표자는 박세현으로 남고, 5번 팀 구성 슬라이드의
@@ -1630,9 +1630,11 @@ def first21_slides():
         (16, 15, slide15, "김보현"),
         (17, 16, slide16, "김보현"),
         (18, 17, slide17, "김보현"),
-        (19, 11, slide11, "김보현"),
-        (20, None, manual_slide20_embedding_selection, "김보현"),
-        # 21번은 세현님 PNG(검색 모델 학습)로 대체됐다. 재정렬 모델이 22번으로 밀렸다.
+        # 19~21 은 시간 순서다 — 모델을 고르고(19), 그 모델을 학습시키고(20),
+        # 학습된 모델의 후보 범위별 성능을 재서(21) 재정렬(22)로 넘긴다.
+        # 20번은 세현님 PNG(검색 모델 학습)라 여기서 만들지 않는다.
+        (19, None, manual_slide20_embedding_selection, "김보현"),
+        (21, 11, slide11, "김보현"),
         (22, 12, slide12, "박세현"),
     ]
     slides = []
@@ -1647,15 +1649,16 @@ def first21_slides():
             content = content.replace(marker, "김보현 1~21  →  박세현 22번부터")
         slides.append((display_no, reframe_slide(content, display_no, presenter)))
     assert len(slides) == 21
-    assert [no for no, _ in slides] == list(range(1, 21)) + [22]
+    # 20번이 빠진다 — 세현님 PNG 를 쓰는 장이다.
+    assert [no for no, _ in slides] == list(range(1, 20)) + [21, 22]
     return slides
 
 
 def write_first21_svgs():
-    """내가 만드는 장만 갱신한다 — slide-01~20 과 slide-22.
+    """내가 만드는 장만 갱신한다 — slide-01~19 와 slide-21·22.
 
-    **slide-21 은 쓰지 않는다.** 세현님 PNG 를 번호만 바꿔 쓰는 장이라 여기서
-    만들면 서로 다른 21번이 생긴다. 23번 이후도 읽거나 쓰지 않는다.
+    **slide-20 은 쓰지 않는다.** 세현님 PNG 를 번호만 바꿔 쓰는 장이라 여기서
+    만들면 서로 다른 20번이 생긴다. 23번 이후도 읽거나 쓰지 않는다.
     """
     OUT.mkdir(parents=True, exist_ok=True)
     slides = first21_slides()
@@ -1672,7 +1675,7 @@ def write_first21_svgs():
         parts.append(f'<div class="item"><b>{display_no:02d}</b><img src="slide-{display_no:02d}.svg"></div>')
     parts.append('</div></body></html>')
     (OUT / "preview-01-21.html").write_text("".join(parts), encoding="utf-8")
-    print(f"SVG slides written: {OUT} (1-20, 22 · 21번은 세현님 PNG)")
+    print(f"SVG slides written: {OUT} (1-19, 21, 22 · 20번은 세현님 PNG)")
 
 
 def all_slides():
